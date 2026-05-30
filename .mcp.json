@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "trellis-vcs": {
+      "command": "bun",
+      "args": ["run", "src/mcp/index.ts"],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,48 @@
+name: Proposal
+description: A larger architectural change or new module
+labels: ["proposal", "discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals are for non-trivial changes — new modules, breaking API shifts, architectural pivots. For smaller requests use **Feature request**. Pull requests are paused until the v4 API freeze, so this is the right way to land big ideas.
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem or opportunity prompts this proposal? Why now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: The shape of the change. Module name, API surface, behavior. Sketches and code blocks welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you weigh? Why are they worse?
+    validations:
+      required: true
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Tradeoffs and risks
+      description: Backward compatibility, performance, complexity, security. What does this make harder?
+    validations:
+      required: false
+
+  - type: textarea
+    id: alignment
+    attributes:
+      label: Alignment with roadmap
+      description: How does this map onto [the roadmap](../../docs/ROADMAP.md) and [pillars](../../docs/PILLARS.md)?
+    validations:
+      required: false

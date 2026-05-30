@@ -1,0 +1,14 @@
+@reference "./tailwind.css";
+
+[data-tippy-root] {
+  .tippy-box {
+    @apply rounded-md bg-popover px-2 py-1 text-popover-foreground shadow ring-1 ring-border;
+    .tippy-content {
+      @apply text-[13px];
+    }
+  }
+
+  .tippy-box[data-theme~="error"] {
+    @apply bg-destructive text-destructive-foreground ring-destructive;
+  }
+}

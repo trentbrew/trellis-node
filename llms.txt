@@ -1,0 +1,86 @@
+# Trellis
+
+> Trellis is a graph-native, code-first agentic state engine: an event-sourced causal graph with branching, decision traces, and realtime sync. It is the system of record for **decisions**, providing agents with durable, queryable, auditable memory.
+
+Trellis is published as a single npm package (`trellis`) with subpath exports for each module. The kernel runs locally and is fully useful without a hosted server. The codebase is written in TypeScript for the Bun runtime.
+
+## Core concepts
+
+- **Op**: an immutable, content-addressed, optionally Ed25519-signed event. Ops form a causal stream (`.trellis/ops.json`) that is never rewritten.
+- **Fact**: an entity-attribute-value triple derived from applying ops.
+- **Entity**: a node in the graph identified by a stable string id (e.g. `BlogPost:abc`).
+- **Milestone**: a human-curated narrative checkpoint spanning a range of ops. Replaces the `git commit` concept.
+- **Garden**: auto-detected abandoned work surfaced for revival.
+- **Decision trace**: a `vcs:decisionRecord` op capturing why an agent chose a particular tool call.
+
+## Primary documents
+
+- [README.md](README.md): quick start, install, status
+- [docs/THE-STORY.md](docs/THE-STORY.md): why Trellis exists, the agentic-state problem
+- [docs/PILLARS.md](docs/PILLARS.md): the five architectural pillars
+- [docs/DESIGN.md](docs/DESIGN.md): full architecture specification
+- [docs/ROADMAP.md](docs/ROADMAP.md): planned milestone sequence
+- [docs/AGENTS.md](docs/AGENTS.md): how to build agents on Trellis
+- [docs/CONTEXT-GRAPHS.md](docs/CONTEXT-GRAPHS.md): market thesis on agentic context
+- [docs/VISION.md](docs/VISION.md): local-first agentic OS framing
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): current package layout and target runtime shape
+
+## Subpath exports
+
+Import each module from `trellis/<path>`:
+
+- `trellis` — top-level engine, kernel, scaffold helpers
+- `trellis/core` — TrellisKernel (generic graph CRUD, no VCS dependency)
+- `trellis/vcs` — VCS engine, ops, types, semantic diff
+- `trellis/cms` — content-collections client SDK, formula evaluator, consumer scaffolder
+- `trellis/decisions` — decision trace recording, query, hook registry
+- `trellis/ai` — embeddings, chunker, vector store
+- `trellis/links` — wiki-link parsing and graph link resolution
+- `trellis/server` — HTTP+WS server, auth, permissions, multi-tenancy, realtime, deploy
+- `trellis/client` — typed client for the Trellis server
+- `trellis/react` — provider + hooks for React consumers
+- `trellis/db` — low-level EAV store APIs
+- `trellis/persist/better-sqlite` — better-sqlite3 backend
+- `trellis/persist/sqljs` — sql.js (browser) backend
+- `trellis/persist/factory` — backend factory
+
+## CLI
+
+`trellis` is also a CLI. Common commands:
+
+- `trellis init` — initialize a Trellis repo (creates `.trellis/`)
+- `trellis status` — show branch, op count, tracked files
+- `trellis log [--limit N]` — op history
+- `trellis milestone create -m "msg"` — narrative checkpoint
+- `trellis branch <name>` — create or switch branches
+- `trellis issue create -t "title" -P high` — create a tracked issue
+- `trellis garden list` — list abandoned work clusters
+- `trellis sdiff <old> <new>` — AST-level semantic diff
+- `trellis code` — start an agent harness session
+
+Full reference: see the [CLI guide on trellis.computer](https://trellis.computer/docs/cli).
+
+## Key differences from Git
+
+- No staging area. Ops are created automatically when files change.
+- Ops are immutable. No rebase, no `git reset --hard`.
+- Three op tiers: Tier 0 (file), Tier 1 (structural), Tier 2 (semantic/AST).
+- Milestones, not commits, are the narrative unit.
+- The garden surfaces abandoned work; nothing is silently lost.
+
+## Conventions when writing code with Trellis
+
+- Use single-word variable names (`pid`, `cfg`, `err`, `opts`, `dir`).
+- Prefer `const`. Use early returns instead of `else`.
+- Database fields are snake_case (Drizzle convention).
+- Never modify `.trellis/` directly; mutate via the kernel API.
+- Use `trellis issue start TRL-N` to start tracked work — auto-creates a branch and assigns the agent.
+
+## License
+
+AGPL-3.0-or-later. Commercial licensing available via `tbrew@turtle.tech`.
+
+## Optional context
+
+- [CHANGELOG.md](CHANGELOG.md): release notes
+- [docs/SCRATCH.md](docs/SCRATCH.md): design exploration and working notes

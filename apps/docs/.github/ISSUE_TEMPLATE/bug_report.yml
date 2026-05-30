@@ -1,0 +1,80 @@
+name: "🐞 Bug Report"
+description: Found something off in UI Thing? Drop the details so we can squash it.
+title: "[Bug]: "
+labels: ["bug"]
+assignees:
+  - baybreezy
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🐞 Bug Report
+
+        Thanks for taking the time to report a bug in **UI Thing**!  
+        Please fill out the sections below so we can reproduce and fix the issue faster.
+
+  - type: input
+    id: summary
+    attributes:
+      label: Short summary
+      description: Briefly describe the bug.
+      placeholder: e.g. "Sidebar does not open on mobile"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the bug?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+      placeholder: e.g. "The sidebar should open when I tap the menu icon"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened?
+      placeholder: e.g. "Nothing happens when I tap the menu icon"
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / code snippets
+      description: Add screenshots, videos, or code snippets that help explain the problem.
+      placeholder: Drag and drop images, paste links, or add code blocks here.
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Please share details about your setup.  
+        You can run `npx nuxi info` to help.
+      placeholder: e.g. "macOS 14, Chrome 120, Node 20, Nuxt 3.12"
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else we should know?
+      placeholder: e.g. "Only happens when dark mode is enabled"

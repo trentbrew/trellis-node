@@ -1,0 +1,61 @@
+name: Feature request
+description: Suggest a new capability or improvement
+labels: ["feature", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea. For larger architectural proposals, use the **Proposal** template instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation that motivated the request. The "why" matters more than the "what."
+      placeholder: When working with X, I find myself having to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Suggested solution
+      description: How might Trellis address it? Rough sketches are fine.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you weighed, and why they fall short.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Module scope
+      description: Which subpath does this most affect?
+      multiple: true
+      options:
+        - kernel / core
+        - vcs
+        - cms
+        - server
+        - client
+        - decisions
+        - sync
+        - garden
+        - mcp
+        - CLI
+        - cross-cutting
+        - unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Links to related issues, prior art in other systems, screenshots, anything else.

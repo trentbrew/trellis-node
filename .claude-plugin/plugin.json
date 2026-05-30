@@ -1,0 +1,7 @@
+{
+  "name": "trellis-skills",
+  "skills": [
+    "./skills/trellis-graph",
+    "./skills/trellis-vcs"
+  ]
+}

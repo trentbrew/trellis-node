@@ -1,0 +1,66 @@
+name: "✨ Feature Request"
+description: Got an idea to make UI Thing better? Share it with us.
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees:
+  - baybreezy
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ✨ Feature Request
+        Thanks for helping improve **UI Thing**.  
+        Tell us about your idea so we can make it happen.
+
+  - type: input
+    id: summary
+    attributes:
+      label: Short summary
+      description: Briefly describe the feature you'd like.
+      placeholder: e.g. "Add dark mode toggle to the navbar"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or need
+      description: What problem would this feature solve, or what need would it address?
+      placeholder: |
+        "When using the app at night, the bright interface is uncomfortable.
+        A dark mode toggle would help."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How do you imagine this feature working?
+      placeholder: |
+        "A button in the top-right corner to switch between light and dark themes."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you thought of any other approaches?
+      placeholder: |
+        "Could also auto-detect system dark mode, but a manual toggle is more flexible."
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups or references
+      description: Screenshots, links, or references to help explain your idea.
+      placeholder: Drag and drop images or paste links here.
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else we should know?
+      placeholder: Extra notes, inspiration, or related ideas.

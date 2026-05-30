@@ -1,0 +1,5 @@
+# Source-linked dependency (tracked by Git, but not by TrellisVCS)
+trellis-core
+
+# VS Code extension (separate build artifact)
+vscode-extension

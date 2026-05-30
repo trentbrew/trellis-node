@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trellis — System Visualizer</title>
+<meta name="description" content="Interactive system dashboard for exploring the Trellis semantic kernel">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+:root {
+  --bg: #09090b; --bg2: #0f1015; --surface: #15161b; --surface2: #1a1b22;
+  --border: #25262e; --border2: #32333d;
+  --text: #e4e4e7; --text2: #a1a1aa; --text3: #63637a;
+  --accent: #6d5bfa; --accent2: #8b7cf6; --accent-glow: rgba(109,91,250,0.15);
+  --green: #34d399; --yellow: #fbbf24; --red: #f87171; --cyan: #67e8f9;
+  --blue: #60a5fa; --purple: #a78bfa; --orange: #fb923c; --pink: #f472b6;
+  --radius: 8px; --radius-lg: 12px;
+  --font: 'Inter', -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --nav-w: 56px; --top-h: 48px;
+  --glass: rgba(21,22,27,0.75); --glass-border: rgba(255,255,255,0.04);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden;height:100vh;width:100vw}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ─── Top Bar ─── */
+#topbar{position:fixed;top:0;left:0;right:0;height:var(--top-h);background:var(--glass);backdrop-filter:blur(16px);border-bottom:1px solid var(--glass-border);display:flex;align-items:center;padding:0 16px;gap:16px;z-index:100}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--accent2);letter-spacing:-0.3px;white-space:nowrap}
+.logo svg{width:18px;height:18px}
+.logo span{color:var(--text3);font-weight:400;font-size:12px;margin-left:2px}
+.tabs{display:flex;gap:2px;margin-left:24px}
+.tab{background:none;border:none;color:var(--text3);font:500 12px var(--font);padding:6px 14px;border-radius:6px;cursor:pointer;transition:all .15s;letter-spacing:.2px}
+.tab:hover{color:var(--text2);background:var(--surface)}
+.tab.active{color:var(--accent2);background:var(--accent-glow)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.top-stats{font:400 11px var(--mono);color:var(--text3)}
+#cmd-trigger{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text3);font:400 11px var(--font);cursor:pointer;display:flex;align-items:center;gap:6px;transition:border-color .15s}
+#cmd-trigger:hover{border-color:var(--accent)}
+#cmd-trigger kbd{background:var(--bg);padding:1px 5px;border-radius:3px;font:500 10px var(--mono);color:var(--text3)}
+
+/* ─── Main Layout ─── */
+#app{position:fixed;top:var(--top-h);left:0;right:0;bottom:0;display:flex}
+#main{flex:1;overflow:hidden;position:relative}
+.panel{position:absolute;inset:0;display:none;overflow:auto}
+.panel.active{display:flex;flex-direction:column}
+
+/* ─── Detail Drawer ─── */
+#drawer{position:fixed;top:var(--top-h);right:0;bottom:0;width:340px;background:var(--glass);backdrop-filter:blur(20px);border-left:1px solid var(--glass-border);transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);z-index:80;overflow-y:auto;display:flex;flex-direction:column}
+#drawer.open{transform:translateX(0)}
+.drawer-head{position:sticky;top:0;background:var(--surface);padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;z-index:1}
+.drawer-head h3{font:600 13px var(--font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+.drawer-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px}
+.drawer-close:hover{color:var(--text);background:var(--surface2)}
+.drawer-body{padding:16px;flex:1}
+.d-section{margin-bottom:16px}
+.d-section h4{font:500 10px var(--font);text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:6px}
+.d-badge{display:inline-block;padding:2px 8px;border-radius:10px;font:500 10px var(--mono);margin-right:4px}
+.d-meta{font:400 12px var(--font);color:var(--text2);line-height:1.8}
+.d-meta strong{color:var(--text);font-weight:500}
+.d-kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font:400 11px var(--mono);color:var(--text2)}
+.d-kv .k{color:var(--text3)}
+.d-kv .v{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ─── Command Palette ─── */
+#cmd-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none;align-items:flex-start;justify-content:center;padding-top:15vh}
+#cmd-overlay.open{display:flex}
+#cmd-box{width:520px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden}
+#cmd-input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);padding:14px 16px;color:var(--text);font:400 14px var(--font);outline:none}
+#cmd-input::placeholder{color:var(--text3)}
+#cmd-results{max-height:320px;overflow-y:auto}
+.cmd-item{padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .1s}
+.cmd-item:hover,.cmd-item.selected{background:var(--accent-glow)}
+.cmd-item .ci-type{font:500 9px var(--mono);color:var(--text3);text-transform:uppercase;width:48px;flex-shrink:0}
+.cmd-item .ci-label{font:400 13px var(--font);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ─── Graph Panel ─── */
+#graph-panel svg{width:100%;height:100%}
+.graph-controls{position:absolute;bottom:16px;right:16px;display:flex;flex-direction:column;gap:4px}
+.graph-controls button{width:32px;height:32px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.graph-controls button:hover{background:var(--surface2);color:var(--text)}
+.graph-legend{position:absolute;bottom:16px;left:16px;display:flex;gap:12px;font:400 11px var(--font);color:var(--text3)}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:7px;height:7px;border-radius:50%}
+
+/* ─── Timeline Panel ─── */
+#timeline-panel{padding:0}
+.tl-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.tl-header h2{font:600 14px var(--font);color:var(--text)}
+.tl-header .tl-stats{font:400 11px var(--mono);color:var(--text3)}
+.tl-body{flex:1;overflow:auto;position:relative;padding:20px}
+.tl-body svg{min-width:100%}
+.tl-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:13px}
+
+/* ─── Store Panel ─── */
+#store-panel{padding:0}
+.store-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);flex:1;overflow:hidden}
+.store-col{background:var(--bg);overflow-y:auto;display:flex;flex-direction:column}
+.store-section{padding:14px 16px}
+.store-section h3{font:600 12px var(--font);color:var(--text2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;padding:0 16px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center}
+.stat-card .sv{font:700 20px var(--mono);color:var(--accent2)}
+.stat-card .sl{font:400 10px var(--font);color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.entity-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer;transition:background .1s;font-size:12px}
+.entity-row:hover{background:var(--surface)}
+.entity-row .et{font:500 10px var(--mono);color:var(--purple);width:70px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entity-row .ei{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.entity-row .ec{font:400 10px var(--mono);color:var(--text3);flex-shrink:0}
+.type-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:99px;font:500 10px var(--mono);color:var(--text2);cursor:pointer;transition:all .1s}
+.type-pill:hover,.type-pill.active{border-color:var(--accent);color:var(--accent2)}
+.type-pill .tc{color:var(--text3)}
+.catalog-table{width:100%;border-collapse:collapse;font:400 11px var(--mono)}
+.catalog-table th{text-align:left;color:var(--text3);font-weight:500;padding:4px 8px;border-bottom:1px solid var(--border)}
+.catalog-table td{padding:4px 8px;color:var(--text2);border-bottom:1px solid rgba(37,38,46,.5)}
+
+/* ─── System Panel ─── */
+#system-panel{padding:24px;gap:20px}
+.sys-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.sys-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;display:flex;flex-direction:column;gap:12px}
+.sys-card h3{font:600 12px var(--font);color:var(--text);display:flex;align-items:center;gap:8px}
+.sys-card h3 .icon{font-size:14px}
+.sys-row{display:flex;justify-content:space-between;align-items:center;font:400 12px var(--font)}
+.sys-row .label{color:var(--text3)}
+.sys-row .value{color:var(--text2);font-family:var(--mono);font-size:11px}
+.sys-badge{display:inline-block;padding:2px 8px;border-radius:99px;font:600 10px var(--mono)}
+.sys-badge.on{background:rgba(52,211,153,.12);color:var(--green)}
+.sys-badge.off{background:rgba(248,113,113,.1);color:var(--red)}
+.parser-tags{display:flex;flex-wrap:wrap;gap:4px}
+.parser-tag{padding:3px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font:400 10px var(--mono);color:var(--text2)}
+
+/* ─── Loading ─── */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:300;transition:opacity .3s}
+#loading.hidden{opacity:0;pointer-events:none}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── Tooltip ─── */
+.tooltip{position:fixed;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font:400 11px var(--font);color:var(--text);pointer-events:none;z-index:150;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div></div>
+
+<div id="topbar">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></svg>
+    Trellis <span>System Visualizer</span>
+  </div>
+  <div class="tabs" id="view-tabs">
+    <button class="tab active" data-panel="graph">Graph</button>
+    <button class="tab" data-panel="timeline">Timeline</button>
+    <button class="tab" data-panel="store">Store</button>
+    <button class="tab" data-panel="system">System</button>
+  </div>
+  <div class="top-right">
+    <div class="live-dot"></div>
+    <div class="top-stats" id="top-stats"></div>
+    <button id="cmd-trigger"><span>Search</span><kbd>⌘K</kbd></button>
+  </div>
+</div>
+
+<div id="app">
+  <div id="main">
+    <div id="graph-panel" class="panel active"></div>
+    <div id="timeline-panel" class="panel"></div>
+    <div id="store-panel" class="panel"></div>
+    <div id="system-panel" class="panel"></div>
+  </div>
+</div>
+
+<div id="drawer">
+  <div class="drawer-head"><h3 id="drawer-title"></h3><button class="drawer-close" id="drawer-close">&times;</button></div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
+
+<div id="cmd-overlay">
+  <div id="cmd-box">
+    <input id="cmd-input" type="text" placeholder="Search entities, ops, files…" autocomplete="off">
+    <div id="cmd-results"></div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+(async function(){
+  // ─── State ───
+  const S = { panel: 'graph', graph: null, timeline: null, store: null, system: null, cmdOpen: false, drawerOpen: false };
+  const $ = id => document.getElementById(id);
+  const TYPE_COLORS = { file:'#60a5fa', milestone:'#34d399', issue:'#fbbf24', branch:'#a78bfa', default:'#63637a' };
+  const TYPE_RADIUS = { file:4, milestone:8, issue:7, branch:6, default:4 };
+
+  // ─── Panel Switching ───
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.panel');
+  function switchPanel(name){
+    S.panel = name;
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.panel === name));
+    panels.forEach(p => p.classList.toggle('active', p.id === name+'-panel'));
+    if(name==='timeline' && !S.timeline) loadTimeline();
+    if(name==='store' && !S.store) loadStore();
+    if(name==='system' && !S.system) loadSystem();
+  }
+  tabs.forEach(t => t.addEventListener('click', () => switchPanel(t.dataset.panel)));
+
+  // ─── Drawer ───
+  const drawer = $('drawer'), drawerTitle = $('drawer-title'), drawerBody = $('drawer-body');
+  $('drawer-close').onclick = () => { drawer.classList.remove('open'); S.drawerOpen = false; };
+  function openDrawer(title, html){ drawerTitle.textContent = title; drawerBody.innerHTML = html; drawer.classList.add('open'); S.drawerOpen = true; }
+
+  // ─── Command Palette ───
+  const cmdOverlay = $('cmd-overlay'), cmdInput = $('cmd-input'), cmdResults = $('cmd-results');
+  let cmdItems = [];
+  function openCmd(){ cmdOverlay.classList.add('open'); cmdInput.value=''; cmdInput.focus(); renderCmdResults(''); S.cmdOpen=true; }
+  function closeCmd(){ cmdOverlay.classList.remove('open'); S.cmdOpen=false; }
+  $('cmd-trigger').onclick = openCmd;
+  cmdOverlay.addEventListener('click', e => { if(e.target===cmdOverlay) closeCmd(); });
+  cmdInput.addEventListener('input', () => renderCmdResults(cmdInput.value));
+  cmdInput.addEventListener('keydown', e => { if(e.key==='Escape') closeCmd(); });
+
+  function buildCmdItems(){
+    cmdItems = [];
+    if(S.graph){ S.graph.nodes.forEach(n => cmdItems.push({type:n.type, label:n.label, id:n.id})); }
+    ['graph','timeline','store','system'].forEach(p => cmdItems.push({type:'panel', label:'Go to '+p.charAt(0).toUpperCase()+p.slice(1), id:'panel:'+p}));
+  }
+  function renderCmdResults(q){
+    const query = q.toLowerCase();
+    let items = cmdItems;
+    if(query) items = items.filter(i => i.label.toLowerCase().includes(query) || i.type.includes(query));
+    items = items.slice(0,20);
+    cmdResults.innerHTML = items.map(i =>
+      `<div class="cmd-item" data-id="${i.id}" data-type="${i.type}"><span class="ci-type">${i.type}</span><span class="ci-label">${esc(i.label)}</span></div>`
+    ).join('');
+    cmdResults.querySelectorAll('.cmd-item').forEach(el => el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      if(id.startsWith('panel:')){ switchPanel(id.slice(6)); closeCmd(); return; }
+      closeCmd();
+      if(S.panel==='graph') focusGraphNode(id);
+      else loadNodeDetail(id);
+    }));
+  }
+  function esc(s){ return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ─── Keyboard ───
+  document.addEventListener('keydown', e => {
+    if((e.metaKey||e.ctrlKey) && e.key==='k'){ e.preventDefault(); openCmd(); }
+    if(e.key==='Escape'){ if(S.cmdOpen) closeCmd(); else { drawer.classList.remove('open'); S.drawerOpen=false; } }
+  });
+
+  // ─── Node Detail ───
+  async function loadNodeDetail(nodeId){
+    openDrawer(nodeId, '<div style="color:var(--text3)">Loading…</div>');
+    try{
+      const res = await fetch('/api/node/'+encodeURIComponent(nodeId));
+      const d = await res.json();
+      let h = `<div class="d-section"><span class="d-badge" style="background:${TYPE_COLORS[d.type]||TYPE_COLORS.default}22;color:${TYPE_COLORS[d.type]||TYPE_COLORS.default}">${d.type}</span></div>`;
+      if(d.type==='file'){
+        h += `<div class="d-section"><h4>Path</h4><div class="d-meta"><strong>${esc(d.path)}</strong></div></div>`;
+        if(d.contentHash) h += `<div class="d-section"><h4>Hash</h4><div style="font:11px var(--mono);color:var(--text3);word-break:break-all">${d.contentHash}</div></div>`;
+        if(d.recentOps?.length) { h += `<div class="d-section"><h4>Recent Ops</h4>`; d.recentOps.forEach(o => h += `<div style="font:11px var(--mono);color:var(--cyan)">${o.kind} <span style="color:var(--text3)">${ago(o.timestamp)}</span></div>`); h += '</div>'; }
+      } else if(d.type==='milestone'){
+        h += `<div class="d-section"><h4>Message</h4><div class="d-meta"><strong>${esc(d.message||'(none)')}</strong></div></div>`;
+        if(d.affectedFiles?.length) h += `<div class="d-section"><h4>Files (${d.affectedFiles.length})</h4><div class="d-meta">${d.affectedFiles.map(f=>'<div>'+esc(f)+'</div>').join('')}</div></div>`;
+      } else if(d.type==='issue'){
+        h += `<div class="d-section"><h4>Details</h4><div class="d-kv">`;
+        if(d.status) h+=`<span class="k">status</span><span class="v">${d.status}</span>`;
+        if(d.priority) h+=`<span class="k">priority</span><span class="v">${d.priority}</span>`;
+        if(d.assignee) h+=`<span class="k">assignee</span><span class="v">${d.assignee}</span>`;
+        h += '</div></div>';
+      } else if(d.type==='branch'){
+        h += `<div class="d-section"><h4>Branch</h4><div class="d-kv"><span class="k">name</span><span class="v">${esc(d.name||'')}</span></div></div>`;
+      }
+      drawerBody.innerHTML = h;
+    } catch{ drawerBody.innerHTML = '<div style="color:var(--red)">Failed to load</div>'; }
+  }
+  function ago(iso){ if(!iso) return ''; const d=Date.now()-new Date(iso).getTime(); if(d<60000) return 'now'; if(d<3600000) return Math.floor(d/60000)+'m'; if(d<86400000) return Math.floor(d/3600000)+'h'; return Math.floor(d/86400000)+'d'; }
+
+  // ─── Entity Detail (store) ───
+  async function loadEntityDetail(entityId){
+    openDrawer(entityId, '<div style="color:var(--text3)">Loading…</div>');
+    try{
+      const res = await fetch('/api/store/entity/'+encodeURIComponent(entityId));
+      const d = await res.json();
+      let h = `<div class="d-section"><span class="d-badge" style="background:var(--accent-glow);color:var(--accent2)">${esc(String(d.type))}</span></div>`;
+      h += '<div class="d-section"><h4>Facts</h4><div class="d-kv">';
+      d.facts.forEach(f => h += `<span class="k">${esc(f.a)}</span><span class="v">${esc(String(f.v))}</span>`);
+      h += '</div></div>';
+      if(d.links?.length){ h += '<div class="d-section"><h4>Links ('+d.links.length+')</h4>'; d.links.forEach(l => { h += `<div style="font:11px var(--mono);color:var(--text2)">${l.direction==='outgoing'?'→':'←'} <span style="color:var(--accent2)">${esc(l.a)}</span> ${esc(l.direction==='outgoing'?l.target:l.source)}</div>`; }); h+='</div>'; }
+      drawerBody.innerHTML = h;
+    } catch{ drawerBody.innerHTML = '<div style="color:var(--red)">Failed to load</div>'; }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  GRAPH PANEL
+  // ═══════════════════════════════════════════════════════════════════════════
+  let graphSim, graphZoom, graphSvg, graphG, graphNodes, graphLinks, graphLabels, graphNodeMap;
+
+  async function initGraph(){
+    try{ const r = await fetch('/api/graph'); S.graph = await r.json(); }
+    catch{ $('graph-panel').innerHTML='<div style="padding:40px;color:var(--red)">Failed to load graph</div>'; return; }
+    const { nodes, edges } = S.graph;
+    $('top-stats').textContent = nodes.length + ' nodes · ' + edges.length + ' edges';
+    buildCmdItems();
+
+    const container = $('graph-panel');
+    const w = container.clientWidth, h = container.clientHeight;
+
+    const svg = d3.select('#graph-panel').append('svg').attr('width', w).attr('height', h);
+    graphSvg = svg;
+    const g = svg.append('g');
+    graphG = g;
+    graphZoom = d3.zoom().scaleExtent([0.1,8]).on('zoom', e => g.attr('transform', e.transform));
+    svg.call(graphZoom);
+
+    const simLinks = edges.map(e => ({...e}));
+    const simNodes = nodes.map(n => ({...n}));
+    graphNodeMap = new Map(); simNodes.forEach(n => graphNodeMap.set(n.id, n));
+
+    graphSim = d3.forceSimulation(simNodes)
+      .force('link', d3.forceLink(simLinks).id(d=>d.id).distance(55).strength(0.3))
+      .force('charge', d3.forceManyBody().strength(-70).distanceMax(280))
+      .force('center', d3.forceCenter(w/2, h/2))
+      .force('collision', d3.forceCollide().radius(d=>(TYPE_RADIUS[d.type]||4)+2))
+      .force('x', d3.forceX(w/2).strength(0.03))
+      .force('y', d3.forceY(h/2).strength(0.03));
+
+    graphLinks = g.append('g').selectAll('line').data(simLinks).join('line')
+      .attr('stroke', d => d.type==='wikilink'?'#60a5fa33':d.type==='milestone_file'?'#34d39933':d.type==='issue_branch'?'#fbbf2433':'#25262e')
+      .attr('stroke-width', d => d.type==='wikilink'?1.2:0.7);
+
+    graphNodes = g.append('g').selectAll('circle').data(simNodes).join('circle')
+      .attr('r', d => TYPE_RADIUS[d.type]||4)
+      .attr('fill', d => TYPE_COLORS[d.type]||TYPE_COLORS.default)
+      .attr('cursor','pointer')
+      .call(d3.drag().on('start',(e,d)=>{if(!e.active)graphSim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y}).on('end',(e,d)=>{if(!e.active)graphSim.alphaTarget(0);d.fx=null;d.fy=null}));
+
+    graphLabels = g.append('g').selectAll('text').data(simNodes.filter(d=>d.type!=='file')).join('text')
+      .text(d => d.label.length>22?d.label.slice(0,22)+'…':d.label)
+      .attr('font-size',10).attr('fill',d=>TYPE_COLORS[d.type]||'#63637a').attr('dx',d=>(TYPE_RADIUS[d.type]||4)+4).attr('dy',3).attr('pointer-events','none').attr('opacity',.8).attr('font-family','Inter,sans-serif');
+
+    graphSim.on('tick', () => {
+      graphLinks.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+      graphNodes.attr('cx',d=>d.x).attr('cy',d=>d.y);
+      graphLabels.attr('x',d=>d.x).attr('y',d=>d.y);
+    });
+
+    // Tooltip
+    const tip = $('tooltip');
+    graphNodes.on('mouseover',(e,d)=>{tip.textContent=d.label;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-8)+'px'})
+      .on('mousemove',e=>{tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-8)+'px'})
+      .on('mouseout',()=>{tip.style.display='none'});
+
+    // Click → detail
+    graphNodes.on('click',(e,d)=>{e.stopPropagation();highlightGraphNode(d);loadNodeDetail(d.id)});
+    svg.on('click',()=>{clearGraphHighlight();drawer.classList.remove('open')});
+
+    // Legend
+    const legendHtml = Object.entries(TYPE_COLORS).filter(([k])=>k!=='default').map(([k,c])=>`<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${k}</div>`).join('');
+    const legendDiv = document.createElement('div'); legendDiv.className='graph-legend'; legendDiv.innerHTML=legendHtml; container.appendChild(legendDiv);
+
+    // Zoom controls
+    const ctrlDiv = document.createElement('div'); ctrlDiv.className='graph-controls';
+    ctrlDiv.innerHTML='<button id="gz-in">+</button><button id="gz-out">−</button><button id="gz-fit">⊙</button>';
+    container.appendChild(ctrlDiv);
+    $('gz-in').onclick=()=>svg.transition().duration(300).call(graphZoom.scaleBy,1.5);
+    $('gz-out').onclick=()=>svg.transition().duration(300).call(graphZoom.scaleBy,0.67);
+    $('gz-fit').onclick=()=>fitGraph();
+
+    graphSim.on('end', fitGraph);
+  }
+  function fitGraph(){ const b=graphG.node().getBBox();if(!b.width)return;const w=$('graph-panel').clientWidth,h=$('graph-panel').clientHeight,p=50;const s=Math.min((w-p*2)/b.width,(h-p*2)/b.height,2);graphSvg.transition().duration(600).call(graphZoom.transform,d3.zoomIdentity.translate(w/2,h/2).scale(s).translate(-b.x-b.width/2,-b.y-b.height/2)); }
+  function highlightGraphNode(d){ const c=new Set([d.id]);graphLinks.each(function(l){const s=typeof l.source==='object'?l.source.id:l.source;const t=typeof l.target==='object'?l.target.id:l.target;if(s===d.id)c.add(t);if(t===d.id)c.add(s)});graphNodes.attr('opacity',n=>c.has(n.id)?1:.12);graphLinks.attr('opacity',l=>{const s=typeof l.source==='object'?l.source.id:l.source;const t=typeof l.target==='object'?l.target.id:l.target;return(s===d.id||t===d.id)?1:.04});graphLabels.attr('opacity',n=>c.has(n.id)?1:.08); }
+  function clearGraphHighlight(){ graphNodes?.attr('opacity',1); graphLinks?.attr('opacity',1); graphLabels?.attr('opacity',.8); }
+  function focusGraphNode(id){ const n=graphNodeMap?.get(id);if(!n)return;highlightGraphNode(n);loadNodeDetail(id);graphSvg.transition().duration(500).call(graphZoom.translateTo,n.x,n.y); }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  TIMELINE PANEL
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function loadTimeline(){
+    const panel = $('timeline-panel');
+    panel.innerHTML = '<div class="tl-header"><h2>Causal Stream</h2><div class="tl-stats" id="tl-stats"></div></div><div class="tl-body" id="tl-body"></div>';
+    try{
+      const r = await fetch('/api/timeline'); S.timeline = await r.json();
+    } catch{ panel.innerHTML='<div class="tl-empty">Failed to load timeline</div>'; return; }
+    const { ops, milestones, checkpoints, totalOps } = S.timeline;
+    $('tl-stats').textContent = totalOps + ' ops · ' + milestones.length + ' milestones';
+    if(!ops.length){ $('tl-body').innerHTML='<div class="tl-empty">No operations yet</div>'; return; }
+    const body = $('tl-body');
+    const W = Math.max(body.clientWidth, ops.length*14+120), H = body.clientHeight-20;
+    const KIND_COLORS = {'vcs:fileAdd':TYPE_COLORS.file,'vcs:fileModify':'#38bdf8','vcs:fileDelete':TYPE_COLORS.issue,'vcs:fileRename':'#fb923c','vcs:branchCreate':TYPE_COLORS.branch,'vcs:branchDelete':'#f472b6','vcs:milestoneCreate':TYPE_COLORS.milestone,'vcs:checkpointCreate':'#6b7280'};
+    const svg = d3.select('#tl-body').append('svg').attr('width',W).attr('height',H);
+    const x = d3.scaleLinear().domain([0,ops.length-1||1]).range([40,W-40]);
+    const laneY = H/2;
+
+    // Main lane
+    svg.append('line').attr('x1',40).attr('y1',laneY).attr('x2',W-40).attr('y2',laneY).attr('stroke','#25262e').attr('stroke-width',1);
+
+    // Ops  
+    svg.selectAll('.op-dot').data(ops).join('circle').attr('class','op-dot')
+      .attr('cx',(_,i)=>x(i)).attr('cy',laneY).attr('r',3)
+      .attr('fill',d=>KIND_COLORS[d.kind]||'#63637a').attr('opacity',.7)
+      .attr('cursor','pointer')
+      .on('mouseover',function(e,d){const tip=$('tooltip');tip.innerHTML=`<strong>${d.kind}</strong> ${d.filePath||d.branchName||d.message||''}<br><span style="color:var(--text3)">${ago(d.timestamp)}</span>`;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-8)+'px';d3.select(this).attr('r',5).attr('opacity',1)})
+      .on('mouseout',function(){$('tooltip').style.display='none';d3.select(this).attr('r',3).attr('opacity',.7)})
+      .on('click',(e,d)=>{e.stopPropagation();openDrawer('Op: '+d.kind,`<div class="d-section"><div class="d-kv"><span class="k">kind</span><span class="v">${d.kind}</span><span class="k">hash</span><span class="v">${d.hash}</span><span class="k">time</span><span class="v">${d.timestamp||''}</span><span class="k">agent</span><span class="v">${d.agentId||''}</span>${d.filePath?'<span class="k">file</span><span class="v">'+esc(d.filePath)+'</span>':''}${d.branchName?'<span class="k">branch</span><span class="v">'+esc(d.branchName)+'</span>':''}</div></div>`)});
+
+    // Milestone markers
+    milestones.forEach(m=>{const mx=x(m.atOpIndex);svg.append('polygon').attr('points',`${mx},${laneY-18} ${mx+6},${laneY-10} ${mx},${laneY-2} ${mx-6},${laneY-10}`).attr('fill',TYPE_COLORS.milestone).attr('opacity',.85).attr('cursor','pointer')
+      .on('click',()=>openDrawer('Milestone',`<div class="d-section"><h4>Message</h4><div class="d-meta"><strong>${esc(m.message||'')}</strong></div></div><div class="d-section"><div class="d-kv"><span class="k">ID</span><span class="v">${m.id}</span><span class="k">at op</span><span class="v">#${m.atOpIndex}</span><span class="k">files</span><span class="v">${m.affectedFiles}</span></div></div>`));
+      svg.append('text').attr('x',mx).attr('y',laneY-22).attr('text-anchor','middle').attr('font-size',9).attr('fill',TYPE_COLORS.milestone).attr('font-family','Inter').text(m.message?.slice(0,20)||m.id)});
+
+    // Checkpoint ticks
+    checkpoints.forEach(c=>{const cx=x(c.atOpIndex);svg.append('line').attr('x1',cx).attr('y1',laneY+8).attr('x2',cx).attr('y2',laneY+18).attr('stroke','#6b7280').attr('stroke-width',1).attr('opacity',.5)});
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  STORE PANEL
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function loadStore(){
+    const panel = $('store-panel');
+    panel.innerHTML='<div style="padding:40px;color:var(--text3)">Loading store…</div>';
+    try{ const r=await fetch('/api/store'); S.store=await r.json(); } catch{ panel.innerHTML='<div style="padding:40px;color:var(--red)">Failed to load</div>'; return; }
+    const d=S.store;
+    let h='<div class="stat-grid"><div class="stat-card"><div class="sv">'+d.stats.totalFacts+'</div><div class="sl">Facts</div></div><div class="stat-card"><div class="sv">'+d.stats.totalLinks+'</div><div class="sl">Links</div></div><div class="stat-card"><div class="sv">'+d.stats.uniqueEntities+'</div><div class="sl">Entities</div></div><div class="stat-card"><div class="sv">'+d.stats.uniqueAttributes+'</div><div class="sl">Attributes</div></div></div>';
+    h+='<div class="store-grid"><div class="store-col"><div class="store-section"><h3>Entity Types</h3><div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">';
+    Object.entries(d.entityTypes).forEach(([t,c])=>h+=`<span class="type-pill" data-type="${esc(t)}">${esc(t)} <span class="tc">${c}</span></span>`);
+    h+='</div><div id="entity-list">';
+    d.entities.slice(0,200).forEach(e=>h+=`<div class="entity-row" data-eid="${esc(e.id)}"><span class="et">${esc(e.type)}</span><span class="ei">${esc(e.id)}</span><span class="ec">${e.factCount}f</span></div>`);
+    h+='</div></div></div><div class="store-col"><div class="store-section"><h3>Attribute Catalog</h3><table class="catalog-table"><thead><tr><th>Attribute</th><th>Type</th><th>Card</th><th>#</th></tr></thead><tbody>';
+    d.catalog.forEach(c=>h+=`<tr><td>${esc(c.attribute)}</td><td>${c.type}</td><td>${c.cardinality}</td><td>${c.distinctCount}</td></tr>`);
+    h+='</tbody></table></div></div></div>';
+    panel.innerHTML=h;
+
+    // Entity click → detail
+    panel.querySelectorAll('.entity-row').forEach(el=>el.addEventListener('click',()=>loadEntityDetail(el.dataset.eid)));
+    // Type filter
+    panel.querySelectorAll('.type-pill').forEach(el=>el.addEventListener('click',()=>{
+      const t=el.dataset.type; const active=el.classList.toggle('active');
+      panel.querySelectorAll('.type-pill').forEach(p=>{if(p!==el)p.classList.remove('active')});
+      panel.querySelectorAll('.entity-row').forEach(r=>{r.style.display=(!active||r.querySelector('.et').textContent===t)?'':'none'});
+    }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  SYSTEM PANEL
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function loadSystem(){
+    const panel=$('system-panel');
+    panel.innerHTML='<div style="color:var(--text3)">Loading…</div>';
+    try{ const r=await fetch('/api/system'); S.system=await r.json(); }catch{ panel.innerHTML='<div style="color:var(--red)">Failed to load</div>'; return; }
+    const d=S.system;
+    let h='<h2 style="font:600 16px var(--font);color:var(--text)">System Overview</h2><div class="sys-grid">';
+    // Engine card
+    h+=`<div class="sys-card"><h3><span class="icon">⚡</span>Engine</h3>
+      <div class="sys-row"><span class="label">Root</span><span class="value">${esc(d.engine.rootPath)}</span></div>
+      <div class="sys-row"><span class="label">Branch</span><span class="value">${esc(d.engine.branch)}</span></div>
+      <div class="sys-row"><span class="label">Total Ops</span><span class="value">${d.engine.totalOps}</span></div>
+      <div class="sys-row"><span class="label">Tracked Files</span><span class="value">${d.engine.trackedFiles}</span></div>
+      <div class="sys-row"><span class="label">Last Op</span><span class="value">${ago(d.engine.lastOpAt)}</span></div></div>`;
+    // Store card
+    h+=`<div class="sys-card"><h3><span class="icon">◆</span>EAV Store</h3>
+      <div class="sys-row"><span class="label">Facts</span><span class="value">${d.store.totalFacts}</span></div>
+      <div class="sys-row"><span class="label">Links</span><span class="value">${d.store.totalLinks}</span></div>
+      <div class="sys-row"><span class="label">Entities</span><span class="value">${d.store.uniqueEntities}</span></div>
+      <div class="sys-row"><span class="label">Attributes</span><span class="value">${d.store.uniqueAttributes}</span></div></div>`;
+    // Features card
+    h+=`<div class="sys-card"><h3><span class="icon">⊕</span>Features</h3>
+      <div class="sys-row"><span class="label">Embeddings</span><span class="sys-badge ${d.features.embeddings?'on':'off'}">${d.features.embeddings?'active':'off'}</span></div>
+      <div class="sys-row"><span class="label">Blob Store</span><span class="sys-badge ${d.features.blobStore?'on':'off'}">${d.features.blobStore?'active':'off'}</span></div></div>`;
+    // Parsers card
+    h+=`<div class="sys-card"><h3><span class="icon">⟨⟩</span>Parser Adapters</h3><div class="parser-tags">${d.parsers.map(p=>`<span class="parser-tag">${p}</span>`).join('')}</div></div>`;
+    h+='</div>';
+    panel.innerHTML=h;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  BOOT
+  // ═══════════════════════════════════════════════════════════════════════════
+  await initGraph();
+  $('loading').classList.add('hidden');
+})();
+</script>
+</body>
+</html>

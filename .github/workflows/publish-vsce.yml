@@ -1,0 +1,35 @@
+name: Publish VSCode Extension
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Only publish extension when tag starts with "ext-v"
+    if: startsWith(github.event.release.tag_name, 'ext-v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install extension dependencies
+        working-directory: vscode-extension
+        run: npm ci
+
+      - name: Compile extension
+        working-directory: vscode-extension
+        run: npx tsc -p ./
+
+      - name: Package VSIX
+        working-directory: vscode-extension
+        run: npx @vscode/vsce package
+
+      - name: Publish to Marketplace
+        working-directory: vscode-extension
+        run: npx @vscode/vsce publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}

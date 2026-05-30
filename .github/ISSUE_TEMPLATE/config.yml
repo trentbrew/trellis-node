@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/trentbrew/trellis/discussions
+    about: Questions, ideas, and design conversations that aren't yet a bug or feature request.
+  - name: Security disclosure
+    url: https://github.com/trentbrew/trellis/blob/main/SECURITY.md
+    about: Found a security vulnerability? Do not file a public issue. See SECURITY.md for the private disclosure process.
