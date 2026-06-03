@@ -2,17 +2,22 @@
  * Logic Middleware
  *
  * Evaluates computed fields (formula, rollup, ai_generated) after queries.
+ * Projects ontology relation fields from graph links.
  * Runs post-query to enrich EQL binding rows with computed values.
  */
 
 import type { Atom } from '../store/eav-store.js';
+import type { EAVStore } from '../store/eav-store.js';
 import type { QueryResult } from '../query/engine.js';
 import { evalExpr } from '../computation/expr-evaluator.js';
+import { evaluateRollup, projectRelationFields } from '../computation/rollup.js';
 import type { KernelMiddleware, MiddlewareContext } from './middleware.js';
 import type { SchemaDefinition } from '../ontology/types.js';
 
 export interface LogicMiddlewareConfig {
   ontologies: Map<string, SchemaDefinition>;
+  /** Graph store for rollups and relation projection. */
+  getStore?: () => EAVStore;
   /** Resolve entity type from id when bindings omit an explicit type. */
   getEntityType?: (entityId: string) => string | undefined;
   /** Optional AI function for ai_generated fields */
@@ -40,8 +45,9 @@ export function createLogicMiddleware(
       const result = next(query) as QueryResult | undefined;
 
       if (result && Array.isArray(result.bindings)) {
+        const store = resolveStore(config, ctx);
         for (const binding of result.bindings) {
-          enrichBinding(binding, config, ctx);
+          enrichBinding(binding, config, store);
         }
       }
 
@@ -50,10 +56,18 @@ export function createLogicMiddleware(
   };
 }
 
+function resolveStore(
+  config: LogicMiddlewareConfig,
+  ctx: MiddlewareContext,
+): EAVStore | undefined {
+  if (config.getStore) return config.getStore();
+  return ctx.store as EAVStore | undefined;
+}
+
 function enrichBinding(
   binding: Record<string, Atom>,
   config: LogicMiddlewareConfig,
-  ctx: MiddlewareContext,
+  store: EAVStore | undefined,
 ): void {
   const row = binding as Record<string, unknown>;
   const type = resolveEntityType(binding, config);
@@ -61,6 +75,11 @@ function enrichBinding(
 
   const schema = config.ontologies.get(type);
   if (!schema) return;
+
+  const entityId = findEntityId(binding);
+  if (store && entityId) {
+    projectRelationFields(binding, schema, store, entityId);
+  }
 
   for (const field of schema.fields) {
     if (!(field.computed || field.formula || field.rollup || field.aiGenerated))
@@ -73,8 +92,13 @@ function enrichBinding(
       binding[fieldName] = evalExpr(field.formula, row);
     }
 
-    if (field.rollup) {
-      binding[fieldName] = '';
+    if (field.rollup && store && entityId) {
+      binding[fieldName] = evaluateRollup(field.rollup, {
+        store,
+        entityId,
+        schema,
+        getEntityType: config.getEntityType,
+      });
     }
 
     if (field.aiGenerated && config.generateAiField) {
@@ -92,8 +116,6 @@ function enrichBinding(
         });
     }
   }
-
-  void ctx;
 }
 
 function resolveEntityType(

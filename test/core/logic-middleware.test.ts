@@ -135,4 +135,121 @@ describe('logic middleware — EQL formula enrichment', () => {
 
     expect(result.bindings[0]!.titleLength).toBe(6);
   });
+
+  test('enriches rollup count over graph links', async () => {
+    const ontology: SchemaDefinition = {
+      '@id': 'schema:Project',
+      '@type': 'trellis:Schema',
+      version: '1.0.0',
+      tier: 'user',
+      label: 'Project',
+      fields: [
+        { name: 'name', valueType: 'title' },
+        {
+          name: 'taskCount',
+          valueType: 'rollup',
+          rollup: {
+            relationProperty: 'tasks',
+            targetProperty: 'id',
+            aggregation: 'count',
+          },
+          computed: true,
+        },
+      ],
+    };
+
+    kernel.createOntology(ontology);
+    attachStandardMiddleware(kernel);
+
+    await kernel.createEntity('proj:1', 'Project', { name: 'Demo' });
+    await kernel.createEntity('task:1', 'Task', { name: 'A' });
+    await kernel.addLink('proj:1', 'tasks', 'task:1');
+
+    const result = await kernel.query({
+      select: ['e', 'name', 'taskCount'],
+      where: [
+        {
+          kind: 'fact',
+          entity: variable('e'),
+          attribute: literal('type'),
+          value: literal('Project'),
+        },
+        {
+          kind: 'fact',
+          entity: variable('e'),
+          attribute: literal('name'),
+          value: variable('name'),
+        },
+      ],
+      filters: [],
+      aggregates: [],
+      orderBy: [],
+      limit: 0,
+      offset: 0,
+    });
+
+    expect(result.bindings[0]!.taskCount).toBe(1);
+  });
+
+  test('enriches join-entity rollup', async () => {
+    const ontology: SchemaDefinition = {
+      '@id': 'schema:Framework',
+      '@type': 'trellis:Schema',
+      version: '1.0.0',
+      tier: 'user',
+      label: 'Framework',
+      fields: [
+        { name: 'title', valueType: 'title' },
+        {
+          name: 'tagCount',
+          valueType: 'rollup',
+          rollup: {
+            relationProperty: 'tags',
+            targetProperty: 'id',
+            aggregation: 'count',
+            joinEntity: { type: 'frameworkTag', foreignKey: 'frameworkId' },
+          },
+          computed: true,
+        },
+      ],
+    };
+
+    kernel.createOntology(ontology);
+    attachStandardMiddleware(kernel);
+
+    await kernel.createEntity('fw:1', 'Framework', { title: 'Svelte' });
+    await kernel.createEntity('ft:1', 'frameworkTag', {
+      frameworkId: 'fw:1',
+      tagId: 'tag:1',
+    });
+    await kernel.createEntity('ft:2', 'frameworkTag', {
+      frameworkId: 'fw:1',
+      tagId: 'tag:2',
+    });
+
+    const result = await kernel.query({
+      select: ['e', 'title', 'tagCount'],
+      where: [
+        {
+          kind: 'fact',
+          entity: variable('e'),
+          attribute: literal('type'),
+          value: literal('Framework'),
+        },
+        {
+          kind: 'fact',
+          entity: variable('e'),
+          attribute: literal('title'),
+          value: variable('title'),
+        },
+      ],
+      filters: [],
+      aggregates: [],
+      orderBy: [],
+      limit: 0,
+      offset: 0,
+    });
+
+    expect(result.bindings[0]!.tagCount).toBe(2);
+  });
 });

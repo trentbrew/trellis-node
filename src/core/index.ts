@@ -118,8 +118,14 @@ export type {
 } from './plugins/index.js';
 
 // Expression evaluation (ontology formula fields)
-export { ExprEvaluator, evalExpr } from './computation/index.js';
-export type { EvalContext } from './computation/index.js';
+export {
+  ExprEvaluator,
+  evalExpr,
+  evaluateRollup,
+  collectRollupRelatedIds,
+  projectRelationFields,
+} from './computation/index.js';
+export type { EvalContext, RollupEvalContext } from './computation/index.js';
 
 // Kernel middleware boot helpers
 export { attachStandardMiddleware, buildOntologyIndex } from './kernel/boot-middleware.js';
