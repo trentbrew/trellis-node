@@ -24,7 +24,6 @@
  */
 
 import { parseSimple } from '../core/query/index.js';
-import { QueryEngine } from '../core/query/engine.js';
 import type { TenantPool } from './tenancy.js';
 import type { AuthContext } from './auth.js';
 import type { PermissionRegistry } from './permissions.js';
@@ -185,10 +184,9 @@ export class SubscriptionManager {
     }
 
     const kernel = this.pool.get(tid);
-    const engine = new QueryEngine(kernel.getStore());
     let result: Record<string, unknown>[];
     try {
-      const qr = engine.execute(parsedQuery);
+      const qr = await kernel.query(parsedQuery);
       result = qr.bindings as Record<string, unknown>[];
     } catch (err: unknown) {
       this._send(client, {
@@ -219,12 +217,11 @@ export class SubscriptionManager {
 
   private async _pushUpdate(client: WsClient, sub: Subscription): Promise<void> {
     const kernel = this.pool.get(sub.tenantId);
-    const engine = new QueryEngine(kernel.getStore());
 
     let newResult: Record<string, unknown>[];
     try {
       const parsed = parseSimple(sub.query);
-      const qr = engine.execute(parsed);
+      const qr = await kernel.query(parsed);
       newResult = qr.bindings as Record<string, unknown>[];
     } catch {
       return;

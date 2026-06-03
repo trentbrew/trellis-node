@@ -266,13 +266,11 @@ export class TrellisDb {
     }
 
     const { parseSimple } = await import('../core/query/index.js');
-    const { QueryEngine } = await import('../core/query/engine.js');
     const pool = this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     const parsed = parseSimple(eql);
-    const engine = new QueryEngine(kernel.getStore());
-    return engine.execute(parsed);
+    return kernel.query(parsed);
   }
 
   // -------------------------------------------------------------------------

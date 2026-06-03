@@ -117,6 +117,15 @@ export type {
   WorkspaceConfig,
 } from './plugins/index.js';
 
+// Expression evaluation (ontology formula fields)
+export { ExprEvaluator, evalExpr } from './computation/index.js';
+export type { EvalContext } from './computation/index.js';
+
+// Kernel middleware boot helpers
+export { attachStandardMiddleware, buildOntologyIndex } from './kernel/boot-middleware.js';
+export { createLogicMiddleware } from './kernel/logic-middleware.js';
+export type { LogicMiddlewareConfig } from './kernel/logic-middleware.js';
+
 // TrellisKernel — generic graph kernel
 export { TrellisKernel } from './kernel/trellis-kernel.js';
 export type {

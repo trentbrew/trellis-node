@@ -32,6 +32,7 @@ import { embed } from '../embeddings/model.js';
 import { EmbeddingManager } from '../embeddings/search.js';
 import { importFromGit } from '../git/git-importer.js';
 import { exportToGit } from '../git/git-exporter.js';
+import { buildRepoExamples } from './examples.js';
 import {
   createIdentity,
   saveIdentity,
@@ -2151,7 +2152,11 @@ issueCmd
     engine.open();
 
     const lane = engine.findLaneForIssue(id);
-    if (lane && lane.status === 'active' && engine.getLaneOpCount(lane.id) > 0) {
+    if (
+      lane &&
+      lane.status === 'active' &&
+      engine.getLaneOpCount(lane.id) > 0
+    ) {
       console.log(
         chalk.yellow(
           `⚠ Lane ${lane.id} has unpromoted ops — promote before close when W3 lands (trellis lane promote)`,
@@ -2830,12 +2835,16 @@ program
 async function bootKernel(rootPath: string): Promise<TrellisKernel> {
   const dbPath = join(rootPath, '.trellis', 'kernel.db');
   const { createKernelBackend } = await import('../core/persist/factory.js');
+  const { attachStandardMiddleware } = await import(
+    '../core/kernel/boot-middleware.js'
+  );
   const backend = await createKernelBackend(dbPath);
   const kernel = new TrellisKernel({
     backend,
     agentId: `agent:${process.env.USER ?? 'unknown'}`,
   });
   kernel.boot();
+  attachStandardMiddleware(kernel);
   return kernel;
 }
 
@@ -3259,6 +3268,51 @@ linkCmd
       }
     } finally {
       kernel.close();
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// trellis examples
+// ---------------------------------------------------------------------------
+
+program
+  .command('examples')
+  .description('Print example CLI commands and EQL-S queries for this repo')
+  .option('-p, --path <path>', 'Repository path', '.')
+  .option('--json', 'Output as JSON')
+  .action(async (opts: any) => {
+    const rootPath = resolveRepoRoot(opts.path);
+
+    const engine = new TrellisVcsEngine({ rootPath });
+    engine.open();
+
+    const examples = buildRepoExamples({
+      issues: engine.listIssues(),
+      milestones: engine.listMilestones(),
+      branches: engine.listBranches(),
+      files: engine.trackedFiles(),
+    });
+
+    if (opts.json) {
+      console.log(JSON.stringify(examples, null, 2));
+      return;
+    }
+
+    console.log(chalk.bold('Example commands for this repo\n'));
+    for (const section of examples.sections) {
+      console.log(chalk.cyan(section.title));
+      for (const cmd of section.commands) {
+        console.log(`  ${chalk.dim('$')} ${cmd}`);
+      }
+      console.log();
+    }
+
+    console.log(chalk.cyan('EQL-S queries'));
+    console.log(
+      chalk.dim('  (requires kernel materialization — run after init)\n'),
+    );
+    for (const cmd of examples.eql) {
+      console.log(`  ${chalk.dim('$')} ${cmd}`);
     }
   });
 
@@ -4070,12 +4124,10 @@ db.command('deploy')
       console.log(chalk.dim(`  Key:    ${result.apiKey}`));
       console.log('');
       console.log(chalk.bold('SDK usage:'));
-      console.log(
-        chalk.cyan(`  import { TrellisClient } from 'trellis/client';`),
-      );
+      console.log(chalk.cyan(`  import { TrellisDb } from 'trellis/client';`));
       console.log(
         chalk.cyan(
-          `  const db = new TrellisClient({ url: '${result.url}', apiKey: '${result.apiKey}' });`,
+          `  const db = new TrellisDb({ url: '${result.url}', apiKey: '${result.apiKey}' });`,
         ),
       );
     } catch (err: any) {

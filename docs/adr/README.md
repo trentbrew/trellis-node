@@ -19,6 +19,7 @@ Desk issue: **TRL-35** (W0), **TRL-36** (W1). Plan: `TRELLIS/tooling/planning/ag
 | ADR | Title | Decision |
 | --- | ----- | -------- |
 | [0008](./0008-store-op-decomposition.md) | Store op decomposition | CMS facts materialize via `decompose()` for `vcs:storeAssert` / Retract / Link / Unlink |
+| [0009](./0009-kernel-formula-syntax.md) | Kernel vs CMS formula syntax | Kernel `$fn` via `ExprEvaluator`; CMS `{field}` stays client-side (TRL-20) |
 
 ## Terminology
 
