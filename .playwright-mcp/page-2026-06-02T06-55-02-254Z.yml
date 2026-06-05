@@ -1,0 +1,153 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]: Trellis Realtime
+    - heading "Multiplayer demos" [level=1] [ref=e6]
+    - paragraph [ref=e7]: Four primitives built on the Trellis realtime layer — ephemeral presence and broadcast that never touches the persisted causal log. Default mode runs in this page across simulated peers; live relay mode syncs real browser windows through the demo server.
+    - generic [ref=e8]:
+      - generic [ref=e9]: "Mode: live relay (WebSocket — all browsers)"
+      - generic [ref=e10] [cursor=pointer]: Switch to simulated ↩
+      - generic [ref=e11]:
+        - text: Live mode relays through
+        - code [ref=e12]: ws://…/rt
+        - text: (all browsers). Chat is a
+        - strong [ref=e13]: grow-only set keyed by message id
+        - text: ": each browser keeps its own replica (this tab's"
+        - code [ref=e14]: localStorage
+        - text: ) and the relay keeps another. They converge on reconnect — so a refresh restores instantly and even survives a relay restart on this browser. The shared document persists for the server session. Same origin everywhere (
+        - code [ref=e15]: localhost
+        - text: ", not"
+        - code [ref=e16]: 127.0.0.1
+        - text: ).
+      - button "Open peer in new tab ↗" [ref=e17] [cursor=pointer]
+  - navigation [ref=e18]:
+    - button "1 Active avatars" [ref=e19] [cursor=pointer]:
+      - generic [ref=e20]: "1"
+      - text: Active avatars
+    - button "2 Chat" [ref=e21] [cursor=pointer]:
+      - generic [ref=e22]: "2"
+      - text: Chat
+    - button "3 Live cursors" [ref=e23] [cursor=pointer]:
+      - generic [ref=e24]: "3"
+      - text: Live cursors
+    - button "4 Text editor" [ref=e25] [cursor=pointer]:
+      - generic [ref=e26]: "4"
+      - text: Text editor
+  - main [ref=e27]:
+    - generic [ref=e28]:
+      - heading "Chat with names & avatars" [level=2] [ref=e29]
+      - paragraph [ref=e30]: "Fire-and-forget broadcast on a `chat` channel. Identity (name, color, avatar) rides along on presence. Includes a live typing indicator."
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - generic [ref=e34]: CH
+        - generic [ref=e35]:
+          - generic [ref=e36]: Chrome (you)
+          - generic [ref=e37]: ed88ef9e-ebb5-4964-88f8-3d29e94f411e
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]: E1
+          - generic [ref=e41]:
+            - generic [ref=e42]: e1e82c53-29ae-4eb6-8f53-128c3013b5b8
+            - text: hi yall
+        - generic [ref=e43]:
+          - generic [ref=e44]: 1C
+          - generic [ref=e45]:
+            - generic [ref=e46]: 1c5e6d3c-aa28-4df5-b922-a793f47471e0
+            - text: whats goooooooooood
+        - generic [ref=e47]:
+          - generic [ref=e48]: A2
+          - generic [ref=e49]:
+            - generic [ref=e50]: a2b86ed7-07c7-48c7-83a8-a5c0682f30e7
+            - text: yall are booboo
+        - generic [ref=e51]:
+          - generic [ref=e52]: B7
+          - generic [ref=e53]:
+            - generic [ref=e54]: b79dff3b-c687-4e77-8bb2-b88cb321ed38
+            - text: ree
+        - generic [ref=e55]:
+          - generic [ref=e56]: B7
+          - generic [ref=e57]:
+            - generic [ref=e58]: b79dff3b-c687-4e77-8bb2-b88cb321ed38
+            - text: reeeeeeeeee
+        - generic [ref=e59]:
+          - generic [ref=e60]: "63"
+          - generic [ref=e61]:
+            - generic [ref=e62]: 63bb33bb-7b1f-4a10-8e77-64b9631fc8e2
+            - text: hi
+        - generic [ref=e63]:
+          - generic [ref=e64]: 1A
+          - generic [ref=e65]:
+            - generic [ref=e66]: 1a15800a-a647-4958-87fc-054ad471eff1
+            - text: greeeeeeeetings
+        - generic [ref=e67]:
+          - generic [ref=e68]: "20"
+          - generic [ref=e69]:
+            - generic [ref=e70]: 20723e19-6cd7-4f5c-aa06-f13d5c0f9ce7
+            - text: hey yall
+        - generic [ref=e71]:
+          - generic [ref=e72]: "95"
+          - generic [ref=e73]:
+            - generic [ref=e74]: 956ffd44-8a9f-4b79-8576-068131c3e66d
+            - text: hey yall
+        - generic [ref=e75]:
+          - generic [ref=e76]: 2F
+          - generic [ref=e77]:
+            - generic [ref=e78]: 2ff031db-fe26-4f9d-a9bd-2755f7551788
+            - text: ohai
+        - generic [ref=e79]:
+          - generic [ref=e80]: 9E
+          - generic [ref=e81]:
+            - generic [ref=e82]: 9e14349b-5e01-48bf-b845-d4af306093ce
+            - text: wazzzzzzzap
+        - generic [ref=e83]:
+          - generic [ref=e84]: "48"
+          - generic [ref=e85]:
+            - generic [ref=e86]: 487c4375-fdee-4ab9-ade1-952032214611
+            - text: hi there
+        - generic [ref=e87]:
+          - generic [ref=e88]: "48"
+          - generic [ref=e89]:
+            - generic [ref=e90]: 487c4375-fdee-4ab9-ade1-952032214611
+            - text: hi
+        - generic [ref=e91]:
+          - generic [ref=e92]: "95"
+          - generic [ref=e93]:
+            - generic [ref=e94]: 956ffd44-8a9f-4b79-8576-068131c3e66d
+            - text: weeeeeeee
+        - generic [ref=e95]:
+          - generic [ref=e96]: "68"
+          - generic [ref=e97]:
+            - generic [ref=e98]: 68ba4493-5660-4dfe-96a9-ec990bda9086
+            - text: oboy
+        - generic [ref=e99]:
+          - generic [ref=e100]: F0
+          - generic [ref=e101]:
+            - generic [ref=e102]: f0179820-f234-46df-8463-b7f1fdee5844
+            - text: its me
+        - generic [ref=e103]:
+          - generic [ref=e104]: F0
+          - generic [ref=e105]:
+            - generic [ref=e106]: f0179820-f234-46df-8463-b7f1fdee5844
+            - text: greetings
+        - generic [ref=e107]:
+          - generic [ref=e108]: A2
+          - generic [ref=e109]:
+            - generic [ref=e110]: a252b14d-e8d6-41f0-acc8-687a02d0072e
+            - text: whoa
+        - generic [ref=e111]:
+          - generic [ref=e112]: A2
+          - generic [ref=e113]:
+            - generic [ref=e114]: a252b14d-e8d6-41f0-acc8-687a02d0072e
+            - text: whoaaaaa
+        - generic [ref=e115]:
+          - generic [ref=e116]: A2
+          - generic [ref=e117]:
+            - generic [ref=e118]: a252b14d-e8d6-41f0-acc8-687a02d0072e
+            - text: wee
+        - generic [ref=e119]:
+          - generic [ref=e120]: CH
+          - generic [ref=e121]:
+            - generic [ref=e122]: Chrome
+            - text: persistence works after refresh
+      - generic [ref=e124]:
+        - textbox "Message…" [ref=e125]
+        - button "Send" [ref=e126] [cursor=pointer]

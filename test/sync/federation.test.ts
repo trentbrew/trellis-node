@@ -13,6 +13,7 @@ import {
   parseCrossRepoRef,
   formatCrossRepoRef,
 } from '../../src/sync/multi-repo.js';
+import { PROTOCOL_VERSION } from '../../src/sync/types.js';
 import { HttpSyncTransport, createSyncHandler } from '../../src/sync/http-transport.js';
 
 // ---------------------------------------------------------------------------
@@ -165,6 +166,7 @@ describe('HttpSyncTransport', () => {
     transport.onMessage((msg) => received.push(msg));
 
     transport.receiveMessage({
+      version: PROTOCOL_VERSION,
       type: 'have',
       peerId: 'peer-b',
       heads: { main: 'hash123' },
@@ -181,6 +183,7 @@ describe('HttpSyncTransport', () => {
     transport.onMessage(() => {});
 
     transport.receiveMessage({
+      version: PROTOCOL_VERSION,
       type: 'ack',
       peerId: 'peer-c',
       integrated: [],

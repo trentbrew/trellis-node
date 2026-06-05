@@ -12,10 +12,10 @@
  * @module trellis/db
  */
 
+import { TrellisDb } from '../client/index.js';
+
 // Client exports
 export {
-  TrellisDb,
-  TrellisClient,
   FetchError,
   readConfig,
   writeConfig,
@@ -25,6 +25,8 @@ export {
   defaultLocalConfig,
   CONFIG_FILE,
 } from '../client/index.js';
+export { TrellisDb };
+export { TrellisDb as TrellisClient };
 export type {
   EntityData,
   ListResult,

@@ -1,22 +1,20 @@
 export const SITE_NAME = "Trellis";
-export const SITE_TITLE = "Trellis — Local-First Agentic OS Runtime";
+export const SITE_TITLE = "Trellis Studio — Graph-native workspace for AI-assisted work";
 export const SITE_DESCRIPTION =
-  "Trellis is a local-first agentic OS runtime: an owned causal graph substrate for auditable agents, programmable views, peer sync, and machine-readable knowledge lifecycles.";
+  "Stop losing context between your AI and your code. Trellis Studio keeps code, agents, decisions, and history in one local-first graph. Run npx trellis studio.";
 export const SITE_LANG = "en";
 export const SITE_THEME_COLOR = "#0A0A0A";
 export const SITE_KEYWORDS = [
-  "causal graph",
+  "Trellis Studio",
+  "AI coding context",
+  "agent decision traces",
   "local-first",
-  "agentic OS",
-  "agent runtime",
-  "peer sync",
-  "Iroh",
-  "decision traces",
   "knowledge graph",
-  "causal stream",
-  "semantic patching",
-  "CRDT sync",
+  "graph-native workspace",
+  "causal graph",
   "developer tools",
+  "decision traces",
+  "semantic patching",
 ];
 export const SITE_URL = process.env.PUBLIC_URL || "https://trellis.computer";
 export const SITE_AUTHOR = "Trent Brew";

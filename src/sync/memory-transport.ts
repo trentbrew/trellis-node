@@ -2,10 +2,15 @@
  * In-Memory Sync Transport
  *
  * A simple in-memory transport for testing and local multi-engine sync.
- * Messages are delivered synchronously between connected peers.
+ * Messages are delivered in-process and await each peer handler.
  */
 
-import type { SyncTransport, SyncMessage, PeerId } from './types.js';
+import type {
+  SyncTransport,
+  SyncMessage,
+  SyncMessageHandler,
+  PeerId,
+} from './types.js';
 
 // ---------------------------------------------------------------------------
 // In-memory transport
@@ -14,7 +19,7 @@ import type { SyncTransport, SyncMessage, PeerId } from './types.js';
 export class MemoryTransport implements SyncTransport {
   private peerId: string;
   private peerName: string;
-  private handlers: ((message: SyncMessage) => void)[] = [];
+  private handlers: SyncMessageHandler[] = [];
   private connectedPeers: Map<string, MemoryTransport> = new Map();
 
   constructor(peerId: string, peerName: string = peerId) {
@@ -45,11 +50,11 @@ export class MemoryTransport implements SyncTransport {
     }
     // Deliver to peer's handlers
     for (const handler of peer.handlers) {
-      handler(message);
+      await handler(message);
     }
   }
 
-  onMessage(handler: (message: SyncMessage) => void): void {
+  onMessage(handler: SyncMessageHandler): void {
     this.handlers.push(handler);
   }
 

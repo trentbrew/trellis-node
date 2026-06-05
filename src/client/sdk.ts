@@ -102,6 +102,8 @@ export class TrellisDb {
   private opts: TrellisDbOptions;
   private _pool: TenantPool | null = null;
   private _ws: WebSocket | null = null;
+  /** In-flight connect — concurrent subscribe() shares one socket open. */
+  private _wsPromise: Promise<WebSocket> | null = null;
   private _subCallbacks: Map<string, SubscriptionCallback<any>> = new Map();
 
   constructor(opts: TrellisDbOptions) {
@@ -418,8 +420,10 @@ export class TrellisDb {
    * Close the WebSocket connection.
    */
   disconnect(): void {
-    this._ws?.close();
+    const ws = this._ws;
     this._ws = null;
+    this._wsPromise = null;
+    ws?.close();
   }
 
   /**
@@ -468,21 +472,32 @@ export class TrellisDb {
     return data;
   }
 
-  private async _ensureWs(): Promise<WebSocket> {
-    if (this._ws && this._ws.readyState === WebSocket.OPEN) return this._ws;
+  private _ensureWs(): Promise<WebSocket> {
+    if (this._ws?.readyState === WebSocket.OPEN) {
+      return Promise.resolve(this._ws);
+    }
+
+    if (this._wsPromise) {
+      return this._wsPromise;
+    }
 
     const opts = this.opts as TrellisDbRemoteOptions;
     const wsUrl =
       opts.url.replace(/^https?/, opts.url.startsWith('https') ? 'wss' : 'ws') +
       '/realtime';
 
-    return new Promise((resolve, reject) => {
+    this._wsPromise = new Promise<WebSocket>((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
+
       ws.onopen = () => {
         this._ws = ws;
         resolve(ws);
       };
-      ws.onerror = (e) => reject(e);
+
+      ws.onerror = (e) => {
+        reject(e instanceof Error ? e : new Error('WebSocket error'));
+      };
+
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data as string);
@@ -493,10 +508,18 @@ export class TrellisDb {
           /* ignore */
         }
       };
+
       ws.onclose = () => {
-        this._ws = null;
+        // Only drop the active ref if this socket is still the one we track.
+        if (this._ws === ws) {
+          this._ws = null;
+        }
       };
+    }).finally(() => {
+      this._wsPromise = null;
     });
+
+    return this._wsPromise;
   }
 }
 

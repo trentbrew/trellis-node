@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+
+@theme {
+	--font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+	--color-carbon-bg: #f4f4f4;
+	--color-carbon-layer: #ffffff;
+	--color-carbon-border: #e0e0e0;
+	--color-carbon-border-strong: #8d8d8d;
+	--color-carbon-text: #161616;
+	--color-carbon-text-secondary: #525252;
+	--color-carbon-text-helper: #6f6f6f;
+	--color-carbon-interactive: #0f62fe;
+	--color-carbon-interactive-hover: #0353e9;
+	--color-carbon-danger: #da1e28;
+	--color-carbon-danger-hover: #ba1b23;
+	--color-carbon-header: #161616;
+	--color-carbon-success: #24a148;
+	--color-carbon-warning-bg: #fcf4d6;
+	--color-carbon-warning-border: #f1c21b;
+	--color-carbon-warning-text: #8e6a00;
+}
+
+@layer base {
+	body {
+		@apply bg-carbon-bg font-sans text-carbon-text antialiased;
+	}
+
+	code {
+		@apply font-mono text-sm;
+	}
+}
+
+@layer components {
+	.carbon-input {
+		@apply h-8 min-w-0 flex-1 border border-carbon-border bg-carbon-layer px-3 text-sm text-carbon-text placeholder:text-carbon-text-helper focus:border-carbon-interactive focus:ring-1 focus:ring-carbon-interactive focus:outline-none;
+	}
+
+	.carbon-btn {
+		@apply inline-flex h-8 shrink-0 items-center justify-center gap-1.5 border px-4 text-sm font-normal transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+	}
+
+	.carbon-btn-primary {
+		@apply inline-flex h-8 shrink-0 items-center justify-center gap-1.5 border px-4 text-sm font-normal transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+		@apply border-carbon-interactive bg-carbon-interactive text-white hover:bg-carbon-interactive-hover;
+	}
+
+	.carbon-btn-secondary {
+		@apply inline-flex h-8 shrink-0 items-center justify-center gap-1.5 border px-4 text-sm font-normal transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+		@apply border-carbon-border-strong bg-carbon-layer text-carbon-text hover:bg-carbon-bg;
+	}
+
+	.carbon-btn-ghost {
+		@apply inline-flex h-8 shrink-0 items-center justify-center gap-1.5 border px-4 text-sm font-normal transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+		@apply border-transparent bg-transparent text-carbon-interactive hover:bg-carbon-bg;
+	}
+
+	.carbon-btn-danger {
+		@apply inline-flex h-8 shrink-0 items-center justify-center gap-1.5 border px-4 text-sm font-normal transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+		@apply border-carbon-danger text-carbon-danger hover:bg-carbon-danger hover:text-white;
+	}
+
+	.carbon-label {
+		@apply text-xs font-medium tracking-wide text-carbon-text-secondary uppercase;
+	}
+
+	.carbon-panel {
+		@apply border border-carbon-border bg-carbon-layer;
+	}
+
+	.carbon-section-title {
+		@apply text-lg font-normal text-carbon-text;
+	}
+
+	.carbon-select-trigger {
+		@apply inline-flex h-8 min-w-[12rem] items-center justify-between gap-2 border border-carbon-border bg-carbon-layer px-3 text-sm text-carbon-text focus:border-carbon-interactive focus:ring-1 focus:ring-carbon-interactive focus:outline-none;
+	}
+
+	.carbon-select-content {
+		@apply z-50 max-h-60 min-w-[var(--bits-select-anchor-width)] overflow-y-auto border border-carbon-border bg-carbon-layer py-1 shadow-lg;
+	}
+
+	.carbon-select-item {
+		@apply flex h-8 cursor-default items-center px-3 text-sm text-carbon-text outline-none data-disabled:opacity-50 data-highlighted:bg-carbon-bg;
+	}
+
+	.carbon-dialog-overlay {
+		@apply fixed inset-0 z-50 bg-carbon-text/40;
+	}
+
+	.carbon-dialog-content {
+		@apply fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-carbon-border bg-carbon-layer p-6 shadow-lg;
+	}
+
+	.carbon-toggle-group {
+		@apply inline-flex border border-carbon-border bg-carbon-layer;
+	}
+
+	.carbon-toggle-item {
+		@apply inline-flex h-8 items-center border-r border-carbon-border px-3 text-sm text-carbon-text-secondary last:border-r-0 hover:bg-carbon-bg data-[state=on]:bg-carbon-text data-[state=on]:text-white;
+	}
+
+	.carbon-tag-toggle {
+		@apply inline-flex h-6 items-center border px-2 text-xs text-carbon-text-secondary transition-colors hover:border-carbon-border-strong data-[state=on]:border-carbon-text data-[state=on]:bg-carbon-text data-[state=on]:text-white;
+	}
+
+	.carbon-slider-track {
+		@apply relative h-1 w-full bg-carbon-border;
+	}
+
+	.carbon-slider-range {
+		@apply absolute h-full bg-carbon-interactive;
+	}
+
+	.carbon-slider-thumb {
+		@apply block size-4 border border-carbon-interactive bg-carbon-layer shadow focus:ring-2 focus:ring-carbon-interactive focus:outline-none;
+	}
+}

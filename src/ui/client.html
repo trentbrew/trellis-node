@@ -80,14 +80,44 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hid
 .cmd-item .ci-type{font:500 9px var(--mono);color:var(--text3);text-transform:uppercase;width:48px;flex-shrink:0}
 .cmd-item .ci-label{font:400 13px var(--font);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* ─── Graph Panel ─── */
-#graph-panel svg{width:100%;height:100%}
-.graph-controls{position:absolute;bottom:16px;right:16px;display:flex;flex-direction:column;gap:4px}
-.graph-controls button{width:32px;height:32px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.graph-controls button:hover{background:var(--surface2);color:var(--text)}
-.graph-legend{position:absolute;bottom:16px;left:16px;display:flex;gap:12px;font:400 11px var(--font);color:var(--text3)}
-.legend-item{display:flex;align-items:center;gap:5px}
-.legend-dot{width:7px;height:7px;border-radius:50%}
+/* ─── Graph Panel (Studio GraphView parity) ─── */
+#graph-panel.panel.active{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.graph-layout{display:flex;flex:1;min-height:0;overflow:hidden}
+.graph-sidebar{width:200px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;overflow:hidden}
+.graph-sidebar-head{padding:10px 12px;border-bottom:1px solid var(--border);font:600 10px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--text3)}
+.graph-sidebar-meta{padding:8px 12px;font:400 11px var(--mono);color:var(--text3);border-bottom:1px solid var(--border)}
+.graph-filter-list{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:4px}
+.graph-type-pill{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text2);font:500 11px var(--font);cursor:pointer;text-align:left;transition:background .12s,border-color .12s,opacity .12s}
+.graph-type-pill:hover{background:var(--surface2)}
+.graph-type-pill.active{background:var(--accent-glow);border-color:rgba(109,91,250,.35);color:var(--text)}
+.graph-type-pill.dimmed{opacity:.35}
+.graph-type-pill .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.graph-type-pill .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.graph-type-pill .count{font:500 10px var(--mono);color:var(--text3)}
+.graph-canvas-wrap{position:relative;flex:1;min-width:0;min-height:0;background:var(--bg2)}
+.graph-canvas-wrap svg{width:100%;height:100%;display:block;touch-action:none}
+.graph-tooltip{position:absolute;pointer-events:none;z-index:20;display:none;padding:8px 10px;border-radius:8px;font:400 11px/1.4 var(--font);background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(8px);border:1px solid var(--border2);color:var(--text);box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:min(360px,90vw);opacity:0;transform:translateY(2px);transition:opacity 80ms ease-out,transform 80ms ease-out}
+.graph-tooltip.visible{display:block;opacity:1;transform:translateY(0)}
+.graph-tooltip .gt-type{font:600 9px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:2px}
+.graph-tooltip .gt-label{font-weight:500}
+.graph-minimap{position:absolute;left:12px;bottom:12px;z-index:15;border:1px solid var(--border);border-radius:6px;background:color-mix(in srgb,var(--surface) 90%,transparent);box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer;transition:opacity .18s}
+.graph-chrome{position:absolute;left:12px;bottom:144px;z-index:16;width:180px;border:1px solid var(--border);border-radius:8px;background:color-mix(in srgb,var(--surface) 90%,transparent);backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,.35);overflow:hidden;transition:opacity .18s}
+.graph-chrome.dimmed,.graph-minimap.dimmed{opacity:.12;pointer-events:none}
+.graph-chrome-head{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid var(--border);font:600 10px var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
+.graph-chrome-head button{background:none;border:none;color:var(--text3);font:500 10px var(--font);cursor:pointer;padding:2px 6px;border-radius:4px}
+.graph-chrome-head button:hover{color:var(--text);background:var(--surface2)}
+.graph-chrome-body{padding:6px 8px 8px;display:flex;flex-direction:column;gap:6px}
+.graph-chrome-body button{width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text2);font:500 11px var(--font);cursor:pointer}
+.graph-chrome-body button:hover{border-color:var(--accent);color:var(--accent2)}
+.graph-beacon{position:absolute;z-index:25;display:none;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border-radius:999px;border:1px solid var(--border2);background:color-mix(in srgb,var(--surface) 92%,transparent);color:var(--text);box-shadow:0 4px 16px rgba(0,0,0,.4);cursor:pointer;transform:translate(-50%,-50%);transition:opacity .12s}
+.graph-beacon.visible{display:flex}
+.graph-controls{position:absolute;bottom:12px;right:12px;z-index:14;display:flex;flex-direction:column;gap:4px}
+.graph-controls button{width:32px;height:32px;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.graph-controls button:hover{background:var(--surface2);color:var(--text);border-color:var(--border2)}
+.graph-links line{stroke-linecap:round}
+.graph-edge-labels text{font-family:var(--font);pointer-events:none}
+@keyframes edgeFlow{to{stroke-dashoffset:-16}}
+.graph-links line.edge-flow{animation:edgeFlow .5s linear infinite}
 
 /* ─── Timeline Panel ─── */
 #timeline-panel{padding:0}
@@ -194,8 +224,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hid
   // ─── State ───
   const S = { panel: 'graph', graph: null, timeline: null, store: null, system: null, cmdOpen: false, drawerOpen: false };
   const $ = id => document.getElementById(id);
-  const TYPE_COLORS = { file:'#60a5fa', milestone:'#34d399', issue:'#fbbf24', branch:'#a78bfa', default:'#63637a' };
-  const TYPE_RADIUS = { file:4, milestone:8, issue:7, branch:6, default:4 };
+  // Aligned with turtlecode/ide entity-theme (GraphView)
+  const ENTITY_COLORS = { file:'#14b8a6', milestone:'#3b82f6', issue:'#e879f9', branch:'#fde047', default:'#94a3b8' };
+  const GRAPH_LABEL_MIN_ZOOM = 0.65;
+  const GRAPH_MINIMAP_W = 180, GRAPH_MINIMAP_H = 120, GRAPH_MINIMAP_PAD = 6;
+  const EDGE_LABELS = { milestone_file:'includes', issue_branch:'branch', wikilink:'wikilink', causal:'causal' };
+  function nodeRadius(d){ if(d.type==='issue')return 12; if(d.type==='milestone')return 11; if(d.type==='branch')return 8; if(d.type==='file')return 7; return 6; }
+  function nodeColor(d){ return ENTITY_COLORS[d.type]||ENTITY_COLORS.default; }
 
   // ─── Panel Switching ───
   const tabs = document.querySelectorAll('.tab');
@@ -260,7 +295,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hid
     try{
       const res = await fetch('/api/node/'+encodeURIComponent(nodeId));
       const d = await res.json();
-      let h = `<div class="d-section"><span class="d-badge" style="background:${TYPE_COLORS[d.type]||TYPE_COLORS.default}22;color:${TYPE_COLORS[d.type]||TYPE_COLORS.default}">${d.type}</span></div>`;
+      let h = `<div class="d-section"><span class="d-badge" style="background:${ENTITY_COLORS[d.type]||ENTITY_COLORS.default}22;color:${ENTITY_COLORS[d.type]||ENTITY_COLORS.default}">${d.type}</span></div>`;
       if(d.type==='file'){
         h += `<div class="d-section"><h4>Path</h4><div class="d-meta"><strong>${esc(d.path)}</strong></div></div>`;
         if(d.contentHash) h += `<div class="d-section"><h4>Hash</h4><div style="font:11px var(--mono);color:var(--text3);word-break:break-all">${d.contentHash}</div></div>`;
@@ -298,9 +333,120 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hid
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  GRAPH PANEL
+  //  GRAPH PANEL (Studio GraphView-style)
   // ═══════════════════════════════════════════════════════════════════════════
-  let graphSim, graphZoom, graphSvg, graphG, graphNodes, graphLinks, graphLabels, graphNodeMap;
+  let graphSim, graphZoom, graphSvg, graphG, graphNodeGroups, graphLinks, graphLabels, graphEdgeLabels, graphNodeMap;
+  let graphCanvasWrap, graphZoomState = { k: 1, x: 0, y: 0 }, graphActiveFilters = null, graphMinimap, graphMinimapCtx, graphBeacon;
+
+  function buildGraphSidebar(nodes){
+    const counts = {};
+    nodes.forEach(n => { counts[n.type] = (counts[n.type]||0)+1; });
+    const types = Object.keys(counts).sort();
+    graphActiveFilters = new Set(types);
+    const sidebar = document.createElement('aside');
+    sidebar.className = 'graph-sidebar';
+    sidebar.innerHTML = `<div class="graph-sidebar-head">Entity types</div><div class="graph-sidebar-meta" id="graph-sidebar-meta"></div><div class="graph-filter-list" id="graph-filter-list"></div>`;
+    const list = sidebar.querySelector('#graph-filter-list');
+    const meta = sidebar.querySelector('#graph-sidebar-meta');
+    function refreshMeta(visible){
+      meta.textContent = visible + ' / ' + nodes.length + ' nodes';
+    }
+    function applyFilters(){
+      const on = graphActiveFilters;
+      let visible = 0;
+      graphNodeGroups?.attr('display', n => { const show = on.has(n.type); if(show) visible++; return show ? null : 'none'; });
+      graphLinks?.attr('stroke-opacity', l => {
+        const sid = typeof l.source==='object'?l.source.id:l.source;
+        const tid = typeof l.target==='object'?l.target.id:l.target;
+        const st = graphNodeMap?.get(sid)?.type;
+        const tt = graphNodeMap?.get(tid)?.type;
+        return (st && tt && on.has(st) && on.has(tt)) ? 0.18 : 0.02;
+      });
+      list.querySelectorAll('.graph-type-pill').forEach(p => p.classList.toggle('dimmed', !on.has(p.dataset.type)));
+      refreshMeta(visible);
+    }
+    types.forEach(t => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'graph-type-pill active';
+      btn.dataset.type = t;
+      btn.innerHTML = `<span class="dot" style="background:${ENTITY_COLORS[t]||ENTITY_COLORS.default}"></span><span class="name">${t}</span><span class="count">${counts[t]}</span>`;
+      btn.onclick = () => {
+        if(on.has(t) && on.size>1) on.delete(t); else on.add(t);
+        btn.classList.toggle('active', on.has(t));
+        applyFilters();
+      };
+      list.append(btn);
+    });
+    refreshMeta(nodes.length);
+    return { sidebar, applyFilters };
+  }
+
+  function paintGraphMinimap(simNodes){
+    if(!graphMinimapCtx) return;
+    const MAP_W = GRAPH_MINIMAP_W, MAP_H = GRAPH_MINIMAP_H, PAD = GRAPH_MINIMAP_PAD;
+    const mctx = graphMinimapCtx;
+    const wrap = graphCanvasWrap;
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    const zoom = graphZoomState;
+    mctx.clearRect(0, 0, MAP_W, MAP_H);
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    simNodes.forEach(n => {
+      const x=n.x??0,y=n.y??0;
+      if(x<minX)minX=x; if(y<minY)minY=y; if(x>maxX)maxX=x; if(y>maxY)maxY=y;
+    });
+    const vx0=-zoom.x/zoom.k, vy0=-zoom.y/zoom.k, vx1=(w-zoom.x)/zoom.k, vy1=(h-zoom.y)/zoom.k;
+    minX=Math.min(minX,vx0); minY=Math.min(minY,vy0); maxX=Math.max(maxX,vx1); maxY=Math.max(maxY,vy1);
+    if(!Number.isFinite(minX)){ minX=0;minY=0;maxX=w;maxY=h; }
+    const dx=maxX-minX||1, dy=maxY-minY||1;
+    const scale=Math.min((MAP_W-PAD*2)/dx,(MAP_H-PAD*2)/dy);
+    const toMap=(x,y)=>[PAD+(x-minX)*scale,PAD+(y-minY)*scale];
+    mctx.globalAlpha=.75;
+    simNodes.forEach(n => {
+      if(graphActiveFilters && !graphActiveFilters.has(n.type)) return;
+      const [mx,my]=toMap(n.x??0,n.y??0);
+      mctx.fillStyle=nodeColor(n);
+      mctx.beginPath(); mctx.arc(mx,my,1.2,0,Math.PI*2); mctx.fill();
+    });
+    mctx.globalAlpha=1;
+    const [rx,ry]=toMap(vx0,vy0), rw=(vx1-vx0)*scale, rh=(vy1-vy0)*scale;
+    mctx.fillStyle='rgba(0,0,0,.45)';
+    const mask=new Path2D();
+    mask.rect(0,0,MAP_W,MAP_H); mask.rect(rx,ry,rw,rh);
+    mctx.fill(mask,'evenodd');
+    mctx.strokeStyle='rgba(255,255,255,.85)'; mctx.lineWidth=1;
+    mctx.strokeRect(rx+.5,ry+.5,rw-1,rh-1);
+    updateGraphBeacon(simNodes, w, h);
+  }
+
+  function updateGraphBeacon(simNodes, w, h){
+    if(!graphBeacon) return;
+    const zoom=graphZoomState;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity,cx=0,cy=0,n=0;
+    simNodes.forEach(nd => {
+      if(graphActiveFilters && !graphActiveFilters.has(nd.type)) return;
+      const x=nd.x??0,y=nd.y??0; cx+=x; cy+=y; n++;
+      if(x<minX)minX=x; if(y<minY)minY=y; if(x>maxX)maxX=x; if(y>maxY)maxY=y;
+    });
+    if(!n){ graphBeacon.classList.remove('visible'); return; }
+    cx/=n; cy/=n;
+    const vx0=-zoom.x/zoom.k, vy0=-zoom.y/zoom.k, vx1=(w-zoom.x)/zoom.k, vy1=(h-zoom.y)/zoom.k;
+    const offscreen = maxX<vx0||minX>vx1||maxY<vy0||minY>vy1;
+    if(!offscreen){ graphBeacon.classList.remove('visible'); return; }
+    const sx=cx*zoom.k+zoom.x, sy=cy*zoom.k+zoom.y;
+    const pad=56, hw=Math.max(24,w/2-pad), hh=Math.max(24,h/2-pad);
+    const dx=sx-w/2, dy=sy-h/2;
+    const sc=Math.min(Math.abs(hw/(dx||1e-6)),Math.abs(hh/(dy||1e-6)));
+    graphBeacon.style.left=(w/2+dx*sc)+'px';
+    graphBeacon.style.top=(h/2+dy*sc)+'px';
+    graphBeacon.classList.add('visible');
+  }
+
+  function updateLabelVisibility(){
+    const show = graphZoomState.k >= GRAPH_LABEL_MIN_ZOOM;
+    graphLabels?.attr('opacity', show ? 0.85 : 0);
+    graphEdgeLabels?.attr('opacity', show ? 0.35 : 0);
+  }
 
   async function initGraph(){
     try{ const r = await fetch('/api/graph'); S.graph = await r.json(); }
@@ -310,75 +456,217 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hid
     buildCmdItems();
 
     const container = $('graph-panel');
-    const w = container.clientWidth, h = container.clientHeight;
+    container.innerHTML = '';
+    const layout = document.createElement('div');
+    layout.className = 'graph-layout';
+    const { sidebar, applyFilters } = buildGraphSidebar(nodes);
+    graphCanvasWrap = document.createElement('div');
+    graphCanvasWrap.className = 'graph-canvas-wrap';
+    graphCanvasWrap.id = 'graph-canvas-wrap';
+    layout.append(sidebar, graphCanvasWrap);
+    container.append(layout);
 
-    const svg = d3.select('#graph-panel').append('svg').attr('width', w).attr('height', h);
+    const w = graphCanvasWrap.clientWidth || 800, h = graphCanvasWrap.clientHeight || 600;
+    const svg = d3.select(graphCanvasWrap).append('svg').attr('width', w).attr('height', h);
     graphSvg = svg;
     const g = svg.append('g');
     graphG = g;
-    graphZoom = d3.zoom().scaleExtent([0.1,8]).on('zoom', e => g.attr('transform', e.transform));
+    graphZoom = d3.zoom().scaleExtent([0.05, 4]).on('zoom', e => {
+      g.attr('transform', e.transform);
+      graphZoomState = { k: e.transform.k, x: e.transform.x, y: e.transform.y };
+      updateLabelVisibility();
+      paintGraphMinimap(simNodes);
+    });
     svg.call(graphZoom);
+    svg.on('click', () => { clearGraphHighlight(); drawer.classList.remove('open'); });
 
     const simLinks = edges.map(e => ({...e}));
     const simNodes = nodes.map(n => ({...n}));
     graphNodeMap = new Map(); simNodes.forEach(n => graphNodeMap.set(n.id, n));
 
+    const size = simNodes.length;
+    const dist = size > 800 ? 45 : size > 300 ? 60 : 90;
+    const charge = size > 800 ? -90 : size > 300 ? -130 : -220;
+
     graphSim = d3.forceSimulation(simNodes)
-      .force('link', d3.forceLink(simLinks).id(d=>d.id).distance(55).strength(0.3))
-      .force('charge', d3.forceManyBody().strength(-70).distanceMax(280))
+      .force('link', d3.forceLink(simLinks).id(d=>d.id).distance(dist).strength(0.35))
+      .force('charge', d3.forceManyBody().strength(charge).distanceMax(400))
       .force('center', d3.forceCenter(w/2, h/2))
-      .force('collision', d3.forceCollide().radius(d=>(TYPE_RADIUS[d.type]||4)+2))
-      .force('x', d3.forceX(w/2).strength(0.03))
-      .force('y', d3.forceY(h/2).strength(0.03));
+      .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 4))
+      .alphaDecay(0.04).alphaMin(0.02);
 
-    graphLinks = g.append('g').selectAll('line').data(simLinks).join('line')
-      .attr('stroke', d => d.type==='wikilink'?'#60a5fa33':d.type==='milestone_file'?'#34d39933':d.type==='issue_branch'?'#fbbf2433':'#25262e')
-      .attr('stroke-width', d => d.type==='wikilink'?1.2:0.7);
+    graphLinks = g.append('g').attr('class','graph-links').selectAll('line').data(simLinks).join('line')
+      .attr('stroke', 'var(--text3)')
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.18)
+      .attr('stroke-dasharray', d => d.type==='wikilink' ? '3,3' : null);
 
-    graphNodes = g.append('g').selectAll('circle').data(simNodes).join('circle')
-      .attr('r', d => TYPE_RADIUS[d.type]||4)
-      .attr('fill', d => TYPE_COLORS[d.type]||TYPE_COLORS.default)
-      .attr('cursor','pointer')
-      .call(d3.drag().on('start',(e,d)=>{if(!e.active)graphSim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y}).on('end',(e,d)=>{if(!e.active)graphSim.alphaTarget(0);d.fx=null;d.fy=null}));
+    graphEdgeLabels = g.append('g').attr('class','graph-edge-labels').selectAll('text').data(simLinks).join('text')
+      .text(d => EDGE_LABELS[d.type] || d.type)
+      .attr('font-size', 9).attr('font-weight', 500).attr('fill', 'var(--text2)')
+      .attr('stroke', 'var(--bg)').attr('stroke-width', 3).attr('paint-order', 'stroke')
+      .attr('text-anchor', 'middle').attr('dy', '0.35em').attr('opacity', 0);
 
-    graphLabels = g.append('g').selectAll('text').data(simNodes.filter(d=>d.type!=='file')).join('text')
-      .text(d => d.label.length>22?d.label.slice(0,22)+'…':d.label)
-      .attr('font-size',10).attr('fill',d=>TYPE_COLORS[d.type]||'#63637a').attr('dx',d=>(TYPE_RADIUS[d.type]||4)+4).attr('dy',3).attr('pointer-events','none').attr('opacity',.8).attr('font-family','Inter,sans-serif');
+    graphNodeGroups = g.append('g').attr('class','graph-nodes').selectAll('g').data(simNodes).join('g')
+      .attr('cursor', 'pointer')
+      .call(d3.drag().on('start',(e,d)=>{if(!e.active)graphSim.alphaTarget(.25).restart();d.fx=d.x;d.fy=d.y})
+        .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y})
+        .on('end',(e,d)=>{if(!e.active)graphSim.alphaTarget(0);d.fx=null;d.fy=null}));
+
+    graphNodeGroups.append('circle')
+      .attr('r', d => nodeRadius(d))
+      .attr('fill', d => nodeColor(d))
+      .attr('stroke', 'transparent').attr('stroke-width', 2);
+
+    graphLabels = graphNodeGroups.append('text')
+      .text(d => d.label.length > 24 ? d.label.slice(0, 24) + '…' : d.label)
+      .attr('font-size', 10).attr('fill', 'var(--text2)')
+      .attr('x', d => nodeRadius(d) + 5).attr('dy', 4)
+      .attr('pointer-events', 'none').attr('opacity', 0)
+      .attr('font-family', 'Inter,sans-serif');
+
+    const graphTip = document.createElement('div');
+    graphTip.className = 'graph-tooltip';
+    graphCanvasWrap.appendChild(graphTip);
+
+    graphNodeGroups.on('mouseenter', (e, d) => {
+      graphTip.innerHTML = `<div class="gt-type">${d.type}</div><div class="gt-label">${esc(d.label)}</div>`;
+      graphTip.classList.add('visible');
+      graphTip.style.left = (e.offsetX + 14) + 'px';
+      graphTip.style.top = (e.offsetY + 10) + 'px';
+      $('tooltip').style.display = 'none';
+    }).on('mousemove', (e) => {
+      graphTip.style.left = (e.offsetX + 14) + 'px';
+      graphTip.style.top = (e.offsetY + 10) + 'px';
+    }).on('mouseleave', () => graphTip.classList.remove('visible'))
+      .on('click', (e, d) => { e.stopPropagation(); highlightGraphNode(d); loadNodeDetail(d.id); });
 
     graphSim.on('tick', () => {
-      graphLinks.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
-      graphNodes.attr('cx',d=>d.x).attr('cy',d=>d.y);
-      graphLabels.attr('x',d=>d.x).attr('y',d=>d.y);
+      graphLinks
+        .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+      graphNodeGroups.attr('transform', d => `translate(${d.x},${d.y})`);
+      graphEdgeLabels
+        .attr('x', d => (d.source.x + d.target.x) / 2)
+        .attr('y', d => (d.source.y + d.target.y) / 2);
+      paintGraphMinimap(simNodes);
     });
 
-    // Tooltip
-    const tip = $('tooltip');
-    graphNodes.on('mouseover',(e,d)=>{tip.textContent=d.label;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-8)+'px'})
-      .on('mousemove',e=>{tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-8)+'px'})
-      .on('mouseout',()=>{tip.style.display='none'});
+    // Minimap
+    graphMinimap = document.createElement('canvas');
+    graphMinimap.className = 'graph-minimap';
+    graphMinimap.width = GRAPH_MINIMAP_W * (devicePixelRatio||1);
+    graphMinimap.height = GRAPH_MINIMAP_H * (devicePixelRatio||1);
+    graphMinimap.style.width = GRAPH_MINIMAP_W + 'px';
+    graphMinimap.style.height = GRAPH_MINIMAP_H + 'px';
+    graphMinimapCtx = graphMinimap.getContext('2d');
+    graphMinimapCtx.scale(devicePixelRatio||1, devicePixelRatio||1);
+    graphCanvasWrap.appendChild(graphMinimap);
 
-    // Click → detail
-    graphNodes.on('click',(e,d)=>{e.stopPropagation();highlightGraphNode(d);loadNodeDetail(d.id)});
-    svg.on('click',()=>{clearGraphHighlight();drawer.classList.remove('open')});
+    function panToWorld(wx, wy){
+      const k = graphZoomState.k;
+      svg.transition().duration(280).call(graphZoom.transform, d3.zoomIdentity.translate(w/2 - wx*k, h/2 - wy*k).scale(k));
+    }
+    function minimapPoint(evt){
+      const rect = graphMinimap.getBoundingClientRect();
+      const mx = evt.clientX - rect.left, my = evt.clientY - rect.top;
+      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      simNodes.forEach(n => { const x=n.x??0,y=n.y??0; if(x<minX)minX=x; if(y<minY)minY=y; if(x>maxX)maxX=x; if(y>maxY)maxY=y; });
+      const dx=maxX-minX||1, dy=maxY-minY||1;
+      const scale=Math.min((GRAPH_MINIMAP_W-GRAPH_MINIMAP_PAD*2)/dx,(GRAPH_MINIMAP_H-GRAPH_MINIMAP_PAD*2)/dy);
+      return [(mx-GRAPH_MINIMAP_PAD)/scale+minX, (my-GRAPH_MINIMAP_PAD)/scale+minY];
+    }
+    graphMinimap.addEventListener('mousedown', e => { e.preventDefault(); panToWorld(...minimapPoint(e)); });
+    graphMinimap.addEventListener('mousemove', e => { if(e.buttons===1) panToWorld(...minimapPoint(e)); });
 
-    // Legend
-    const legendHtml = Object.entries(TYPE_COLORS).filter(([k])=>k!=='default').map(([k,c])=>`<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${k}</div>`).join('');
-    const legendDiv = document.createElement('div'); legendDiv.className='graph-legend'; legendDiv.innerHTML=legendHtml; container.appendChild(legendDiv);
+    // Return-to-graph beacon
+    graphBeacon = document.createElement('button');
+    graphBeacon.type = 'button';
+    graphBeacon.className = 'graph-beacon';
+    graphBeacon.setAttribute('aria-label', 'Return to graph');
+    graphBeacon.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
+    graphBeacon.onclick = e => { e.stopPropagation(); fitGraph(); };
+    graphCanvasWrap.appendChild(graphBeacon);
 
-    // Zoom controls
-    const ctrlDiv = document.createElement('div'); ctrlDiv.className='graph-controls';
-    ctrlDiv.innerHTML='<button id="gz-in">+</button><button id="gz-out">−</button><button id="gz-fit">⊙</button>';
-    container.appendChild(ctrlDiv);
-    $('gz-in').onclick=()=>svg.transition().duration(300).call(graphZoom.scaleBy,1.5);
-    $('gz-out').onclick=()=>svg.transition().duration(300).call(graphZoom.scaleBy,0.67);
-    $('gz-fit').onclick=()=>fitGraph();
+    // Graph chrome (fit / reset)
+    const chrome = document.createElement('div');
+    chrome.className = 'graph-chrome';
+    chrome.innerHTML = '<div class="graph-chrome-head"><span>Graph</span><button type="button" id="graph-chrome-reset">Reset</button></div><div class="graph-chrome-body"><button type="button" id="graph-chrome-fit">Fit to view</button></div>';
+    graphCanvasWrap.appendChild(chrome);
+    chrome.querySelector('#graph-chrome-fit').onclick = () => fitGraph();
+    chrome.querySelector('#graph-chrome-reset').onclick = () => { simNodes.forEach(n => { n.fx=null; n.fy=null; }); graphSim.alpha(0.6).restart(); };
 
-    graphSim.on('end', fitGraph);
+    const ctrlDiv = document.createElement('div');
+    ctrlDiv.className = 'graph-controls';
+    ctrlDiv.innerHTML = '<button id="gz-in" title="Zoom in">+</button><button id="gz-out" title="Zoom out">−</button><button id="gz-fit" title="Fit">⊙</button>';
+    graphCanvasWrap.appendChild(ctrlDiv);
+    $('gz-in').onclick = () => svg.transition().duration(200).call(graphZoom.scaleBy, 1.4);
+    $('gz-out').onclick = () => svg.transition().duration(200).call(graphZoom.scaleBy, 0.72);
+    $('gz-fit').onclick = () => fitGraph();
+
+    applyFilters();
+    graphSim.on('end', () => { fitGraph(); updateLabelVisibility(); });
+
+    const onResize = () => {
+      const nw = graphCanvasWrap.clientWidth, nh = graphCanvasWrap.clientHeight;
+      svg.attr('width', nw).attr('height', nh);
+      graphSim.force('center', d3.forceCenter(nw/2, nh/2));
+      paintGraphMinimap(simNodes);
+    };
+    window.addEventListener('resize', onResize);
   }
-  function fitGraph(){ const b=graphG.node().getBBox();if(!b.width)return;const w=$('graph-panel').clientWidth,h=$('graph-panel').clientHeight,p=50;const s=Math.min((w-p*2)/b.width,(h-p*2)/b.height,2);graphSvg.transition().duration(600).call(graphZoom.transform,d3.zoomIdentity.translate(w/2,h/2).scale(s).translate(-b.x-b.width/2,-b.y-b.height/2)); }
-  function highlightGraphNode(d){ const c=new Set([d.id]);graphLinks.each(function(l){const s=typeof l.source==='object'?l.source.id:l.source;const t=typeof l.target==='object'?l.target.id:l.target;if(s===d.id)c.add(t);if(t===d.id)c.add(s)});graphNodes.attr('opacity',n=>c.has(n.id)?1:.12);graphLinks.attr('opacity',l=>{const s=typeof l.source==='object'?l.source.id:l.source;const t=typeof l.target==='object'?l.target.id:l.target;return(s===d.id||t===d.id)?1:.04});graphLabels.attr('opacity',n=>c.has(n.id)?1:.08); }
-  function clearGraphHighlight(){ graphNodes?.attr('opacity',1); graphLinks?.attr('opacity',1); graphLabels?.attr('opacity',.8); }
-  function focusGraphNode(id){ const n=graphNodeMap?.get(id);if(!n)return;highlightGraphNode(n);loadNodeDetail(id);graphSvg.transition().duration(500).call(graphZoom.translateTo,n.x,n.y); }
+
+  function fitGraph(){
+    if(!graphG?.node()) return;
+    const b = graphG.node().getBBox();
+    if(!b.width) return;
+    const w = graphCanvasWrap?.clientWidth || 800, h = graphCanvasWrap?.clientHeight || 600, p = 80;
+    const s = Math.min((w - p*2)/b.width, (h - p*2)/b.height, 2);
+    graphSvg.transition().duration(500).call(graphZoom.transform,
+      d3.zoomIdentity.translate(w/2, h/2).scale(s).translate(-b.x - b.width/2, -b.y - b.height/2));
+  }
+
+  function highlightGraphNode(d){
+    const c = new Set([d.id]);
+    graphLinks.each(function(l){
+      const s = typeof l.source==='object'?l.source.id:l.source;
+      const t = typeof l.target==='object'?l.target.id:l.target;
+      if(s===d.id) c.add(t); if(t===d.id) c.add(s);
+    });
+    graphNodeGroups.attr('opacity', n => c.has(n.id) ? 1 : 0.15);
+    graphNodeGroups.select('circle').attr('stroke', n => c.has(n.id) ? '#fff' : 'transparent').attr('stroke-width', n => c.has(n.id) ? 2.5 : 0);
+    graphLinks.each(function(l){
+      const s = typeof l.source==='object'?l.source.id:l.source;
+      const t = typeof l.target==='object'?l.target.id:l.target;
+      const on = (s===d.id||t===d.id);
+      d3.select(this).classed('edge-flow', on).attr('stroke-opacity', on ? 0.75 : 0.04);
+    });
+    graphLabels.attr('opacity', n => c.has(n.id) ? 1 : 0.1);
+    graphEdgeLabels.attr('opacity', l => {
+      const s = typeof l.source==='object'?l.source.id:l.source;
+      const t = typeof l.target==='object'?l.target.id:l.target;
+      return (s===d.id||t===d.id) && graphZoomState.k >= GRAPH_LABEL_MIN_ZOOM ? 0.9 : 0;
+    });
+  }
+
+  function clearGraphHighlight(){
+    graphNodeGroups?.attr('opacity', 1);
+    graphNodeGroups?.select('circle').attr('stroke', 'transparent');
+    graphLinks?.attr('stroke-opacity', 0.18).classed('edge-flow', false);
+    graphLabels?.attr('opacity', graphZoomState.k >= GRAPH_LABEL_MIN_ZOOM ? 0.85 : 0);
+    graphEdgeLabels?.attr('opacity', graphZoomState.k >= GRAPH_LABEL_MIN_ZOOM ? 0.35 : 0);
+  }
+
+  function focusGraphNode(id){
+    const n = graphNodeMap?.get(id);
+    if(!n) return;
+    switchPanel('graph');
+    highlightGraphNode(n);
+    loadNodeDetail(id);
+    const w = graphCanvasWrap?.clientWidth || 800, h = graphCanvasWrap?.clientHeight || 600;
+    graphSvg.transition().duration(450).call(graphZoom.transform,
+      d3.zoomIdentity.translate(w/2, h/2).scale(Math.max(graphZoomState.k, 1)).translate(-n.x, -n.y));
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  TIMELINE PANEL
@@ -394,7 +682,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hid
     if(!ops.length){ $('tl-body').innerHTML='<div class="tl-empty">No operations yet</div>'; return; }
     const body = $('tl-body');
     const W = Math.max(body.clientWidth, ops.length*14+120), H = body.clientHeight-20;
-    const KIND_COLORS = {'vcs:fileAdd':TYPE_COLORS.file,'vcs:fileModify':'#38bdf8','vcs:fileDelete':TYPE_COLORS.issue,'vcs:fileRename':'#fb923c','vcs:branchCreate':TYPE_COLORS.branch,'vcs:branchDelete':'#f472b6','vcs:milestoneCreate':TYPE_COLORS.milestone,'vcs:checkpointCreate':'#6b7280'};
+    const KIND_COLORS = {'vcs:fileAdd':ENTITY_COLORS.file,'vcs:fileModify':'#38bdf8','vcs:fileDelete':ENTITY_COLORS.issue,'vcs:fileRename':'#fb923c','vcs:branchCreate':ENTITY_COLORS.branch,'vcs:branchDelete':'#f472b6','vcs:milestoneCreate':ENTITY_COLORS.milestone,'vcs:checkpointCreate':'#6b7280'};
     const svg = d3.select('#tl-body').append('svg').attr('width',W).attr('height',H);
     const x = d3.scaleLinear().domain([0,ops.length-1||1]).range([40,W-40]);
     const laneY = H/2;
@@ -412,9 +700,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hid
       .on('click',(e,d)=>{e.stopPropagation();openDrawer('Op: '+d.kind,`<div class="d-section"><div class="d-kv"><span class="k">kind</span><span class="v">${d.kind}</span><span class="k">hash</span><span class="v">${d.hash}</span><span class="k">time</span><span class="v">${d.timestamp||''}</span><span class="k">agent</span><span class="v">${d.agentId||''}</span>${d.filePath?'<span class="k">file</span><span class="v">'+esc(d.filePath)+'</span>':''}${d.branchName?'<span class="k">branch</span><span class="v">'+esc(d.branchName)+'</span>':''}</div></div>`)});
 
     // Milestone markers
-    milestones.forEach(m=>{const mx=x(m.atOpIndex);svg.append('polygon').attr('points',`${mx},${laneY-18} ${mx+6},${laneY-10} ${mx},${laneY-2} ${mx-6},${laneY-10}`).attr('fill',TYPE_COLORS.milestone).attr('opacity',.85).attr('cursor','pointer')
+    milestones.forEach(m=>{const mx=x(m.atOpIndex);svg.append('polygon').attr('points',`${mx},${laneY-18} ${mx+6},${laneY-10} ${mx},${laneY-2} ${mx-6},${laneY-10}`).attr('fill',ENTITY_COLORS.milestone).attr('opacity',.85).attr('cursor','pointer')
       .on('click',()=>openDrawer('Milestone',`<div class="d-section"><h4>Message</h4><div class="d-meta"><strong>${esc(m.message||'')}</strong></div></div><div class="d-section"><div class="d-kv"><span class="k">ID</span><span class="v">${m.id}</span><span class="k">at op</span><span class="v">#${m.atOpIndex}</span><span class="k">files</span><span class="v">${m.affectedFiles}</span></div></div>`));
-      svg.append('text').attr('x',mx).attr('y',laneY-22).attr('text-anchor','middle').attr('font-size',9).attr('fill',TYPE_COLORS.milestone).attr('font-family','Inter').text(m.message?.slice(0,20)||m.id)});
+      svg.append('text').attr('x',mx).attr('y',laneY-22).attr('text-anchor','middle').attr('font-size',9).attr('fill',ENTITY_COLORS.milestone).attr('font-family','Inter').text(m.message?.slice(0,20)||m.id)});
 
     // Checkpoint ticks
     checkpoints.forEach(c=>{const cx=x(c.atOpIndex);svg.append('line').attr('x1',cx).attr('y1',laneY+8).attr('x2',cx).attr('y2',laneY+18).attr('stroke','#6b7280').attr('stroke-width',1).attr('opacity',.5)});

@@ -1,0 +1,10 @@
+
+ RUN  v2.1.9 /Users/trentbrew/TURTLE/Projects/TRELLIS/trellis-node
+
+ ✓ test/client/vcs-client.test.ts (7 tests) 208ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  18:17:36
+   Duration  1.61s (transform 400ms, setup 0ms, collect 582ms, tests 208ms, environment 0ms, prepare 105ms)
+

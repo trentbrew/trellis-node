@@ -7,6 +7,40 @@
 
 import type { VcsOp, VcsOpKind, VcsPayload } from './types.js';
 
+type VcsOpHashInput = Pick<
+  VcsOp,
+  'kind' | 'timestamp' | 'agentId' | 'previousHash' | 'vcs'
+>;
+
+/**
+ * Computes the content-addressed hash for a VCS op body.
+ */
+export async function hashVcsOp(op: VcsOpHashInput): Promise<string> {
+  // Hash covers the full op body except the hash field itself.
+  const content = JSON.stringify({
+    kind: op.kind,
+    timestamp: op.timestamp,
+    agentId: op.agentId,
+    previousHash: op.previousHash,
+    vcs: op.vcs,
+  });
+  const msgUint8 = new TextEncoder().encode(content);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  return `trellis:op:${hashHex}`;
+}
+
+/**
+ * Verifies that a VCS op's hash matches its immutable body.
+ */
+export async function verifyVcsOpHash(op: VcsOp): Promise<boolean> {
+  return op.hash === (await hashVcsOp(op));
+}
+
 /**
  * Creates a VcsOp with full metadata, hash, and causal chain link.
  */
@@ -26,18 +60,9 @@ export async function createVcsOp(
     vcs: params.vcs,
   };
 
-  // Hash covers the full op including VCS payload for content-addressability.
-  const content = JSON.stringify(opBase);
-  const msgUint8 = new TextEncoder().encode(content);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-
   return {
     ...opBase,
-    hash: `trellis:op:${hashHex}`,
+    hash: await hashVcsOp(opBase),
   };
 }
 

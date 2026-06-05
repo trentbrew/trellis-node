@@ -24,7 +24,7 @@ import type { Fact, Link } from './core/store/eav-store.js';
 import { FileWatcher, type ScanProgress } from './watcher/fs-watcher.js';
 import { Ingestion } from './watcher/ingestion.js';
 import { decompose } from './vcs/decompose.js';
-import { createVcsOp, isVcsOpKind } from './vcs/ops.js';
+import { createVcsOp, isVcsOpKind, verifyVcsOpHash } from './vcs/ops.js';
 import type { VcsOp, TrellisVcsConfig, FileChangeEvent } from './vcs/types.js';
 import { DEFAULT_CONFIG } from './vcs/types.js';
 import { BlobStore } from './vcs/blob-store.js';
@@ -57,6 +57,7 @@ import { writeAgentScaffold } from './scaffold/write.js';
 import type { ProjectContext } from './scaffold/infer.js';
 
 import { JsonOpLog, LaneOpLog } from './vcs/op-log.js';
+import type { OpLog } from './vcs/op-log.js';
 import * as laneMod from './vcs/lane.js';
 import type { LaneMeta } from './vcs/lane.js';
 import * as lanePromoteMod from './vcs/lane-promote.js';
@@ -166,10 +167,28 @@ const ISSUE_INTEGRATION_KINDS = new Set<string>([
   'vcs:issueUnblock',
 ]);
 
+export type IntegrateOpRejectReason =
+  | 'invalid-kind'
+  | 'hash-mismatch'
+  | 'missing-dependency'
+  | 'apply-failed';
+
+export interface IntegrateOpRejection {
+  op: VcsOp;
+  reason: IntegrateOpRejectReason;
+  message: string;
+}
+
+export interface IntegrateOpsResult {
+  applied: number;
+  skipped: number;
+  rejected: IntegrateOpRejection[];
+}
+
 export class TrellisVcsEngine {
   private config: TrellisVcsConfig;
   private store: EAVStore;
-  private opLog: JsonOpLog;
+  private opLog: OpLog;
   private watcher: FileWatcher | null = null;
   private ingestion: Ingestion | null = null;
   private agentId: string;
@@ -185,7 +204,20 @@ export class TrellisVcsEngine {
     materializeMod.emptyMaterializationStats();
 
   constructor(
-    opts: { rootPath: string; agentId?: string } & Partial<TrellisVcsConfig>,
+    opts: {
+      rootPath: string;
+      agentId?: string;
+      /**
+       * Optional custom op-log backend. Defaults to a filesystem-backed
+       * {@link JsonOpLog} at `<rootPath>/.trellis/ops.json`. Browser hosts
+       * can inject an {@link IdbOpLog} or other {@link OpLog} implementation.
+       *
+       * Callers that inject a non-filesystem backend are responsible for
+       * awaiting `opLog.load()` before passing it in if their backend's
+       * load is asynchronous.
+       */
+      opLog?: OpLog;
+    } & Partial<TrellisVcsConfig>,
   ) {
     // Merge default ignore patterns with .gitignore if present
     const gitignorePatterns = readIgnorePatterns(opts.rootPath);
@@ -205,9 +237,9 @@ export class TrellisVcsEngine {
     };
     this.agentId = opts.agentId ?? `agent:${process.env.USER ?? 'unknown'}`;
     this.store = new EAVStore();
-    this.opLog = new JsonOpLog(
-      join(this.config.rootPath, '.trellis', 'ops.json'),
-    );
+    this.opLog =
+      opts.opLog ??
+      new JsonOpLog(join(this.config.rootPath, '.trellis', 'ops.json'));
   }
 
   // -------------------------------------------------------------------------
@@ -457,6 +489,106 @@ export class TrellisVcsEngine {
    */
   getOps(): VcsOp[] {
     return this.opLog.readAll();
+  }
+
+  /**
+   * Integrate externally supplied ops exactly as received.
+   *
+   * This is the sync ingestion primitive: callers are responsible for
+   * exchanging, validating, and ordering ops before handing them to the
+   * engine. The engine dedupes by hash, materializes each new op, and avoids
+   * creating local branch-advance follow-up ops for remote history.
+   */
+  async integrateOps(
+    ops: VcsOp[],
+  ): Promise<IntegrateOpsResult> {
+    if (this.activeLaneId) {
+      throw new Error(
+        'integrateOps() requires integration mode; leave the active lane first.',
+      );
+    }
+
+    const known = new Set(this.opLog.readAll().map((op) => op.hash));
+    const pendingByHash = new Map<string, VcsOp>();
+    const rejected: IntegrateOpRejection[] = [];
+    let applied = 0;
+    let skipped = 0;
+
+    for (const op of ops) {
+      if (known.has(op.hash)) {
+        skipped++;
+        continue;
+      }
+
+      if (!isVcsOpKind(op.kind)) {
+        rejected.push({
+          op,
+          reason: 'invalid-kind',
+          message: `Rejected non-VCS op kind '${op.kind}'.`,
+        });
+        continue;
+      }
+
+      if (!(await verifyVcsOpHash(op))) {
+        rejected.push({
+          op,
+          reason: 'hash-mismatch',
+          message: `Rejected op with mismatched hash '${op.hash}'.`,
+        });
+        continue;
+      }
+
+      if (pendingByHash.has(op.hash)) {
+        skipped++;
+        continue;
+      }
+
+      pendingByHash.set(op.hash, op);
+    }
+
+    let pending = [...pendingByHash.values()];
+    while (pending.length > 0) {
+      const nextPending: VcsOp[] = [];
+      let progressed = false;
+
+      for (const op of pending) {
+        if (op.previousHash && !known.has(op.previousHash)) {
+          nextPending.push(op);
+          continue;
+        }
+
+        try {
+          await this.applyOp(op, { skipBranchAdvance: true });
+          known.add(op.hash);
+          applied++;
+          progressed = true;
+        } catch (err) {
+          rejected.push({
+            op,
+            reason: 'apply-failed',
+            message:
+              err instanceof Error
+                ? err.message
+                : `Failed to apply op '${op.hash}'.`,
+          });
+        }
+      }
+
+      if (!progressed) {
+        for (const op of nextPending) {
+          rejected.push({
+            op,
+            reason: 'missing-dependency',
+            message: `Missing previousHash '${op.previousHash}' for op '${op.hash}'.`,
+          });
+        }
+        break;
+      }
+
+      pending = nextPending;
+    }
+
+    return { applied, skipped, rejected };
   }
 
   /**
@@ -1275,15 +1407,7 @@ export class TrellisVcsEngine {
 
   async createIssue(
     title: string,
-    opts?: {
-      priority?: 'critical' | 'high' | 'medium' | 'low';
-      labels?: string[];
-      assignee?: string;
-      parentId?: string;
-      description?: string;
-      status?: 'backlog' | 'queue';
-      criteria?: Array<{ description: string; command?: string }>;
-    },
+    opts?: issueMod.IssueCreateOptions,
   ): Promise<VcsOp> {
     const op = await issueMod.createIssue(
       this._ctx(),
@@ -1325,7 +1449,12 @@ export class TrellisVcsEngine {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 40);
-    const branchName = `issue/${id}-${slug}`;
+    const issueIdSlug = id
+      .replace(/^issue:/, '')
+      .replace(/[^a-zA-Z0-9-]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 60);
+    const branchName = `issue/${issueIdSlug}-${slug}`;
 
     // Create the branch
     await this.createBranch(branchName);
@@ -1525,7 +1654,7 @@ export class TrellisVcsEngine {
     return join(this.config.rootPath, '.trellis');
   }
 
-  private getActiveJournal(): JsonOpLog | LaneOpLog {
+  private getActiveJournal(): OpLog {
     if (this.activeLaneId && this.activeLaneLog) {
       return this.activeLaneLog;
     }

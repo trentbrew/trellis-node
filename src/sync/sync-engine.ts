@@ -11,11 +11,43 @@ import type { VcsOp } from '../vcs/types.js';
 import type {
   SyncTransport,
   SyncMessage,
+  SyncNackMessage,
   SyncState,
   PeerId,
   BranchPolicy,
+  NackReason,
 } from './types.js';
+import {
+  PROTOCOL_VERSION,
+  MIN_SUPPORTED_VERSION,
+  MAX_SUPPORTED_VERSION,
+} from './types.js';
+import { DEFAULT_SNAPSHOT_MAX_OPS } from './room-core.js';
 import { reconcile, findForkPoint, type ReconcileResult } from './reconciler.js';
+
+// ---------------------------------------------------------------------------
+// Op-received result
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-op rejection returned by `onOpsReceived`. Translated into one or more
+ * `nack` messages on the wire, grouped by `reason`.
+ */
+export interface OpsReceivedRejection {
+  hash: string;
+  reason: NackReason;
+  details?: string;
+}
+
+/**
+ * Optional return value of `onOpsReceived`. When present, the engine uses it
+ * to send precise `nack` messages and to compute the `ack` set (incoming
+ * hashes minus rejected). When absent, all incoming ops are ack'd and no
+ * nack is sent — preserving the original SyncEngine semantics.
+ */
+export interface OpsReceivedResult {
+  rejections: OpsReceivedRejection[];
+}
 
 // ---------------------------------------------------------------------------
 // Sync Engine
@@ -26,20 +58,27 @@ export class SyncEngine {
   private state: SyncState;
   private transport: SyncTransport;
   private getLocalOps: () => VcsOp[];
-  private onOpsReceived: (ops: VcsOp[]) => void;
+  private onOpsReceived: (
+    ops: VcsOp[],
+  ) => void | OpsReceivedResult | Promise<void | OpsReceivedResult>;
+  private onNackReceived?: (nack: SyncNackMessage) => void | Promise<void>;
   private branchPolicy: BranchPolicy;
 
   constructor(opts: {
     localPeerId: string;
     transport: SyncTransport;
     getLocalOps: () => VcsOp[];
-    onOpsReceived: (ops: VcsOp[]) => void;
+    onOpsReceived: (
+      ops: VcsOp[],
+    ) => void | OpsReceivedResult | Promise<void | OpsReceivedResult>;
+    onNackReceived?: (nack: SyncNackMessage) => void | Promise<void>;
     branchPolicy?: BranchPolicy;
   }) {
     this.localPeerId = opts.localPeerId;
     this.transport = opts.transport;
     this.getLocalOps = opts.getLocalOps;
     this.onOpsReceived = opts.onOpsReceived;
+    this.onNackReceived = opts.onNackReceived;
     this.branchPolicy = opts.branchPolicy ?? { linear: true };
 
     this.state = {
@@ -69,6 +108,7 @@ export class SyncEngine {
     }
 
     await this.transport.send(peerId, {
+      version: PROTOCOL_VERSION,
       type: 'have',
       peerId: this.localPeerId,
       heads,
@@ -84,6 +124,7 @@ export class SyncEngine {
     const lastHash = ops.length > 0 ? ops[ops.length - 1].hash : undefined;
 
     await this.transport.send(peerId, {
+      version: PROTOCOL_VERSION,
       type: 'want',
       peerId: this.localPeerId,
       wantHashes: [],
@@ -92,14 +133,57 @@ export class SyncEngine {
   }
 
   /**
+   * Request the peer's complete op set and rely on hash dedupe during ingest.
+   */
+  async pullAllFrom(peerId: string): Promise<void> {
+    await this.transport.send(peerId, {
+      version: PROTOCOL_VERSION,
+      type: 'want',
+      peerId: this.localPeerId,
+      wantHashes: [],
+    });
+  }
+
+  /**
+   * Request a truncated tail snapshot from a room peer (late-joiner catch-up).
+   * The room replies with a `snapshot` message handled like `ops`.
+   */
+  async requestSnapshot(
+    peerId: string,
+    maxOps = DEFAULT_SNAPSHOT_MAX_OPS,
+  ): Promise<void> {
+    await this.transport.send(peerId, {
+      version: PROTOCOL_VERSION,
+      type: 'sync-snapshot',
+      peerId: this.localPeerId,
+      maxOps,
+    });
+  }
+
+  /**
    * Send all our ops to a peer (full push).
    */
   async sendOps(peerId: string, ops?: VcsOp[]): Promise<void> {
     const opsToSend = ops ?? this.getLocalOps();
+    await this.sendOpsMessage(peerId, opsToSend);
+  }
+
+  /**
+   * Internal: send an `ops` message and track outbound hashes in
+   * `pendingAcks` until the receiver acks or nacks them. All three sites
+   * that emit `ops` (sendOps, handleHave, handleWant) route through here so
+   * pendingAcks reflects every outbound op uniformly.
+   */
+  private async sendOpsMessage(peerId: string, ops: VcsOp[]): Promise<void> {
+    if (ops.length === 0) return;
+    for (const op of ops) {
+      this.state.pendingAcks.add(op.hash);
+    }
     await this.transport.send(peerId, {
+      version: PROTOCOL_VERSION,
       type: 'ops',
       peerId: this.localPeerId,
-      ops: opsToSend,
+      ops,
     });
   }
 
@@ -143,24 +227,67 @@ export class SyncEngine {
   // Message handling
   // -------------------------------------------------------------------------
 
-  private handleMessage(msg: SyncMessage): void {
+  private async handleMessage(msg: SyncMessage): Promise<void> {
+    // Protocol version gate. A message with an unsupported version is
+    // rejected with a `protocol-version` nack and not dispatched. The nack
+    // itself uses PROTOCOL_VERSION so a v2 sender can interpret our reply.
+    if (
+      typeof msg.version !== 'number' ||
+      msg.version < MIN_SUPPORTED_VERSION ||
+      msg.version > MAX_SUPPORTED_VERSION
+    ) {
+      await this.transport.send(msg.peerId, {
+        version: PROTOCOL_VERSION,
+        type: 'nack',
+        peerId: this.localPeerId,
+        refs: [],
+        reason: 'protocol-version',
+        details:
+          `Unsupported protocol version ${msg.version}; ` +
+          `supported range is ${MIN_SUPPORTED_VERSION}-${MAX_SUPPORTED_VERSION}.`,
+      });
+      return;
+    }
+
     switch (msg.type) {
       case 'have':
-        this.handleHave(msg);
+        await this.handleHave(msg);
         break;
       case 'want':
-        this.handleWant(msg);
+        await this.handleWant(msg);
         break;
       case 'ops':
-        this.handleOps(msg);
+        await this.handleOps(msg);
         break;
       case 'ack':
         this.handleAck(msg);
         break;
+      case 'nack':
+        await this.handleNack(msg);
+        break;
+      case 'snapshot':
+        await this.handleSnapshot(msg);
+        break;
+      case 'sync-snapshot':
+        break;
     }
   }
 
-  private handleHave(msg: Extract<SyncMessage, { type: 'have' }>): void {
+  private async handleSnapshot(
+    msg: Extract<SyncMessage, { type: 'snapshot' }>,
+  ): Promise<void> {
+    if (msg.ops.length === 0) return;
+    await this.handleOps({
+      version: msg.version,
+      type: 'ops',
+      peerId: msg.peerId,
+      ops: msg.ops,
+    });
+  }
+
+  private async handleHave(
+    msg: Extract<SyncMessage, { type: 'have' }>,
+  ): Promise<void> {
     // Store peer heads
     this.state.peerHeads.set(msg.peerId, msg.heads);
 
@@ -172,30 +299,44 @@ export class SyncEngine {
     for (const [, hash] of Object.entries(msg.heads)) {
       if (!localHashes.has(hash)) {
         // Peer is ahead — request their ops
-        this.transport.send(msg.peerId, {
+        const afterHash =
+          msg.opCount > localOps.length
+            ? undefined
+            : localOps.length > 0
+              ? localOps[localOps.length - 1].hash
+              : undefined;
+        await this.transport.send(msg.peerId, {
+          version: PROTOCOL_VERSION,
           type: 'want',
           peerId: this.localPeerId,
           wantHashes: [],
-          afterHash: localOps.length > 0 ? localOps[localOps.length - 1].hash : undefined,
+          afterHash,
         });
         return;
       }
+    }
+
+    if (msg.opCount > localOps.length) {
+      await this.transport.send(msg.peerId, {
+        version: PROTOCOL_VERSION,
+        type: 'want',
+        peerId: this.localPeerId,
+        wantHashes: [],
+      });
+      return;
     }
 
     // Check if we have ops they don't — push them
     const peerOpCount = msg.opCount;
     if (localOps.length > peerOpCount) {
       // Send ops they might be missing
-      const opsToSend = localOps.slice(peerOpCount);
-      this.transport.send(msg.peerId, {
-        type: 'ops',
-        peerId: this.localPeerId,
-        ops: opsToSend,
-      });
+      await this.sendOpsMessage(msg.peerId, localOps.slice(peerOpCount));
     }
   }
 
-  private handleWant(msg: Extract<SyncMessage, { type: 'want' }>): void {
+  private async handleWant(
+    msg: Extract<SyncMessage, { type: 'want' }>,
+  ): Promise<void> {
     const localOps = this.getLocalOps();
 
     let opsToSend: VcsOp[];
@@ -209,42 +350,73 @@ export class SyncEngine {
       opsToSend = localOps;
     }
 
-    if (opsToSend.length > 0) {
-      this.transport.send(msg.peerId, {
-        type: 'ops',
-        peerId: this.localPeerId,
-        ops: opsToSend,
-      });
-    }
+    await this.sendOpsMessage(msg.peerId, opsToSend);
   }
 
-  private handleOps(msg: Extract<SyncMessage, { type: 'ops' }>): void {
+  private async handleOps(
+    msg: Extract<SyncMessage, { type: 'ops' }>,
+  ): Promise<void> {
     if (msg.ops.length === 0) return;
 
+    let result: OpsReceivedResult | undefined;
     if (this.branchPolicy.linear) {
-      // Linear mode: only accept fast-forward appends
+      // Linear mode: pre-filter dupes, hand new ops to the integrator.
       const localOps = this.getLocalOps();
       const localHashes = new Set(localOps.map((o) => o.hash));
-
-      // Filter to only new ops
       const newOps = msg.ops.filter((o) => !localHashes.has(o.hash));
       if (newOps.length > 0) {
-        this.onOpsReceived(newOps);
+        result = (await this.onOpsReceived(newOps)) ?? undefined;
       }
     } else {
-      // CRDT mode: reconcile divergent streams
-      const result = this.reconcileWith(msg.ops);
-      if (result.uniqueToB.length > 0) {
-        this.onOpsReceived(result.uniqueToB);
+      // CRDT mode: reconcile divergent streams, hand uniqueToB to integrator.
+      const reconciled = this.reconcileWith(msg.ops);
+      if (reconciled.uniqueToB.length > 0) {
+        result = (await this.onOpsReceived(reconciled.uniqueToB)) ?? undefined;
       }
     }
 
-    // Acknowledge
-    this.transport.send(msg.peerId, {
-      type: 'ack',
-      peerId: this.localPeerId,
-      integrated: msg.ops.map((o) => o.hash),
-    });
+    const rejections: OpsReceivedRejection[] = result?.rejections ?? [];
+
+    // Group rejections by reason → emit one nack per reason.
+    if (rejections.length > 0) {
+      const byReason = new Map<
+        NackReason,
+        { refs: string[]; details?: string }
+      >();
+      for (const r of rejections) {
+        const entry = byReason.get(r.reason) ?? {
+          refs: [],
+          details: r.details,
+        };
+        entry.refs.push(r.hash);
+        byReason.set(r.reason, entry);
+      }
+      for (const [reason, entry] of byReason) {
+        await this.transport.send(msg.peerId, {
+          version: PROTOCOL_VERSION,
+          type: 'nack',
+          peerId: this.localPeerId,
+          refs: entry.refs,
+          reason,
+          details: entry.details,
+        });
+      }
+    }
+
+    // Ack = incoming hashes minus rejected. Dupes count as ack'd; sender
+    // learns the receiver already has them.
+    const rejectedSet = new Set(rejections.map((r) => r.hash));
+    const ackHashes = msg.ops
+      .map((o) => o.hash)
+      .filter((h) => !rejectedSet.has(h));
+    if (ackHashes.length > 0) {
+      await this.transport.send(msg.peerId, {
+        version: PROTOCOL_VERSION,
+        type: 'ack',
+        peerId: this.localPeerId,
+        integrated: ackHashes,
+      });
+    }
 
     this.state.lastSync.set(msg.peerId, new Date().toISOString());
   }
@@ -254,5 +426,17 @@ export class SyncEngine {
       this.state.pendingAcks.delete(hash);
     }
     this.state.lastSync.set(msg.peerId, new Date().toISOString());
+  }
+
+  private async handleNack(msg: SyncNackMessage): Promise<void> {
+    // Refs in a nack were rejected by the peer — drop from pendingAcks so we
+    // do not wait on them. The consumer-level handler decides recovery.
+    for (const ref of msg.refs) {
+      this.state.pendingAcks.delete(ref);
+    }
+    this.state.lastSync.set(msg.peerId, new Date().toISOString());
+    if (this.onNackReceived) {
+      await this.onNackReceived(msg);
+    }
   }
 }

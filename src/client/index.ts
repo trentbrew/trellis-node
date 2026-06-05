@@ -9,8 +9,8 @@
  * @module trellis/client
  */
 
-// SDK
-export { TrellisDb as TrellisClient, TrellisDb, FetchError } from './sdk.js';
+// Legacy DB SDK
+export { TrellisDb, FetchError } from './sdk.js';
 export type {
   EntityData,
   ListResult,
@@ -35,3 +35,15 @@ export {
   CONFIG_FILE,
 } from './config.js';
 export type { TrellisDbConfig, DbMode } from './config.js';
+
+// New Reactive VCS Client
+export { TrellisClient } from './vcs-client.js';
+export type {
+  TrellisClientOptions,
+  TrellisClientSyncOptions,
+  TrellisClientTopic,
+  SyncStatus,
+} from './vcs-client.js';
+
+// Reactive primitives (for framework adapters)
+export { Signal, BatchSignal } from './reactive.js';

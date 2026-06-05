@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trellis Chat + Graph</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --surface: #15161b;
+        --border: #25262e;
+        --text: #e4e4e7;
+        --text2: #a1a1aa;
+        --text3: #63637a;
+        --alice: #6d5bfa;
+        --bob: #34d399;
+        --font: 'Inter', system-ui, sans-serif;
+        --mono: 'JetBrains Mono', monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 12px 14px 18px;
+      }
+      html.embed .hero {
+        display: none;
+      }
+      .hero {
+        margin-bottom: 10px;
+      }
+      .hero h1 {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .hero p {
+        font-size: 12px;
+        color: var(--text2);
+        margin-top: 4px;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(220px, 1.15fr);
+        gap: 10px;
+        min-height: 360px;
+      }
+      @media (max-width: 800px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+      }
+      .pane {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .pane-head {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text3);
+        display: flex;
+        justify-content: space-between;
+      }
+      .panes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 8px;
+        flex: 1;
+      }
+      .chat {
+        display: flex;
+        flex-direction: column;
+        min-height: 200px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .chat-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .chat-log {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+        font-size: 12px;
+        max-height: 200px;
+      }
+      .msg {
+        margin-bottom: 8px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border);
+      }
+      .msg.mine {
+        border-color: rgba(109, 91, 250, 0.35);
+      }
+      .msg .who {
+        font-size: 10px;
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+      .chat-input {
+        display: flex;
+        gap: 6px;
+        padding: 8px;
+        border-top: 1px solid var(--border);
+      }
+      .chat-input input {
+        flex: 1;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 8px;
+        color: var(--text);
+        font-size: 12px;
+      }
+      .chat-input button {
+        background: var(--alice);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #graph-root {
+        flex: 1;
+        min-height: 300px;
+      }
+      #graph-root svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .legend {
+        padding: 6px 10px 8px;
+        font-size: 10px;
+        color: var(--text3);
+        border-top: 1px solid var(--border);
+      }
+      .legend code {
+        font-family: var(--mono);
+        color: var(--text2);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1>Chat as a graph</h1>
+        <p>
+          Peers and messages are entities. Edges carry channel labels — ephemeral
+          <code>trellis/realtime</code>, not the VCS op log.
+        </p>
+      </header>
+      <div class="split">
+        <section class="pane">
+          <div class="pane-head"><span>Chat (simulated room)</span></div>
+          <div class="panes" id="chat-panes"></div>
+        </section>
+        <section class="pane">
+          <div class="pane-head">
+            <span>Entity graph</span>
+            <span id="graph-stat">0 nodes</span>
+          </div>
+          <div id="graph-root"></div>
+          <div class="legend">
+            Solid: <code>memberOf</code> · Dashed: <code>broadcast:chat</code>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">
+      import {
+        RealtimeRoom,
+        MemoryHub,
+        PersistentChannel,
+      } from '../../dist/realtime.bundle.js';
+
+      const isEmbed = new URLSearchParams(location.search).get('embed') === '1';
+      if (isEmbed) document.documentElement.classList.add('embed');
+
+      function reportEmbedHeight() {
+        if (!isEmbed) return;
+        const h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+        parent.postMessage({ type: 'trellis-embed-resize', height: h }, '*');
+      }
+      if (isEmbed) {
+        window.addEventListener('load', reportEmbedHeight);
+        new ResizeObserver(() => reportEmbedHeight()).observe(document.body);
+      }
+
+      const PALETTE = [
+        { name: 'Alice', color: '#6d5bfa', slug: 'alice' },
+        { name: 'Bob', color: '#34d399', slug: 'bob' },
+      ];
+
+      const graph = {
+        nodes: [],
+        links: [],
+        nodeIndex: new Map(),
+      };
+
+      function ensureNode(id, type, label, color) {
+        if (graph.nodeIndex.has(id)) return graph.nodeIndex.get(id);
+        const n = { id, type, label, color: color || '#71717a' };
+        graph.nodes.push(n);
+        graph.nodeIndex.set(id, n);
+        return n;
+      }
+
+      function addLink(sourceId, targetId, label, dashed = false) {
+        if (!graph.nodeIndex.has(sourceId) || !graph.nodeIndex.has(targetId)) return;
+        graph.links.push({ source: sourceId, target: targetId, label, dashed });
+      }
+
+      function onMessage(peer, text, msgId) {
+        const peerNodeId = `peer:${peer.user.slug}`;
+        ensureNode(peerNodeId, 'peer', peer.user.name, peer.user.color);
+        ensureNode('channel:chat', 'channel', '#chat', '#52525b');
+        addLink(peerNodeId, 'channel:chat', 'memberOf', true);
+
+        const msgNodeId = `msg:${msgId}`;
+        ensureNode(msgNodeId, 'message', text.slice(0, 28), peer.user.color);
+        addLink(peerNodeId, msgNodeId, 'broadcast:chat');
+        addLink('channel:chat', msgNodeId, 'onChannel', true);
+        renderGraph();
+      }
+
+      function renderGraph() {
+        const root = document.getElementById('graph-root');
+        const stat = document.getElementById('graph-stat');
+        stat.textContent = `${graph.nodes.length} nodes · ${graph.links.length} edges`;
+        root.innerHTML = '';
+        if (!graph.nodes.length) return;
+
+        const w = root.clientWidth || 400;
+        const h = root.clientHeight || 300;
+        const svg = d3.select(root).append('svg').attr('width', w).attr('height', h);
+        const g = svg.append('g');
+
+        const simNodes = graph.nodes.map((n) => ({ ...n }));
+        const simLinks = graph.links.map((l) => ({
+          ...l,
+          source: l.source,
+          target: l.target,
+        }));
+
+        const sim = d3
+          .forceSimulation(simNodes)
+          .force(
+            'link',
+            d3
+              .forceLink(simLinks)
+              .id((d) => d.id)
+              .distance(56)
+              .strength(0.5),
+          )
+          .force('charge', d3.forceManyBody().strength(-120))
+          .force('center', d3.forceCenter(w / 2, h / 2));
+
+        const link = g
+          .append('g')
+          .selectAll('line')
+          .data(simLinks)
+          .join('line')
+          .attr('stroke', '#3f3f46')
+          .attr('stroke-width', 1.2)
+          .attr('stroke-dasharray', (d) => (d.dashed ? '4 3' : null));
+
+        const linkLabel = g
+          .append('g')
+          .selectAll('text')
+          .data(simLinks)
+          .join('text')
+          .attr('font-size', 8)
+          .attr('fill', '#52525b')
+          .attr('font-family', 'JetBrains Mono')
+          .text((d) => d.label);
+
+        const node = g
+          .append('g')
+          .selectAll('g')
+          .data(simNodes)
+          .join('g')
+          .call(
+            d3
+              .drag()
+              .on('start', (e, d) => {
+                if (!e.active) sim.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+              })
+              .on('drag', (e, d) => {
+                d.fx = e.x;
+                d.fy = e.y;
+              })
+              .on('end', (e, d) => {
+                if (!e.active) sim.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+              }),
+          );
+
+        node
+          .append('circle')
+          .attr('r', (d) => (d.type === 'peer' ? 14 : d.type === 'channel' ? 10 : 8))
+          .attr('fill', (d) => d.color)
+          .attr('stroke', '#18181b')
+          .attr('stroke-width', 2);
+
+        node
+          .append('text')
+          .attr('y', 28)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 9)
+          .attr('fill', '#a1a1aa')
+          .text((d) => (d.label.length > 16 ? d.label.slice(0, 14) + '…' : d.label));
+
+        sim.on('tick', () => {
+          link
+            .attr('x1', (d) => d.source.x)
+            .attr('y1', (d) => d.source.y)
+            .attr('x2', (d) => d.target.x)
+            .attr('y2', (d) => d.target.y);
+          linkLabel
+            .attr('x', (d) => (d.source.x + d.target.x) / 2)
+            .attr('y', (d) => (d.source.y + d.target.y) / 2);
+          node.attr('transform', (d) => `translate(${d.x},${d.y})`);
+        });
+      }
+
+      const hub = new MemoryHub();
+      const peers = PALETTE.map((u, i) => {
+        const id = `${u.slug}-${i}`;
+        const room = RealtimeRoom.join({
+          transport: hub.connect(id),
+          initialPresence: { name: u.name, color: u.color },
+          heartbeatMs: 0,
+        });
+        return { id, user: u, room };
+      });
+
+      ensureNode('channel:chat', 'channel', '#chat', '#52525b');
+
+      function buildPane(peer) {
+        const card = document.createElement('div');
+        card.className = 'chat';
+        card.innerHTML = `
+          <div class="chat-head">
+            <span class="dot" style="background:${peer.user.color}"></span>
+            ${peer.user.name}
+          </div>
+          <div class="chat-log"></div>
+          <form class="chat-input">
+            <input type="text" placeholder="Message…" />
+            <button type="submit">Send</button>
+          </form>`;
+        const log = card.querySelector('.chat-log');
+        const form = card.querySelector('form');
+        const input = card.querySelector('input');
+
+        const chat = PersistentChannel.create(peer.room, 'chat', {
+          max: 100,
+          resolveMeta: (e) => {
+            const p = peers.find((x) => x.room.selfId === e.from);
+            return p ? { name: p.user.name, color: p.user.color } : {};
+          },
+        });
+
+        chat.subscribe((records) => {
+          log.innerHTML = '';
+          for (const rec of records) {
+            const meta = rec.meta || {};
+            const name = meta.name || rec.from;
+            const div = document.createElement('div');
+            div.className = 'msg' + (rec.from === peer.room.selfId ? ' mine' : '');
+            div.innerHTML = `<div class="who" style="color:${meta.color || '#888'}">${name}</div>${rec.payload.text}`;
+            log.append(div);
+            const msgId = rec.payload?.id || rec.id;
+            if (msgId && !graph.nodeIndex.has(`msg:${msgId}`)) {
+              const fromPeer = peers.find((p) => p.room.selfId === rec.from);
+              if (fromPeer) onMessage(fromPeer, rec.payload.text, msgId);
+            }
+          }
+          log.scrollTop = log.scrollHeight;
+        });
+
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const text = input.value.trim();
+          if (!text) return;
+          const msgId = crypto.randomUUID?.() || String(Date.now());
+          peer.room.broadcast('chat', 'message', { text, id: msgId });
+          onMessage(peer, text, msgId);
+          input.value = '';
+        });
+
+        return card;
+      }
+
+      const panes = document.getElementById('chat-panes');
+      for (const p of peers) {
+        ensureNode(`peer:${p.user.slug}`, 'peer', p.user.name, p.user.color);
+        addLink(`peer:${p.user.slug}`, 'channel:chat', 'memberOf', true);
+        panes.append(buildPane(p));
+      }
+      renderGraph();
+      if (isEmbed) reportEmbedHeight();
+
+      // Scripted opener when autoplay=1
+      if (new URLSearchParams(location.search).get('autoplay') === '1') {
+        setTimeout(() => {
+          peers[0].room.broadcast('chat', 'message', {
+            text: 'Hey Bob — graph updates live.',
+            id: 'seed-1',
+          });
+          onMessage(peers[0], 'Hey Bob — graph updates live.', 'seed-1');
+        }, 600);
+        setTimeout(() => {
+          peers[1].room.broadcast('chat', 'message', {
+            text: 'Seeing it. Each message is a node.',
+            id: 'seed-2',
+          });
+          onMessage(peers[1], 'Seeing it. Each message is a node.', 'seed-2');
+        }, 1400);
+      }
+    </script>
+  </body>
+</html>

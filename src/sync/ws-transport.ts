@@ -7,7 +7,12 @@
  * @module trellis/sync
  */
 
-import type { SyncTransport, SyncMessage, PeerId } from './types.js';
+import type {
+  SyncTransport,
+  SyncMessage,
+  SyncMessageHandler,
+  PeerId,
+} from './types.js';
 
 // ---------------------------------------------------------------------------
 // WebSocket Transport
@@ -17,7 +22,7 @@ export class WebSocketSyncTransport implements SyncTransport {
   private localPeerId: string;
   private connections: Map<string, WebSocket> = new Map();
   private knownPeers: Map<string, PeerId> = new Map();
-  private messageHandler: ((msg: SyncMessage) => void) | null = null;
+  private messageHandler: SyncMessageHandler | null = null;
 
   constructor(localPeerId: string) {
     this.localPeerId = localPeerId;
@@ -40,7 +45,7 @@ export class WebSocketSyncTransport implements SyncTransport {
         resolve();
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
           const msg = JSON.parse(String(event.data)) as SyncMessage;
           this.knownPeers.set(msg.peerId, {
@@ -49,7 +54,7 @@ export class WebSocketSyncTransport implements SyncTransport {
             lastSeen: new Date().toISOString(),
           });
           if (this.messageHandler) {
-            this.messageHandler(msg);
+            await this.messageHandler(msg);
           }
         } catch {}
       };
@@ -75,7 +80,7 @@ export class WebSocketSyncTransport implements SyncTransport {
       lastSeen: new Date().toISOString(),
     });
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       try {
         const msg = JSON.parse(String(event.data)) as SyncMessage;
         this.knownPeers.set(msg.peerId, {
@@ -84,7 +89,7 @@ export class WebSocketSyncTransport implements SyncTransport {
           lastSeen: new Date().toISOString(),
         });
         if (this.messageHandler) {
-          this.messageHandler(msg);
+          await this.messageHandler(msg);
         }
       } catch {}
     };
@@ -102,7 +107,7 @@ export class WebSocketSyncTransport implements SyncTransport {
     ws.send(JSON.stringify(message));
   }
 
-  onMessage(handler: (message: SyncMessage) => void): void {
+  onMessage(handler: SyncMessageHandler): void {
     this.messageHandler = handler;
   }
 

@@ -1,0 +1,35 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local tool state (mirrors .prettierignore)
+.claude/
+.cursor/
+.gemini/
+.opencode/
+.playwright-mcp/
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+# Playwright
+test-results
+.trellis/
+.trellis-db/
+.trellis-db.json

@@ -12,7 +12,12 @@
  * @module trellis/sync
  */
 
-import type { SyncTransport, SyncMessage, PeerId } from './types.js';
+import type {
+  SyncTransport,
+  SyncMessage,
+  SyncMessageHandler,
+  PeerId,
+} from './types.js';
 
 // ---------------------------------------------------------------------------
 // HTTP Transport (Client)
@@ -21,7 +26,7 @@ import type { SyncTransport, SyncMessage, PeerId } from './types.js';
 export class HttpSyncTransport implements SyncTransport {
   private localPeerId: string;
   private peerUrls: Map<string, string> = new Map();
-  private messageHandler: ((msg: SyncMessage) => void) | null = null;
+  private messageHandler: SyncMessageHandler | null = null;
   private knownPeers: Map<string, PeerId> = new Map();
 
   constructor(localPeerId: string) {
@@ -67,19 +72,19 @@ export class HttpSyncTransport implements SyncTransport {
     if (contentType?.includes('application/json')) {
       const reply = await resp.json();
       if (reply && reply.type && this.messageHandler) {
-        this.messageHandler(reply as SyncMessage);
+        await this.messageHandler(reply as SyncMessage);
       }
     }
   }
 
-  onMessage(handler: (message: SyncMessage) => void): void {
+  onMessage(handler: SyncMessageHandler): void {
     this.messageHandler = handler;
   }
 
   /**
    * Receive a message (called by the HTTP server handler).
    */
-  receiveMessage(message: SyncMessage): void {
+  async receiveMessage(message: SyncMessage): Promise<void> {
     // Track peer
     this.knownPeers.set(message.peerId, {
       id: message.peerId,
@@ -88,7 +93,7 @@ export class HttpSyncTransport implements SyncTransport {
     });
 
     if (this.messageHandler) {
-      this.messageHandler(message);
+      await this.messageHandler(message);
     }
   }
 
@@ -121,8 +126,8 @@ export function createSyncHandler(transport: HttpSyncTransport): (req: Request) 
     if (url.pathname === '/sync/message' && req.method === 'POST') {
       // Handle async parsing synchronously for Bun
       return new Response(
-        req.json().then((body: any) => {
-          transport.receiveMessage(body as SyncMessage);
+        req.json().then(async (body: any) => {
+          await transport.receiveMessage(body as SyncMessage);
           return JSON.stringify({ ok: true });
         }) as any,
         { headers: { 'Content-Type': 'application/json' } },

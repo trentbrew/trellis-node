@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>realtime-app — WebContainer</title>
+		<style>
+			:root {
+				--bg: #0d1117;
+				--text: #e6edf3;
+				--dim: #8b949e;
+				--green: #3fb950;
+				--blue: #58a6ff;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				min-height: 100vh;
+				background: var(--bg);
+				color: var(--text);
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+				padding: 24px;
+			}
+			h1 {
+				font-size: 18px;
+				margin: 0 0 8px;
+			}
+			p {
+				color: var(--dim);
+				font-size: 14px;
+				line-height: 1.5;
+			}
+			#log {
+				margin-top: 16px;
+				padding: 12px;
+				background: #161b22;
+				border: 1px solid #30363d;
+				border-radius: 8px;
+				font-family: ui-monospace, monospace;
+				font-size: 12px;
+				white-space: pre-wrap;
+				min-height: 120px;
+			}
+			a {
+				color: var(--blue);
+			}
+			.ok {
+				color: var(--green);
+			}
+		</style>
+	</head>
+	<body>
+		<h1>realtime-app × trellis-node (WebContainer)</h1>
+		<p>
+			Boots trellis-node from source (sql.js, Node-compatible) plus this SvelteKit app inside a
+			WebContainer. First run installs npm deps — expect 1–3 minutes.
+		</p>
+		<div id="log">Starting…</div>
+		<p id="links" hidden></p>
+
+		<script type="module">
+			import { WebContainer } from 'https://cdn.jsdelivr.net/npm/@webcontainer/api@1.6.0/dist/index.js';
+
+			const logEl = document.getElementById('log');
+			const linksEl = document.getElementById('links');
+
+			function log(msg) {
+				logEl.textContent += `\n${msg}`;
+			}
+
+			async function writeTree(container, basePath, files) {
+				for (const [rel, content] of Object.entries(files)) {
+					const fullPath = `${basePath}/${rel}`;
+					const parent = fullPath.slice(0, fullPath.lastIndexOf('/'));
+					if (parent) {
+						await container.fs.mkdir(parent, { recursive: true });
+					}
+					await container.fs.writeFile(fullPath, content);
+				}
+			}
+
+			try {
+				log('Fetching trellis bootstrap…');
+				const trellisRes = await fetch('/api/trellis-bootstrap');
+				if (!trellisRes.ok) throw new Error(await trellisRes.text());
+				const trellis = await trellisRes.json();
+
+				log('Fetching app pack…');
+				const appRes = await fetch('/api/app-pack');
+				if (!appRes.ok) throw new Error(await appRes.text());
+				const app = await appRes.json();
+
+				log('Booting WebContainer…');
+				const wc = await WebContainer.boot();
+
+				log('Writing vendor/trellis…');
+				await wc.fs.mkdir('vendor/trellis/bin', { recursive: true });
+				await wc.fs.writeFile(
+					'vendor/trellis/package.json',
+					JSON.stringify(trellis.vendorPackageJson, null, 2)
+				);
+				await wc.fs.writeFile('vendor/trellis/bin/trellis.mjs', trellis.binTrellis);
+				await writeTree(wc, 'vendor/trellis/dist', trellis.dist);
+
+				log('Writing app files…');
+				await writeTree(wc, '.', app.files);
+
+				log('npm install (this takes a while)…');
+				const install = await wc.spawn('npm', ['install']);
+				install.output.pipeTo(
+					new WritableStream({
+						write(data) {
+							log(data);
+						}
+					})
+				);
+				const installCode = await install.exit;
+				if (installCode !== 0) throw new Error(`npm install exited ${installCode}`);
+
+				log('Starting trellis sidecar + Vite…');
+				const dev = await wc.spawn('npm', ['run', 'wc:start']);
+				dev.output.pipeTo(
+					new WritableStream({
+						write(data) {
+							log(data);
+						}
+					})
+				);
+
+				wc.on('server-ready', (port, url) => {
+					log(`\nServer ready on port ${port}: ${url}`);
+					linksEl.hidden = false;
+					linksEl.innerHTML = `<span class="ok">●</span> App: <a href="${url}" target="_blank" rel="noopener">${url}</a>`;
+				});
+			} catch (err) {
+				log(`\nError: ${err?.message ?? err}`);
+				console.error(err);
+			}
+		</script>
+	</body>
+</html>

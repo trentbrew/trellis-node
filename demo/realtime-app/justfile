@@ -1,0 +1,7 @@
+# Default dev stack (trellis sidecar + Vite)
+run:
+  pnpm run dev:all
+
+# WebContainer playground → http://localhost:4500
+wc:
+  pnpm wc:host

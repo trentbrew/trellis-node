@@ -1,327 +1,1710 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trellis — WebContainer test</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #1e1e1e; --surface: #252526; --border: #3c3c3c;
-      --text: #cccccc; --dim: #888; --green: #4ec94e; --red: #f44747;
-      --blue: #569cd6; --accent: #007acc;
-    }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trellis — WebContainer Sandbox</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --surface2: #21262d;
+        --border: #30363d;
+        --text: #e6edf3;
+        --dim: #8b949e;
+        --green: #3fb950;
+        --red: #f85149;
+        --blue: #58a6ff;
+        --accent: #238636;
+        --tab-active: #1f6feb;
+        --purple: #a78bfa;
+        --yellow: #fbbf24;
+        --cyan: #67e8f9;
+      }
+      html,
+      body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      }
 
-    header {
-      display: flex; align-items: center; gap: 12px;
-      padding: 0 16px; height: 40px; background: var(--surface);
-      border-bottom: 1px solid var(--border); flex-shrink: 0;
-    }
-    header h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
-    header .badge {
-      font-size: 10px; padding: 2px 6px; border-radius: 3px;
-      background: var(--accent); color: #fff; font-weight: 600;
-    }
-    #status { font-size: 11px; color: var(--dim); margin-left: auto; }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px;
+        height: 44px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      header h1 {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .badge {
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        color: var(--dim);
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+      .badge.ok {
+        color: var(--green);
+        border-color: #238636;
+        background: #122117;
+      }
+      .badge.live {
+        color: var(--cyan);
+        border-color: #1f6feb;
+        background: #0d1117;
+      }
+      #status {
+        font-size: 11px;
+        color: var(--dim);
+        margin-left: auto;
+      }
 
-    .layout { display: flex; height: calc(100vh - 40px); }
+      .tabs {
+        display: flex;
+        gap: 0;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0 12px;
+      }
+      .tab {
+        padding: 10px 16px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--dim);
+        background: none;
+        border: none;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .tab:hover {
+        color: var(--text);
+      }
+      .tab.active {
+        color: var(--text);
+        border-bottom-color: var(--tab-active);
+      }
 
-    .pane-editor { display: flex; flex-direction: column; flex: 1; border-right: 1px solid var(--border); }
-    .pane-terminal { display: flex; flex-direction: column; flex: 1; }
+      .panel {
+        display: none;
+        height: calc(100vh - 44px - 41px);
+      }
+      .panel.active {
+        display: flex;
+        flex-direction: column;
+      }
 
-    .pane-header {
-      display: flex; align-items: center; gap: 8px;
-      padding: 0 12px; height: 32px; background: var(--surface);
-      border-bottom: 1px solid var(--border); font-size: 11px;
-      color: var(--dim); flex-shrink: 0;
-    }
-    .pane-header span { font-weight: 600; color: var(--text); }
+      /* Split CLI + graph */
+      .split {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+      .split-left,
+      .split-right {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .split-left {
+        flex: 1;
+        border-right: 1px solid var(--border);
+      }
+      .split-right {
+        flex: 1;
+        background: #010409;
+      }
 
-    #monaco-container { flex: 1; }
-
-    #run-btn {
-      display: flex; align-items: center; gap: 6px;
-      margin-left: auto; padding: 3px 10px; border-radius: 3px;
-      background: var(--accent); color: #fff; border: none;
-      font-size: 11px; font-weight: 600; cursor: pointer;
-    }
-    #run-btn:hover { background: #1a8ad4; }
-    #run-btn:disabled { background: var(--border); color: var(--dim); cursor: not-allowed; }
-    #run-btn .icon { font-size: 10px; }
-
-    #clear-btn {
-      padding: 3px 8px; border-radius: 3px; background: transparent;
-      color: var(--dim); border: 1px solid var(--border);
-      font-size: 11px; cursor: pointer; margin-left: 4px;
-    }
-    #clear-btn:hover { color: var(--text); border-color: var(--text); }
-
-    #terminal {
-      flex: 1; overflow-y: auto; padding: 12px 14px;
-      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-      font-size: 12px; line-height: 1.6; background: var(--bg);
-    }
-    .line-stdout { color: var(--text); }
-    .line-stderr { color: var(--red); }
-    .line-info   { color: var(--blue); }
-    .line-success{ color: var(--green); }
-    .line-dim    { color: var(--dim); }
-  </style>
-</head>
-<body>
-
-<header>
-  <h1>Trellis</h1>
-  <span class="badge">WebContainer</span>
-  <span id="status">Booting…</span>
-</header>
-
-<div class="layout">
-  <div class="pane-editor">
-    <div class="pane-header">
-      <span>test.mjs</span>
-      <button id="run-btn" disabled>
-        <span class="icon">▶</span> Run
-      </button>
-    </div>
-    <div id="monaco-container"></div>
-  </div>
-
-  <div class="pane-terminal">
-    <div class="pane-header">
-      <span>Output</span>
-      <button id="clear-btn">Clear</button>
-    </div>
-    <div id="terminal"></div>
-  </div>
-</div>
-
-<!-- Monaco Editor (AMD loader) -->
-<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-
-<script type="module">
-// ─── WebContainer API ────────────────────────────────────────────────────────
-import { WebContainer } from 'https://cdn.jsdelivr.net/npm/@webcontainer/api@1.6.0/dist/index.js';
-
-// ─── Terminal helpers ─────────────────────────────────────────────────────────
-const terminal = document.getElementById('terminal');
-const status   = document.getElementById('status');
-
-function writeLine(text, cls = 'line-stdout') {
-  for (const line of String(text).split('\n')) {
-    const div = document.createElement('div');
-    div.className = cls;
-    div.textContent = line;
-    terminal.appendChild(div);
-  }
-  terminal.scrollTop = terminal.scrollHeight;
-}
-function info(msg)    { writeLine(msg, 'line-info'); }
-function success(msg) { writeLine(msg, 'line-success'); }
-function err(msg)     { writeLine(msg, 'line-stderr'); }
-function dim(msg)     { writeLine(msg, 'line-dim'); }
-
-document.getElementById('clear-btn').addEventListener('click', () => { terminal.innerHTML = ''; });
-
-// ─── Default test script ──────────────────────────────────────────────────────
-const DEFAULT_SCRIPT = `\
-// Trellis WebContainer test — edit and click Run
-// Imports use paths relative to the mounted filesystem root.
-
-import { TrellisVcsEngine } from './dist/vcs/index.js';
-
-// Open an in-memory repo
-const engine = new TrellisVcsEngine({ rootPath: '/tmp/repo' });
-engine.open();
-
-// Create a milestone
-await engine.createMilestone('Hello from WebContainer!');
-console.log('✓ milestone created');
-
-// Create an issue
-const issue = await engine.createIssue({
-  title: 'First WebContainer issue',
-  description: 'Created inside a StackBlitz WebContainer',
-  priority: 'high',
-});
-console.log('✓ issue created:', issue.id);
-
-// Read back
-const issues = engine.listIssues();
-const milestones = engine.listMilestones();
-console.log('✓ issues:', issues.length, '| milestones:', milestones.length);
-
-// Op count proves the kernel is persisting ops
-const ops = engine.readAllOps();
-console.log('✓ op count:', ops.length);
-
-console.log('\\n🎉 Trellis works inside WebContainer!');
-`;
-
-// ─── Monaco init ──────────────────────────────────────────────────────────────
-let editor;
-await new Promise(resolve => {
-  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' } });
-  require(['vs/editor/editor.main'], () => {
-    editor = monaco.editor.create(document.getElementById('monaco-container'), {
-      value: DEFAULT_SCRIPT,
-      language: 'javascript',
-      theme: 'vs-dark',
-      fontSize: 13,
-      fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
-      lineNumbers: 'on',
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      automaticLayout: true,
-      padding: { top: 12 },
-    });
-    resolve();
-  });
-});
-
-// ─── Boot WebContainer ────────────────────────────────────────────────────────
-status.textContent = 'Booting WebContainer…';
-info('Booting WebContainer…');
-
-let wc;
-try {
-  wc = await WebContainer.boot();
-  info('WebContainer booted');
-} catch (e) {
-  err('WebContainer.boot() failed: ' + e.message);
-  err('Make sure you are serving from localhost with COOP/COEP headers set.');
-  status.textContent = 'Boot failed';
-  throw e;
-}
-
-// ─── Fetch and mount dist/ ────────────────────────────────────────────────────
-status.textContent = 'Fetching trellis dist…';
-info('Fetching trellis dist/ from server…');
-
-let distPack;
-try {
-  const res = await fetch('/api/dist-pack');
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  distPack = await res.json();
-} catch (e) {
-  err('Failed to fetch dist: ' + e.message);
-  status.textContent = 'Fetch failed';
-  throw e;
-}
-
-const fileCount = Object.keys(distPack).length;
-dim(`Mounting ${fileCount} dist files…`);
-
-// Build the WebContainer FS tree
-const distTree = {};
-for (const [relPath, content] of Object.entries(distPack)) {
-  const parts = relPath.split('/');
-  let node = distTree;
-  for (let i = 0; i < parts.length - 1; i++) {
-    node[parts[i]] ??= { directory: {} };
-    node = node[parts[i]].directory;
-  }
-  node[parts[parts.length - 1]] = { file: { contents: content } };
-}
-
-// Mount package.json + dist/ into the WebContainer
-await wc.mount({
-  'package.json': {
-    file: {
-      contents: JSON.stringify({
-        name: 'trellis-wc-test',
-        type: 'module',
-        dependencies: { 'sql.js': '^1.14.1' },
-      }, null, 2),
-    },
-  },
-  dist: { directory: distTree },
-});
-
-info(`Mounted ${fileCount} dist files`);
-
-// ─── npm install sql.js ───────────────────────────────────────────────────────
-status.textContent = 'Installing sql.js…';
-info('Running npm install sql.js…');
-
-{
-  const proc = await wc.spawn('npm', ['install', '--prefer-offline']);
-  proc.output.pipeTo(new WritableStream({
-    write(chunk) { dim(chunk.trim()); }
-  }));
-  const code = await proc.exit;
-  if (code !== 0) {
-    err(`npm install failed (exit ${code})`);
-    status.textContent = 'npm install failed';
-    throw new Error('npm install failed');
-  }
-  success('sql.js installed');
-}
-
-// ─── Ready ────────────────────────────────────────────────────────────────────
-status.textContent = 'Ready';
-success('WebContainer ready — click Run to execute the script');
-
-const runBtn = document.getElementById('run-btn');
-runBtn.disabled = false;
-
-// ─── Run ──────────────────────────────────────────────────────────────────────
-async function runScript() {
-  runBtn.disabled = true;
-  status.textContent = 'Running…';
-
-  const script = editor.getValue();
-
-  // Write the current editor content as test.mjs
-  await wc.fs.writeFile('test.mjs', script);
-
-  writeLine('');
-  dim('─'.repeat(50));
-  dim('$ node test.mjs');
-
-  let exitCode;
-  try {
-    const proc = await wc.spawn('node', ['test.mjs']);
-
-    proc.output.pipeTo(new WritableStream({
-      write(chunk) {
-        // Simple heuristic: lines starting with ✓/🎉 get green, errors get red
-        for (const line of chunk.split('\n')) {
-          if (!line) continue;
-          if (line.startsWith('✓') || line.includes('🎉')) {
-            writeLine(line, 'line-success');
-          } else if (line.toLowerCase().includes('error') || line.startsWith('  at ')) {
-            writeLine(line, 'line-stderr');
-          } else {
-            writeLine(line, 'line-stdout');
-          }
+      .pane-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 8px 12px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+        font-size: 11px;
+        color: var(--dim);
+      }
+      .pane-toolbar code {
+        font-family: 'Cascadia Code', Consolas, monospace;
+        color: var(--text);
+        background: var(--surface2);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+      }
+      .pane-toolbar .spacer {
+        flex: 1;
+      }
+      .live-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--cyan);
+      }
+      .live-pill::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 6px var(--green);
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.45;
         }
       }
-    }));
 
-    exitCode = await proc.exit;
-  } catch (e) {
-    err('Spawn failed: ' + e.message);
-    exitCode = 1;
-  }
+      #terminal-container {
+        flex: 1;
+        min-height: 0;
+        padding: 4px;
+        background: #010409;
+      }
+      #terminal-container .xterm {
+        height: 100%;
+      }
 
-  dim(`─`.repeat(50));
-  if (exitCode === 0) {
-    success(`Process exited 0`);
-    status.textContent = 'Done ✓';
-  } else {
-    err(`Process exited ${exitCode}`);
-    status.textContent = `Exit ${exitCode}`;
-  }
+      #graph-container {
+        flex: 1;
+        min-height: 0;
+        position: relative;
+        overflow: hidden;
+      }
+      #graph-container svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #graph-empty {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--dim);
+        font-size: 12px;
+      }
+      .graph-legend {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        display: flex;
+        gap: 10px;
+        font-size: 10px;
+        color: var(--dim);
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .legend-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+      }
 
-  runBtn.disabled = false;
+      #graph-examples {
+        max-height: 38%;
+        overflow-y: auto;
+        flex-shrink: 0;
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+        padding: 8px 12px;
+        font-size: 10px;
+        color: var(--dim);
+      }
+      #graph-examples[hidden] {
+        display: none;
+      }
+      #graph-examples h3 {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0 0 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      #graph-examples .ex-section {
+        margin-bottom: 8px;
+      }
+      #graph-examples .ex-title {
+        color: var(--cyan);
+        font-weight: 600;
+        margin-bottom: 3px;
+      }
+      #graph-examples .ex-cmd {
+        font-family: 'Cascadia Code', Consolas, monospace;
+        color: var(--text);
+        cursor: pointer;
+        padding: 1px 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #graph-examples .ex-cmd:hover {
+        color: var(--blue);
+      }
+      .btn.sm {
+        padding: 3px 8px;
+        font-size: 10px;
+      }
+
+      /* SDK panel */
+      .btn {
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        border: 1px solid var(--border);
+        background: var(--surface2);
+        color: var(--text);
+        cursor: pointer;
+      }
+      .btn:hover:not(:disabled) {
+        border-color: var(--dim);
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: #2ea043;
+        color: #fff;
+      }
+      #monaco-container {
+        flex: 1;
+        min-height: 0;
+      }
+      #sdk-output {
+        height: 140px;
+        overflow-y: auto;
+        padding: 10px 14px;
+        font-family: 'Cascadia Code', Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.55;
+        background: #010409;
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .line-stdout {
+        color: var(--text);
+      }
+      .line-stderr {
+        color: var(--red);
+      }
+      .line-info {
+        color: var(--blue);
+      }
+      .line-success {
+        color: var(--green);
+      }
+      .line-dim {
+        color: var(--dim);
+      }
+
+      /* SDK split + multiplayer demo */
+      #panel-sdk .split {
+        flex-direction: row;
+      }
+      #panel-sdk .split-left {
+        flex: 1.2;
+      }
+      #panel-sdk .split-right {
+        flex: 1;
+        border-right: none;
+        border-left: 1px solid var(--border);
+      }
+      #panel-sdk #monaco-container {
+        flex: 1;
+        min-height: 0;
+      }
+      #panel-sdk #sdk-output {
+        height: 120px;
+      }
+
+      /* Multiplayer demo */
+      #mp-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding: 12px;
+        gap: 10px;
+        overflow-y: auto;
+      }
+      .mp-peers {
+        display: flex;
+        gap: 10px;
+      }
+      .mp-peer {
+        flex: 1;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 11px;
+      }
+      .mp-peer-name {
+        font-weight: 600;
+        color: var(--cyan);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+      .mp-peer-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+      .mp-peer-dot.offline {
+        background: var(--dim);
+      }
+      .mp-peer-dot.syncing {
+        background: var(--yellow);
+        animation: pulse 1s infinite;
+      }
+      .mp-stats {
+        display: flex;
+        gap: 12px;
+        color: var(--dim);
+        font-size: 10px;
+      }
+      .mp-stat {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .mp-stat-val {
+        color: var(--text);
+        font-weight: 600;
+        font-family: 'Cascadia Code', Consolas, monospace;
+      }
+      .mp-ops {
+        flex: 1;
+        min-height: 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .mp-ops-title {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .mp-ops-log {
+        flex: 1;
+        overflow-y: auto;
+        font-family: 'Cascadia Code', Consolas, monospace;
+        font-size: 10px;
+        line-height: 1.6;
+      }
+      .mp-op-row {
+        display: flex;
+        gap: 8px;
+        padding: 2px 0;
+        border-bottom: 1px solid var(--surface2);
+      }
+      .mp-op-time {
+        color: var(--dim);
+        min-width: 40px;
+      }
+      .mp-op-peer {
+        color: var(--cyan);
+        min-width: 40px;
+      }
+      .mp-op-kind {
+        color: var(--text);
+      }
+      .mp-op-hash {
+        color: var(--dim);
+      }
+      .mp-issues {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 4px;
+      }
+      .mp-issue-chip {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 3px 8px;
+        font-size: 10px;
+        color: var(--text);
+      }
+      .mp-issue-chip.alice {
+        border-color: var(--cyan);
+      }
+      .mp-issue-chip.bob {
+        border-color: var(--magenta);
+      }
+      .mp-todo-list {
+        margin-top: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        max-height: 80px;
+        overflow-y: auto;
+      }
+      .mp-todo-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        padding: 2px 4px;
+        border-radius: 3px;
+      }
+      .mp-todo-item.done {
+        opacity: 0.5;
+        text-decoration: line-through;
+      }
+      .mp-todo-check {
+        width: 10px;
+        height: 10px;
+        border: 1px solid var(--dim);
+        border-radius: 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8px;
+        flex-shrink: 0;
+      }
+      .mp-todo-check.checked {
+        background: var(--green);
+        border-color: var(--green);
+        color: #fff;
+      }
+      .mp-todos {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow-y: auto;
+      }
+      .mp-todo-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 6px;
+        background: var(--surface2);
+        border-radius: 4px;
+        font-size: 11px;
+      }
+      .mp-todo-row.done {
+        opacity: 0.45;
+      }
+      .mp-todo-row .creator {
+        font-size: 9px;
+        padding: 1px 5px;
+        border-radius: 3px;
+        background: var(--surface);
+        color: var(--dim);
+        flex-shrink: 0;
+      }
+      .mp-todo-row .creator.alice {
+        color: var(--cyan);
+      }
+      .mp-todo-row .creator.bob {
+        color: var(--magenta);
+      }
+      .mp-sync-line {
+        height: 2px;
+        background: var(--surface2);
+        border-radius: 1px;
+        position: relative;
+        overflow: hidden;
+      }
+      .mp-sync-line::after {
+        content: '';
+        position: absolute;
+        left: -20%;
+        top: 0;
+        width: 20%;
+        height: 100%;
+        background: var(--green);
+        border-radius: 1px;
+        animation: syncSlide 1.5s ease-in-out infinite;
+      }
+      .mp-sync-line.active::after {
+        display: block;
+      }
+      .mp-sync-line.idle::after {
+        display: none;
+      }
+      @keyframes syncSlide {
+        0% {
+          left: -20%;
+        }
+        100% {
+          left: 120%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Trellis</h1>
+      <span class="badge" id="wc-badge">WebContainer</span>
+      <span class="badge live" id="graph-badge" hidden>Graph live</span>
+      <span id="status">Booting…</span>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="cli">CLI + Graph</button>
+      <button class="tab" data-tab="sdk">SDK Playground</button>
+    </nav>
+
+    <section class="panel active" id="panel-cli">
+      <div class="split">
+        <div class="split-left">
+          <div class="pane-toolbar">
+            <span>repo root</span>
+            <code>trellis status</code>
+            <code>trellis issue create -t "…"</code>
+            <code>trellis examples</code>
+          </div>
+          <div id="terminal-container"></div>
+        </div>
+        <div class="split-right">
+          <div class="pane-toolbar">
+            <span class="live-pill">Live graph</span>
+            <span id="graph-stats">reads .trellis/ops.json</span>
+            <span class="spacer"></span>
+            <button
+              class="btn sm"
+              id="examples-run-btn"
+              type="button"
+              title="Run trellis examples in the CLI"
+            >
+              Examples → CLI
+            </button>
+            <button class="btn sm" id="examples-toggle-btn" type="button">
+              Examples
+            </button>
+            <span
+              id="graph-updated"
+              style="font-size: 10px; color: var(--dim)"
+            ></span>
+          </div>
+          <div id="graph-container">
+            <div id="graph-empty">Waiting for repo init…</div>
+          </div>
+          <div id="graph-examples" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-sdk">
+      <div class="split">
+        <div class="split-left">
+          <div class="pane-toolbar">
+            <span>test.mjs</span>
+            <span class="spacer"></span>
+            <button class="btn" id="reset-script-btn" disabled>Reset</button>
+            <button class="btn primary" id="run-btn" disabled>▶ Run</button>
+          </div>
+          <div id="monaco-container"></div>
+          <div id="sdk-output"></div>
+        </div>
+        <div class="split-right">
+          <div class="pane-toolbar">
+            <span class="live-pill">Realtime Todos</span>
+            <span id="mp-status">Alice + Bob · MemorySyncRoom · auto-push</span>
+            <span class="spacer"></span>
+            <span
+              id="mp-updated"
+              style="font-size: 10px; color: var(--dim)"
+            ></span>
+          </div>
+          <div id="mp-container">
+            <div class="mp-peers">
+              <div class="mp-peer">
+                <div class="mp-peer-name">
+                  <span class="mp-peer-dot" id="mp-dot-alice"></span>
+                  Alice
+                </div>
+                <div class="mp-stats">
+                  <div class="mp-stat">
+                    Todos
+                    <span class="mp-stat-val" id="mp-alice-todos">0</span>
+                  </div>
+                  <div class="mp-stat">
+                    Done <span class="mp-stat-val" id="mp-alice-done">0</span>
+                  </div>
+                </div>
+                <div class="mp-todo-list" id="mp-alice-list"></div>
+              </div>
+              <div class="mp-peer">
+                <div class="mp-peer-name">
+                  <span class="mp-peer-dot" id="mp-dot-bob"></span>
+                  Bob
+                </div>
+                <div class="mp-stats">
+                  <div class="mp-stat">
+                    Todos <span class="mp-stat-val" id="mp-bob-todos">0</span>
+                  </div>
+                  <div class="mp-stat">
+                    Done <span class="mp-stat-val" id="mp-bob-done">0</span>
+                  </div>
+                </div>
+                <div class="mp-todo-list" id="mp-bob-list"></div>
+              </div>
+            </div>
+            <div class="mp-sync-line idle" id="mp-sync-line"></div>
+            <div class="mp-ops">
+              <div class="mp-ops-title">
+                <span>Op Log</span>
+                <span id="mp-op-count" style="color: var(--dim)">0 ops</span>
+              </div>
+              <div class="mp-ops-log" id="mp-ops-log"></div>
+            </div>
+            <div class="mp-ops" style="flex: 0.6">
+              <div class="mp-ops-title">Merged Todo List</div>
+              <div class="mp-todos" id="mp-todos"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+    <script type="module">
+      import { WebContainer } from 'https://cdn.jsdelivr.net/npm/@webcontainer/api@1.6.0/dist/index.js';
+      import { Terminal } from 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/+esm';
+      import { FitAddon } from 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/+esm';
+
+      const CLI = ['node', 'bin/trellis.mjs'];
+      const GRAPH_POLL_MS = 2000;
+      const OPS_PATH = '.trellis/ops.json';
+
+      const JSHRC = [
+        '# Trellis sandbox — prefer node launcher (jsh lacks shell builtins like exec)',
+        'export PATH="$PWD/bin:$PATH"',
+        '',
+      ].join('\n');
+
+      const NPM_BIN_STUB = `#!/usr/bin/env node
+import '../../bin/trellis.mjs';
+`;
+
+      const TYPE_COLORS = {
+        file: '#58a6ff',
+        milestone: '#3fb950',
+        issue: '#fbbf24',
+        branch: '#a78bfa',
+        default: '#63637a',
+      };
+      const TYPE_RADIUS = {
+        file: 4,
+        milestone: 9,
+        issue: 8,
+        branch: 6,
+        default: 5,
+      };
+
+      let wc = null;
+      let shellProcess = null;
+      let editor = null;
+      let terminal = null;
+      let fitAddon = null;
+      let trellisVersion = '?';
+      let binTrellisContent = '';
+      let graphPollTimer = null;
+      let graphState = null;
+      let shellInputWriter = null;
+
+      const statusEl = document.getElementById('status');
+      const wcBadge = document.getElementById('wc-badge');
+      const graphBadge = document.getElementById('graph-badge');
+      const graphStats = document.getElementById('graph-stats');
+      const graphUpdated = document.getElementById('graph-updated');
+      const graphEmpty = document.getElementById('graph-empty');
+      const graphExamplesEl = document.getElementById('graph-examples');
+      const examplesToggleBtn = document.getElementById('examples-toggle-btn');
+      const examplesRunBtn = document.getElementById('examples-run-btn');
+      const sdkOutput = document.getElementById('sdk-output');
+      const runBtn = document.getElementById('run-btn');
+      const resetBtn = document.getElementById('reset-script-btn');
+
+      const DEFAULT_SCRIPT = `\
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { TrellisClient } from './dist/client/index.js';
+import { MemorySyncRoom } from './dist/sync/index.js';
+
+mkdirSync('demo', { recursive: true });
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const room = new MemorySyncRoom('demo-room', 'Demo Room');
+
+const clientA = await TrellisClient.open({
+  repo: 'demo/peer-a',
+  agentId: 'alice',
+  persist: 'memory',
+  sync: {
+    transport: room.connectPeer('alice', 'Alice'),
+    roomId: 'demo-room',
+    pushDebounceMs: 100,
+  },
+});
+const clientB = await TrellisClient.open({
+  repo: 'demo/peer-b',
+  agentId: 'bob',
+  persist: 'memory',
+  sync: {
+    transport: room.connectPeer('bob', 'Bob'),
+    roomId: 'demo-room',
+    pushDebounceMs: 100,
+  },
+});
+
+function dumpState(label) {
+  const toTodos = (client) => client.listIssues().map(i => ({
+    id: i.id,
+    title: i.title,
+    done: i.status === 'closed',
+    priority: i.priority,
+  }));
+  const state = {
+    label,
+    alice: { todos: toTodos(clientA), ops: clientA.getOps().length },
+    bob: { todos: toTodos(clientB), ops: clientB.getOps().length },
+    log: [...clientA.getOps(), ...clientB.getOps()]
+      .filter((v, i, a) => a.findIndex(t => t.hash === v.hash) === i)
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+      .map(o => ({ kind: o.kind, agent: o.agentId, hash: o.hash.slice(0, 8), time: o.timestamp })),
+  };
+  writeFileSync('demo/multiplayer.json', JSON.stringify(state, null, 2));
+  console.log('📤 state:', label);
 }
 
-runBtn.addEventListener('click', runScript);
-</script>
-</body>
+// ─── Realtime Todo Demo (auto-push via TrellisClient) ───────────────────────
+
+console.log('🟢 Alice adds groceries');
+await clientA.createIssue('Buy milk', { priority: 'high', lane: 'alice' });
+await clientA.createIssue('Get eggs', { priority: 'medium', lane: 'alice' });
+await sleep(250);
+dumpState('alice-groceries');
+
+console.log('🟣 Bob adds his own todos');
+await clientB.createIssue('Walk the dog', { priority: 'high', lane: 'bob' });
+await clientB.createIssue('Water plants', { priority: 'low', lane: 'bob' });
+await sleep(250);
+dumpState('bob-todos');
+
+console.log('✅ Alice completes a todo');
+const milk = clientA.listIssues().find(i => i.title === 'Buy milk');
+if (milk) await clientA.closeIssue(milk.id, { confirm: true });
+await sleep(250);
+dumpState('alice-completes');
+
+console.log('🔄 Final catch-up sync');
+await clientA.sync();
+await clientB.sync();
+dumpState('converged');
+
+console.log('✅ Alice todos:', clientA.listIssues().length,
+  '| Bob todos:', clientB.listIssues().length,
+  '| Unique ops:', new Set([...clientA.getOps(), ...clientB.getOps()].map(o => o.hash)).size);
+
+console.log('\\n🎉 Realtime todo sync demo complete!');
+clientA.close();
+clientB.close();
+`;
+
+      // ─── Tabs ────────────────────────────────────────────────────────────────────
+      document.querySelectorAll('.tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document
+            .querySelectorAll('.tab')
+            .forEach((t) => t.classList.remove('active'));
+          document
+            .querySelectorAll('.panel')
+            .forEach((p) => p.classList.remove('active'));
+          tab.classList.add('active');
+          document
+            .getElementById(`panel-${tab.dataset.tab}`)
+            .classList.add('active');
+          if (tab.dataset.tab === 'cli' && terminal && fitAddon) {
+            requestAnimationFrame(() => fitAddon.fit());
+          }
+        });
+      });
+
+      function writeSdk(text, cls = 'line-stdout') {
+        for (const line of String(text).split('\n')) {
+          const div = document.createElement('div');
+          div.className = cls;
+          div.textContent = line;
+          sdkOutput.appendChild(div);
+        }
+        sdkOutput.scrollTop = sdkOutput.scrollHeight;
+      }
+
+      function nestFiles(flatMap) {
+        const tree = {};
+        for (const [relPath, content] of Object.entries(flatMap)) {
+          const parts = relPath.split('/');
+          let node = tree;
+          for (let i = 0; i < parts.length - 1; i++) {
+            node[parts[i]] ??= { directory: {} };
+            node = node[parts[i]].directory;
+          }
+          node[parts[parts.length - 1]] = { file: { contents: content } };
+        }
+        return tree;
+      }
+
+      async function initMonaco() {
+        await new Promise((resolve) => {
+          require.config({
+            paths: {
+              vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs',
+            },
+          });
+          require(['vs/editor/editor.main'], () => {
+            editor = monaco.editor.create(
+              document.getElementById('monaco-container'),
+              {
+                value: DEFAULT_SCRIPT,
+                language: 'javascript',
+                theme: 'vs-dark',
+                fontSize: 13,
+                fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
+                lineNumbers: 'on',
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                padding: { top: 12 },
+              },
+            );
+            resolve();
+          });
+        });
+      }
+
+      resetBtn.addEventListener('click', () => editor.setValue(DEFAULT_SCRIPT));
+
+      async function spawnLogged(label, cmd, args) {
+        writeSdk(`$ ${cmd} ${args.join(' ')}`, 'line-dim');
+        const proc = await wc.spawn(cmd, args);
+        let out = '';
+        proc.output.pipeTo(
+          new WritableStream({
+            write(chunk) {
+              out += chunk;
+              writeSdk(chunk, 'line-dim');
+              if (terminal) terminal.write(chunk);
+            },
+          }),
+        );
+        const code = await proc.exit;
+        if (code !== 0) throw new Error(`${label} failed (exit ${code})`);
+        return out;
+      }
+
+      async function bootFilesystem() {
+        statusEl.textContent = 'Booting WebContainer…';
+        writeSdk('Booting WebContainer…', 'line-info');
+
+        wc = await WebContainer.boot();
+
+        const res = await fetch('/api/bootstrap');
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? `HTTP ${res.status}`);
+        }
+        const bootstrap = await res.json();
+        trellisVersion = bootstrap.version ?? '?';
+        binTrellisContent = bootstrap.binTrellis ?? '';
+
+        const distTree = nestFiles(bootstrap.dist);
+        if (bootstrap.clientHtml) {
+          distTree.ui ??= { directory: {} };
+          distTree.ui.directory['client.html'] = {
+            file: { contents: bootstrap.clientHtml },
+          };
+        }
+
+        await wc.mount({
+          'package.json': {
+            file: { contents: JSON.stringify(bootstrap.packageJson, null, 2) },
+          },
+          '.jshrc': { file: { contents: JSHRC } },
+          bin: {
+            directory: {
+              'trellis.mjs': { file: { contents: binTrellisContent } },
+              trellis: { file: { contents: binTrellisContent } },
+            },
+          },
+          dist: { directory: distTree },
+          'README.md': {
+            file: {
+              contents:
+                '# Trellis WebContainer Demo\n\nEdit files here — the causal stream tracks every change.\n',
+            },
+          },
+        });
+
+        statusEl.textContent = 'Installing dependencies…';
+        await spawnLogged('npm install', 'npm', ['install']);
+        await ensureTrellisCli();
+
+        wcBadge.textContent = `WebContainer · v${trellisVersion}`;
+        wcBadge.classList.add('ok');
+        runBtn.disabled = false;
+        resetBtn.disabled = false;
+      }
+
+      /** Node bin links — jsh cannot run shell wrappers (no exec, dirname, etc.). */
+      async function ensureTrellisCli() {
+        await wc.fs.writeFile('bin/trellis', binTrellisContent);
+        try {
+          await wc.fs.mkdir('node_modules/.bin', { recursive: true });
+          await wc.fs.writeFile('node_modules/.bin/trellis', NPM_BIN_STUB);
+        } catch {
+          // .jshrc PATH still points at bin/trellis
+        }
+        try {
+          await spawnLogged('chmod', 'chmod', [
+            '+x',
+            'bin/trellis',
+            'node_modules/.bin/trellis',
+          ]);
+        } catch {
+          // fall back: node bin/trellis.mjs
+        }
+      }
+
+      async function initRepo() {
+        statusEl.textContent = 'Initializing trellis repo…';
+        writeSdk('Initializing Trellis repo…', 'line-info');
+        await spawnLogged('trellis init', CLI[0], [
+          ...CLI.slice(1),
+          'init',
+          '--no-interactive',
+          '--framework',
+          'node',
+        ]);
+        writeSdk('✓ repo ready', 'line-success');
+      }
+
+      // ─── Live graph (read ops.json from WebContainer FS) ─────────────────────────
+      function buildGraphFromOps(ops) {
+        const nodes = [];
+        const edges = [];
+        const nodeIds = new Set();
+        const issues = new Map();
+        const branches = new Map();
+        const files = new Map();
+        const milestones = [];
+
+        for (const op of ops) {
+          const v = op.vcs ?? {};
+          switch (op.kind) {
+            case 'vcs:branchCreate': {
+              const name = v.branchName ?? 'main';
+              branches.set(name, { name, createdAt: op.timestamp });
+              break;
+            }
+            case 'vcs:fileAdd':
+              if (v.filePath)
+                files.set(v.filePath, {
+                  path: v.filePath,
+                  hash: v.contentHash,
+                });
+              break;
+            case 'vcs:milestoneCreate':
+              milestones.push({
+                id: v.milestoneId ?? op.hash,
+                message: v.message ?? '(milestone)',
+                affectedFiles: v.affectedFiles ?? [],
+              });
+              break;
+            case 'vcs:issueCreate':
+              if (v.issueId) {
+                issues.set(v.issueId, {
+                  id: v.issueId,
+                  title: v.issueTitle ?? v.issueId,
+                  status: v.issueStatus,
+                  priority: v.issuePriority,
+                });
+              }
+              break;
+            case 'vcs:issueUpdate':
+            case 'vcs:issueStart':
+            case 'vcs:issuePause':
+            case 'vcs:issueResume':
+            case 'vcs:issueClose':
+            case 'vcs:issueReopen':
+              if (v.issueId) {
+                const cur = issues.get(v.issueId) ?? {
+                  id: v.issueId,
+                  title: v.issueId,
+                };
+                if (v.issueTitle) cur.title = v.issueTitle;
+                if (v.issueStatus) cur.status = v.issueStatus;
+                if (v.issuePriority) cur.priority = v.issuePriority;
+                issues.set(v.issueId, cur);
+              }
+              break;
+            default:
+              break;
+          }
+        }
+
+        for (const f of files.values()) {
+          const id = `file:${f.path}`;
+          nodes.push({ id, label: f.path, type: 'file', meta: f });
+          nodeIds.add(id);
+        }
+        for (const m of milestones) {
+          const id = `milestone:${m.id}`;
+          nodes.push({ id, label: m.message, type: 'milestone', meta: m });
+          nodeIds.add(id);
+          for (const fp of m.affectedFiles) {
+            const fileId = `file:${fp}`;
+            if (nodeIds.has(fileId)) {
+              edges.push({
+                source: id,
+                target: fileId,
+                type: 'milestone_file',
+              });
+            }
+          }
+        }
+        for (const iss of issues.values()) {
+          const id = `issue:${iss.id}`;
+          nodes.push({ id, label: iss.title, type: 'issue', meta: iss });
+          nodeIds.add(id);
+        }
+        for (const b of branches.values()) {
+          const id = `branch:${b.name}`;
+          if (!nodeIds.has(id)) {
+            nodes.push({ id, label: b.name, type: 'branch', meta: b });
+            nodeIds.add(id);
+          }
+        }
+
+        return {
+          nodes,
+          edges,
+          summary: {
+            issues: [...issues.values()],
+            milestones,
+            branches: [...branches.values()],
+            files: [...files.values()],
+          },
+        };
+      }
+
+      function eqlLiteral(value) {
+        return JSON.stringify(value);
+      }
+
+      function formatEqlQuery(query) {
+        return `trellis query '${query.replace(/'/g, "'\\''")}'`;
+      }
+
+      function buildExamplesFromSummary(summary) {
+        const { issues, milestones, branches, files } = summary;
+        const sections = [];
+
+        sections.push({
+          title: 'Status & history',
+          commands: ['trellis -h', 'trellis status', 'trellis log'],
+        });
+
+        const issueCommands = [
+          'trellis issue list',
+          'trellis issue create -t "New task"',
+        ];
+        for (const issue of issues.slice(0, 5)) {
+          issueCommands.push(`trellis issue show ${issue.id}`);
+          if (
+            !issue.status ||
+            issue.status === 'backlog' ||
+            issue.status === 'queue'
+          ) {
+            issueCommands.push(`trellis issue start ${issue.id}`);
+          }
+        }
+        sections.push({
+          title: issues.length ? `Issues (${issues.length})` : 'Issues',
+          commands: issueCommands,
+        });
+
+        sections.push({
+          title: milestones.length
+            ? `Milestones (${milestones.length})`
+            : 'Milestones',
+          commands: [
+            'trellis milestone list',
+            'trellis milestone create -m "Ship milestone"',
+          ],
+        });
+
+        if (branches.length) {
+          sections.push({
+            title: `Branches (${branches.length})`,
+            commands: [
+              'trellis branch -l',
+              ...branches.slice(0, 3).map((b) => `trellis branch ${b.name}`),
+            ],
+          });
+        }
+
+        if (files.length) {
+          sections.push({
+            title: `Files (${files.length})`,
+            commands: files.slice(0, 4).map((f) => `trellis log -f ${f.path}`),
+          });
+        }
+
+        const eql = [
+          formatEqlQuery('find ?e where type = "Issue"'),
+          formatEqlQuery('find ?e where type = "FileNode"'),
+        ];
+        if (issues.length) {
+          eql.push(
+            formatEqlQuery(
+              'find ?e where type = "Issue" and status = "backlog"',
+            ),
+          );
+          if (issues[0].title) {
+            eql.push(
+              formatEqlQuery(
+                `find ?e where title = ${eqlLiteral(issues[0].title)}`,
+              ),
+            );
+          }
+          if (issues[0].priority) {
+            eql.push(
+              formatEqlQuery(
+                `find ?e where priority = ${eqlLiteral(issues[0].priority)}`,
+              ),
+            );
+          }
+          const bare = issues[0].id.replace(/^issue:/, '');
+          eql.push(`trellis fact query -e issue:${bare}`);
+        }
+        if (files.length) {
+          eql.push(
+            formatEqlQuery(`find ?e where path = ${eqlLiteral(files[0].path)}`),
+          );
+        }
+
+        return { sections, eql };
+      }
+
+      function renderExamplesPanel(summary) {
+        const { sections, eql } = buildExamplesFromSummary(summary);
+        graphExamplesEl.innerHTML = [
+          '<h3>Suggested commands</h3>',
+          ...sections.map((s) =>
+            [
+              `<div class="ex-section"><div class="ex-title">${s.title}</div>`,
+              ...s.commands.map(
+                (cmd) =>
+                  `<div class="ex-cmd" data-cmd="${cmd.replace(/"/g, '&quot;')}" title="Click to run in CLI">${cmd}</div>`,
+              ),
+              '</div>',
+            ].join(''),
+          ),
+          '<div class="ex-section"><div class="ex-title">EQL-S queries</div>',
+          ...eql.map(
+            (cmd) =>
+              `<div class="ex-cmd" data-cmd="${cmd.replace(/"/g, '&quot;')}" title="Click to run in CLI">${cmd}</div>`,
+          ),
+          '</div>',
+        ].join('');
+
+        graphExamplesEl.querySelectorAll('.ex-cmd').forEach((el) => {
+          el.addEventListener('click', () => runInTerminal(el.dataset.cmd));
+        });
+      }
+
+      function runInTerminal(cmd) {
+        if (!shellInputWriter || !cmd) return;
+        shellInputWriter.write(`${cmd}\r\n`);
+      }
+
+      examplesToggleBtn.addEventListener('click', () => {
+        const open = graphExamplesEl.hidden;
+        graphExamplesEl.hidden = !open;
+        examplesToggleBtn.textContent = open ? 'Hide' : 'Examples';
+      });
+
+      examplesRunBtn.addEventListener('click', () =>
+        runInTerminal('trellis examples'),
+      );
+
+      function startGraphPolling() {
+        if (graphPollTimer) return;
+        graphBadge.hidden = false;
+        graphEmpty.textContent = 'Loading graph…';
+        pollGraph();
+        graphPollTimer = setInterval(pollGraph, GRAPH_POLL_MS);
+      }
+
+      async function pollGraph() {
+        try {
+          const raw = await wc.fs.readFile(OPS_PATH, 'utf-8');
+          const ops = JSON.parse(raw);
+          const data = buildGraphFromOps(Array.isArray(ops) ? ops : []);
+          renderGraph(data);
+          renderExamplesPanel(data.summary);
+          graphStats.textContent = `${data.nodes.length} nodes · ${data.edges.length} edges · ${ops.length} ops`;
+          graphUpdated.textContent = `updated ${new Date().toLocaleTimeString()}`;
+          graphEmpty.style.display = data.nodes.length ? 'none' : 'flex';
+          if (!data.nodes.length) {
+            graphEmpty.textContent =
+              'No graph nodes yet — create issues or milestones in the CLI';
+          }
+        } catch (err) {
+          const msg = err?.message ?? String(err);
+          if (/ENOENT|not found/i.test(msg)) {
+            graphStats.textContent = 'waiting for .trellis/ops.json…';
+            return;
+          }
+          graphStats.textContent = `read error: ${msg}`;
+        }
+      }
+
+      function renderGraph(data) {
+        const signature = JSON.stringify({
+          n: data.nodes.map((n) => n.id).sort(),
+          e: data.edges.map((e) => `${e.source}|${e.target}|${e.type}`).sort(),
+        });
+        if (graphState?.signature === signature) return;
+
+        const container = document.getElementById('graph-container');
+        container
+          .querySelectorAll('svg, .graph-legend')
+          .forEach((el) => el.remove());
+
+        if (!data.nodes.length) {
+          graphState = { signature };
+          return;
+        }
+
+        graphEmpty.style.display = 'none';
+        const w = container.clientWidth || 480;
+        const h = container.clientHeight || 400;
+
+        const svg = d3
+          .select(container)
+          .append('svg')
+          .attr('width', w)
+          .attr('height', h);
+        const g = svg.append('g');
+        const zoom = d3
+          .zoom()
+          .scaleExtent([0.15, 6])
+          .on('zoom', (e) => g.attr('transform', e.transform));
+        svg.call(zoom);
+
+        const links = data.edges.map((e) => ({ ...e }));
+        const nodes = data.nodes.map((n) => ({ ...n }));
+
+        const sim = d3
+          .forceSimulation(nodes)
+          .force(
+            'link',
+            d3
+              .forceLink(links)
+              .id((d) => d.id)
+              .distance(60)
+              .strength(0.35),
+          )
+          .force('charge', d3.forceManyBody().strength(-90).distanceMax(320))
+          .force('center', d3.forceCenter(w / 2, h / 2))
+          .force(
+            'collision',
+            d3.forceCollide().radius((d) => (TYPE_RADIUS[d.type] || 5) + 3),
+          );
+
+        const linkSel = g
+          .append('g')
+          .selectAll('line')
+          .data(links)
+          .join('line')
+          .attr('stroke', (d) => {
+            if (d.type === 'milestone_file') return '#3fb95044';
+            if (d.type === 'issue_branch') return '#fbbf2444';
+            if (d.type === 'wikilink') return '#58a6ff55';
+            return '#30363d';
+          })
+          .attr('stroke-width', (d) => (d.type === 'wikilink' ? 1.2 : 0.8));
+
+        const nodeSel = g
+          .append('g')
+          .selectAll('circle')
+          .data(nodes)
+          .join('circle')
+          .attr('r', (d) => TYPE_RADIUS[d.type] || 5)
+          .attr('fill', (d) => TYPE_COLORS[d.type] || TYPE_COLORS.default)
+          .attr('stroke', '#0d1117')
+          .attr('stroke-width', 1.5)
+          .call(
+            d3
+              .drag()
+              .on('start', (event, d) => {
+                if (!event.active) sim.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+              })
+              .on('drag', (event, d) => {
+                d.fx = event.x;
+                d.fy = event.y;
+              })
+              .on('end', (event, d) => {
+                if (!event.active) sim.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+              }),
+          );
+
+        const labelSel = g
+          .append('g')
+          .selectAll('text')
+          .data(nodes.filter((n) => n.type !== 'file'))
+          .join('text')
+          .text((d) =>
+            d.label.length > 24 ? `${d.label.slice(0, 24)}…` : d.label,
+          )
+          .attr('font-size', 10)
+          .attr('fill', (d) => TYPE_COLORS[d.type] || TYPE_COLORS.default)
+          .attr('dx', (d) => (TYPE_RADIUS[d.type] || 5) + 5)
+          .attr('dy', 3)
+          .attr('pointer-events', 'none')
+          .attr('font-family', 'system-ui, sans-serif');
+
+        sim.on('tick', () => {
+          linkSel
+            .attr('x1', (d) => d.source.x)
+            .attr('y1', (d) => d.source.y)
+            .attr('x2', (d) => d.target.x)
+            .attr('y2', (d) => d.target.y);
+          nodeSel.attr('cx', (d) => d.x).attr('cy', (d) => d.y);
+          labelSel.attr('x', (d) => d.x).attr('y', (d) => d.y);
+        });
+
+        sim.on('end', () => {
+          try {
+            const b = g.node().getBBox();
+            if (!b.width) return;
+            const pad = 40;
+            const scale = Math.min(
+              (w - pad * 2) / b.width,
+              (h - pad * 2) / b.height,
+              1.8,
+            );
+            svg
+              .transition()
+              .duration(500)
+              .call(
+                zoom.transform,
+                d3.zoomIdentity
+                  .translate(w / 2, h / 2)
+                  .scale(scale)
+                  .translate(-b.x - b.width / 2, -b.y - b.height / 2),
+              );
+          } catch {}
+        });
+
+        const legend = document.createElement('div');
+        legend.className = 'graph-legend';
+        legend.innerHTML = ['milestone', 'issue', 'file', 'branch']
+          .map(
+            (t) =>
+              `<div class="legend-item"><div class="legend-dot" style="background:${TYPE_COLORS[t]}"></div>${t}</div>`,
+          )
+          .join('');
+        container.appendChild(legend);
+
+        graphState = { signature, sim, svg, zoom, g };
+      }
+
+      async function wcRootPath() {
+        const proc = await wc.spawn('pwd', []);
+        let out = '';
+        proc.output.pipeTo(
+          new WritableStream({
+            write(chunk) {
+              out += chunk;
+            },
+          }),
+        );
+        await proc.exit;
+        return out.trim();
+      }
+
+      // ─── Terminal ────────────────────────────────────────────────────────────────
+      async function startShell() {
+        terminal = new Terminal({
+          cursorBlink: true,
+          convertEol: true,
+          fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
+          fontSize: 13,
+          theme: {
+            background: '#010409',
+            foreground: '#e6edf3',
+            cursor: '#58a6ff',
+            selectionBackground: '#264f78',
+          },
+        });
+        fitAddon = new FitAddon();
+        terminal.loadAddon(fitAddon);
+        terminal.open(document.getElementById('terminal-container'));
+        fitAddon.fit();
+
+        window.addEventListener('resize', () => {
+          if (fitAddon) fitAddon.fit();
+        });
+
+        const root = await wcRootPath();
+        shellProcess = await wc.spawn('jsh', {
+          terminal: { cols: terminal.cols, rows: terminal.rows },
+          env: { PATH: `${root}/bin:/usr/local/bin:/usr/bin:/bin` },
+        });
+
+        shellProcess.output.pipeTo(
+          new WritableStream({
+            write(data) {
+              terminal.write(data);
+            },
+          }),
+        );
+
+        const input = shellProcess.input.getWriter();
+        shellInputWriter = input;
+        terminal.onData((data) => {
+          input.write(data);
+        });
+
+        terminal.onResize(({ cols, rows }) => {
+          try {
+            shellProcess.resize({ cols, rows });
+          } catch {}
+        });
+
+        terminal.write(
+          [
+            `\x1b[1;36mTrellis WebContainer\x1b[0m v${trellisVersion}`,
+            '  Graph updates live on the right →',
+            '  Try: \x1b[1mtrellis -h\x1b[0m · \x1b[1mtrellis examples\x1b[0m · \x1b[1mtrellis status\x1b[0m',
+            '',
+          ].join('\r\n'),
+        );
+      }
+
+      // ─── SDK run ─────────────────────────────────────────────────────────────────
+      runBtn.addEventListener('click', async () => {
+        runBtn.disabled = true;
+        statusEl.textContent = 'Running SDK script…';
+        await wc.fs.writeFile('test.mjs', editor.getValue());
+
+        writeSdk('');
+        writeSdk('$ node test.mjs', 'line-dim');
+        const proc = await wc.spawn('node', ['test.mjs']);
+        proc.output.pipeTo(
+          new WritableStream({
+            write(chunk) {
+              for (const line of chunk.split('\n')) {
+                if (!line) continue;
+                if (
+                  line.startsWith('✓') ||
+                  line.includes('🎉') ||
+                  line.includes('✅')
+                )
+                  writeSdk(line, 'line-success');
+                else if (/^[🟢🟣🔄]/i.test(line)) writeSdk(line, 'line-info');
+                else if (/error|failed/i.test(line))
+                  writeSdk(line, 'line-stderr');
+                else writeSdk(line, 'line-stdout');
+              }
+            },
+          }),
+        );
+        const code = await proc.exit;
+        writeSdk(
+          code === 0 ? 'Process exited 0' : `Process exited ${code}`,
+          code === 0 ? 'line-success' : 'line-stderr',
+        );
+        statusEl.textContent = code === 0 ? 'SDK run OK' : `SDK exit ${code}`;
+        runBtn.disabled = false;
+      });
+
+      // ─── Multiplayer demo visualizer ─────────────────────────────────────────────
+      const MP_POLL_MS = 800;
+      const MP_STATE_PATH = 'demo/multiplayer.json';
+      let mpPollTimer = null;
+      let lastMpLabel = '';
+
+      function startMpPolling() {
+        if (mpPollTimer) return;
+        pollMp();
+        mpPollTimer = setInterval(pollMp, MP_POLL_MS);
+      }
+
+      async function pollMp() {
+        try {
+          const raw = await wc.fs.readFile(MP_STATE_PATH, 'utf-8');
+          const state = JSON.parse(raw);
+          renderMp(state);
+          document.getElementById('mp-updated').textContent =
+            `updated ${new Date().toLocaleTimeString()}`;
+        } catch {
+          /* file may not exist yet */
+        }
+      }
+
+      function renderMp(state) {
+        if (!state || state.label === lastMpLabel) return;
+        lastMpLabel = state.label;
+
+        const renderTodoItem = (t) =>
+          `<div class="mp-todo-item ${t.done ? 'done' : ''}">` +
+          `<span class="mp-todo-check ${t.done ? 'checked' : ''}">${t.done ? '✓' : ''}</span>` +
+          `<span>${t.title}</span>` +
+          `</div>`;
+
+        // Peer todo lists
+        const aliceTodos = state.alice?.todos ?? [];
+        const bobTodos = state.bob?.todos ?? [];
+        document.getElementById('mp-alice-todos').textContent =
+          aliceTodos.length;
+        document.getElementById('mp-alice-done').textContent =
+          aliceTodos.filter((t) => t.done).length;
+        document.getElementById('mp-alice-list').innerHTML = aliceTodos
+          .map(renderTodoItem)
+          .join('');
+        document.getElementById('mp-bob-todos').textContent = bobTodos.length;
+        document.getElementById('mp-bob-done').textContent = bobTodos.filter(
+          (t) => t.done,
+        ).length;
+        document.getElementById('mp-bob-list').innerHTML = bobTodos
+          .map(renderTodoItem)
+          .join('');
+
+        // Op log
+        const logEl = document.getElementById('mp-ops-log');
+        const log = state.log ?? [];
+        document.getElementById('mp-op-count').textContent =
+          `${log.length} ops`;
+        logEl.innerHTML = log
+          .slice(-20)
+          .map(
+            (o) =>
+              `<div class="mp-op-row">` +
+              `<span class="mp-op-time">${o.time?.slice(11, 19) ?? '--:--:--'}</span>` +
+              `<span class="mp-op-peer" style="color:${o.agent === 'alice' ? 'var(--cyan)' : 'var(--magenta)'};">${o.agent}</span>` +
+              `<span class="mp-op-kind">${o.kind}</span>` +
+              `<span class="mp-op-hash">${o.hash}</span>` +
+              `</div>`,
+          )
+          .join('');
+        logEl.scrollTop = logEl.scrollHeight;
+
+        // Merged todo list
+        const todosEl = document.getElementById('mp-todos');
+        const all = [...aliceTodos, ...bobTodos];
+        const seen = new Set();
+        const unique = [];
+        for (const t of all) {
+          if (!seen.has(t.id)) {
+            seen.add(t.id);
+            unique.push(t);
+          }
+        }
+        todosEl.innerHTML = unique
+          .map(
+            (t) =>
+              `<div class="mp-todo-row ${t.done ? 'done' : ''}">` +
+              `<span class="mp-todo-check ${t.done ? 'checked' : ''}">${t.done ? '✓' : ''}</span>` +
+              `<span style="flex:1">${t.title}</span>` +
+              `<span class="creator ${t.id.includes('alice') || t.title?.toLowerCase().includes('alice') ? 'alice' : 'bob'}">${t.id.includes('alice') || t.title?.toLowerCase().includes('alice') ? 'Alice' : 'Bob'}</span>` +
+              `</div>`,
+          )
+          .join('');
+
+        // Sync animation
+        const syncLine = document.getElementById('mp-sync-line');
+        if (
+          state.label?.includes('sync') ||
+          state.label?.includes('converged')
+        ) {
+          syncLine.classList.remove('idle');
+          syncLine.classList.add('active');
+          setTimeout(() => {
+            syncLine.classList.remove('active');
+            syncLine.classList.add('idle');
+          }, 2000);
+        }
+      }
+
+      // ─── Main ────────────────────────────────────────────────────────────────────
+      try {
+        await initMonaco();
+        await bootFilesystem();
+        await initRepo();
+        await startShell();
+        startGraphPolling();
+        startMpPolling();
+        statusEl.textContent = 'Ready';
+      } catch (err) {
+        statusEl.textContent = 'Boot failed';
+        writeSdk(`Boot failed: ${err.message}`, 'line-stderr');
+        if (terminal)
+          terminal.write(`\r\n\x1b[31mBoot failed: ${err.message}\x1b[0m\r\n`);
+        console.error(err);
+      }
+    </script>
+  </body>
 </html>

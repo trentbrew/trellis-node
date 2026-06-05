@@ -1,6 +1,8 @@
 # Changelog
 
-## 3.1.32
+Notable changes by release date and version. See [trellis.computer/changelog](https://trellis.computer/changelog) for the public site copy.
+
+## trellis [3.1.32] — 2026-05-29
 
 - **Agent Lanes (W1–W4):** `trellis lane` — isolated per-agent op journals under `.trellis/lanes/`, `create` / `enter` / `leave` / `status` / `diff` / `promote` / `drop`.
 - **`trellis lane promote`:** replay lane ops onto integration with `--dry-run`, `--explain`, and hard/soft/file conflict detection.
@@ -10,7 +12,7 @@
 - **`getBranchHeadOpHash`:** latest `headOpHash` fact wins (fixes stale head during promote).
 - **Op log lock:** configurable timeout via `TRELLIS_OPLOG_LOCK_MS`.
 
-## 3.1.14
+## trellis [3.1.14] — 2026-05-22
 
 - CLI `trellis --version` now reports the real package version from `package.json` (was hardcoded `0.1.0`).
 - CLI `-p` / cwd resolution walks up to the nearest `.trellis` repo root (monorepo subfolders work without passing the root path).
@@ -18,7 +20,7 @@
 - `issue create` accepts `--description` as an alias for `--desc`.
 - `bin/trellis.mjs` launcher finds Homebrew Bun when Node's `PATH` is minimal (`npx trellis` / agent shells).
 
-## 3.1.2
+## trellis [3.1.2] — 2026-05-12
 
 - Fixed `trellis/cms` collection reads for inferred collections whose normalized key differs from the stored entity type casing, such as `blogpost` reading `BlogPost` entities.
 - Added graph-link awareness to CMS entries so reference links such as `post --author--> author` appear in `fields` and can be expanded.
@@ -29,10 +31,10 @@
 - Added CMS client/scaffold tests and included them in the default test script.
 - Added `directory` support to CMS consumer scaffolds for multi-instance opencode routing.
 
-## 3.1.1
+## trellis [3.1.1] — 2026-05-12
 
 - Published the first `trellis/cms` SDK package update after adding scaffold helpers.
 
-## 3.1.0
+## trellis [3.1.0] — 2026-05-12
 
 - Added the `trellis/cms` subpath with `createCmsClient`, collection reads, entry reads, polling subscriptions, reference expansion, collection discovery, and consumer scaffold helpers for vanilla, React, Solid, and Vue.

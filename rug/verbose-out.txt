@@ -1,0 +1,16 @@
+
+ RUN  v2.1.9 /Users/trentbrew/TURTLE/Projects/TRELLIS/trellis-node
+
+ ✓ test/client/vcs-client.test.ts > TrellisClient (local mode) > opens a repo and creates an issue
+ ✓ test/client/vcs-client.test.ts > TrellisClient (local mode) > emits reactive updates via subscribe
+ ✓ test/client/vcs-client.test.ts > TrellisClient (local mode) > emits op events for new ops
+ ✓ test/client/vcs-client.test.ts > TrellisClient (local mode) > maps lane shorthand to laneId in issue id
+ ✓ test/client/vcs-client.test.ts > TrellisClient (local mode) > exposes signals for framework adapters
+ ✓ test/client/vcs-client.test.ts > TrellisClient (room sync) > propagates issues to peers via room relay without manual sync
+ ✓ test/client/vcs-client.test.ts > TrellisClient (room sync) > reports sync status through subscribe
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  18:17:52
+   Duration  1.47s (transform 332ms, setup 0ms, collect 487ms, tests 226ms, environment 0ms, prepare 71ms)
+
