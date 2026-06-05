@@ -44,8 +44,9 @@ echo "# My Project" > README.md
 trellis issue create -t "Bootstrap Visualization"
 trellis milestone create -m "Initial Release"
 
-# 5. Launch the local web client to explore your semantic graph
-trellis web
+# 5. Launch the live graph explorer (SvelteKit + realtime sidecar)
+trellis ui
+# Legacy VCS-only visualizer: trellis ui --legacy --port 3333
 
 # 6. Create coding session with trellis harness
 trellis code

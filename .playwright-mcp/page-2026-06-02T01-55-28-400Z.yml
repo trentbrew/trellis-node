@@ -1,0 +1,41 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]: Trellis Realtime
+    - heading "Multiplayer demos" [level=1] [ref=e6]
+    - paragraph [ref=e7]: Four primitives built on the Trellis realtime layer — ephemeral presence and broadcast that never touches the persisted causal log. Everything below runs live in this page across simulated peers.
+    - generic [ref=e8]:
+      - generic [ref=e9]: "Mode: simulated room (peers in this page)"
+      - generic [ref=e10] [cursor=pointer]: Switch to cross-tab ↗
+  - navigation [ref=e11]:
+    - button "1 Active avatars" [ref=e12] [cursor=pointer]:
+      - generic [ref=e13]: "1"
+      - text: Active avatars
+    - button "2 Chat" [ref=e14] [cursor=pointer]:
+      - generic [ref=e15]: "2"
+      - text: Chat
+    - button "3 Live cursors" [ref=e16] [cursor=pointer]:
+      - generic [ref=e17]: "3"
+      - text: Live cursors
+    - button "4 Text editor" [ref=e18] [cursor=pointer]:
+      - generic [ref=e19]: "4"
+      - text: Text editor
+  - main [ref=e20]:
+    - generic [ref=e21]:
+      - heading "Active user avatars" [level=2] [ref=e22]
+      - paragraph [ref=e23]: Presence-driven avatar stack. Each peer publishes name + color on join; everyone else renders the live roster. Join and leave to watch it update.
+    - generic [ref=e24]:
+      - button "+ Join user" [ref=e25] [cursor=pointer]
+      - button "− Leave user" [ref=e26] [cursor=pointer]
+      - generic [ref=e27]: 3 active
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - text: A
+          - generic: Ada (you)
+        - generic [ref=e32]:
+          - text: G
+          - generic: Grace
+        - generic [ref=e34]:
+          - text: L
+          - generic: Linus
+      - generic [ref=e36]: 3 online — Ada, Grace, Linus

@@ -12,6 +12,7 @@
 import { existsSync, mkdirSync } from 'fs';
 import { join, resolve } from 'path';
 import { TrellisKernel } from '../core/kernel/trellis-kernel.js';
+import { attachStandardMiddleware } from '../core/kernel/boot-middleware.js';
 import { SqliteKernelBackend } from '../core/persist/sqlite-backend.js';
 import type { KernelBackend } from '../core/persist/backend.js';
 import type { CreateKernelBackendOptions } from '../core/persist/factory.js';
@@ -174,6 +175,7 @@ export class TenantPool {
       snapshotThreshold: 1000,
     });
     kernel.boot();
+    attachStandardMiddleware(kernel);
     return kernel;
   }
 

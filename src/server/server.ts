@@ -33,7 +33,6 @@ import { fileURLToPath } from 'url';
 const __moduleDir =
   (import.meta as any).dir ?? dirname(fileURLToPath(import.meta.url));
 import { parseSimple } from '../core/query/index.js';
-import { QueryEngine } from '../core/query/engine.js';
 import { jsonEntityFacts } from '../core/store/eav-store.js';
 import type { TrellisDbConfig } from '../client/config.js';
 import type { TenantPool } from './tenancy.js';
@@ -466,8 +465,7 @@ async function handleQuery(
   }
 
   const kernel = ctx.pool.get(tenantId);
-  const engine = new QueryEngine(kernel.getStore());
-  const result = engine.execute(parsed);
+  const result = await kernel.query(parsed);
 
   return json({
     bindings: result.bindings,

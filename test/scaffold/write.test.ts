@@ -200,6 +200,7 @@ test('generates enhanced hooks for Cursor with full footprint', () => {
   // Check shared harness scripts
   const harnessDir = join(testDir, '.cursor', 'hooks', 'trellis-harness');
   expect(existsSync(join(harnessDir, 'pre-prompt-recall.sh'))).toBe(true);
+  expect(existsSync(join(harnessDir, 'normalize-op.jq'))).toBe(true);
   expect(existsSync(join(harnessDir, 'post-tool-oplog.sh'))).toBe(true);
   expect(existsSync(join(harnessDir, 'post-tool-memory-capture.sh'))).toBe(
     true,
@@ -215,6 +216,9 @@ test('generates enhanced hooks for Cursor with full footprint', () => {
     readFileSync(join(testDir, '.cursor', 'hooks.json'), 'utf-8'),
   );
   expect(hooksConfig.hooks.sessionStart).toBeDefined();
+  expect(hooksConfig.hooks.postToolUse).toBeDefined();
+  expect(hooksConfig.hooks.afterShellExecution).toBeDefined();
+  expect(hooksConfig.hooks.afterMCPExecution).toBeDefined();
   expect(hooksConfig.hooks.afterFileEdit).toBeDefined();
   expect(hooksConfig.hooks.stop).toBeDefined();
   expect(hooksConfig.hooks.sessionStart[0].command).toContain(

@@ -30,7 +30,18 @@ const execAsync = promisify(exec);
 // ---------------------------------------------------------------------------
 
 export interface IssueInfo {
+  /**
+   * Canonical, collision-resistant identifier.
+   * Legacy unlaned issues use `TRL-N`; lane-scoped use `issue:<laneId>:<seq>`.
+   * Always present; safe to use as a map key, link target, and nack ref.
+   */
   id: string;
+  /**
+   * Optional human-readable name.
+   * For legacy `TRL-N` ids this mirrors `id`. For lane-scoped ids it is
+   * undefined until a promotion step assigns one. UI may fall back to `id`.
+   */
+  displayId?: string;
   title?: string;
   description?: string;
   status?: string;
@@ -77,6 +88,21 @@ export interface IssueFilters {
   blocked?: boolean;
 }
 
+export interface IssueCreateOptions {
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+  labels?: string[];
+  assignee?: string;
+  parentId?: string;
+  description?: string;
+  status?: 'backlog' | 'queue';
+  criteria?: Array<{ description: string; command?: string }>;
+  /**
+   * Creates a collision-resistant canonical ID scoped to this lane, e.g.
+   * `issue:lane-a:1`. Omit to keep the legacy repo-wide `TRL-N` allocator.
+   */
+  laneId?: string;
+}
+
 // ---------------------------------------------------------------------------
 // ID generation
 // ---------------------------------------------------------------------------
@@ -85,12 +111,25 @@ function getIssueCounterPath(rootPath: string): string {
   return join(rootPath, '.trellis', 'issue-counter.json');
 }
 
-function nextIssueId(rootPath: string): string {
+function getLaneIssueCounterPath(rootPath: string, laneId: string): string {
+  return join(
+    rootPath,
+    '.trellis',
+    'issue-counters',
+    `${encodeURIComponent(laneId)}.json`,
+  );
+}
+
+function nextIssueId(rootPath: string, laneId?: string): string {
+  const laneScope = laneId?.trim();
   const counterPath = getIssueCounterPath(rootPath);
-  const dir = dirname(counterPath);
+  const scopedCounterPath = laneScope
+    ? getLaneIssueCounterPath(rootPath, laneScope)
+    : counterPath;
+  const dir = dirname(scopedCounterPath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-  const lockPath = `${counterPath}.lock`;
+  const lockPath = `${scopedCounterPath}.lock`;
   const deadline = Date.now() + 5000;
   let lockFd: number | undefined;
 
@@ -113,13 +152,15 @@ function nextIssueId(rootPath: string): string {
 
   try {
     let counter = 0;
-    if (existsSync(counterPath)) {
+    if (existsSync(scopedCounterPath)) {
       try {
-        counter = JSON.parse(readFileSync(counterPath, 'utf-8')).counter ?? 0;
+        counter =
+          JSON.parse(readFileSync(scopedCounterPath, 'utf-8')).counter ?? 0;
       } catch {}
     }
     counter++;
-    writeFileSync(counterPath, JSON.stringify({ counter }, null, 2));
+    writeFileSync(scopedCounterPath, JSON.stringify({ counter }, null, 2));
+    if (laneScope) return `issue:${laneScope}:${counter}`;
     return `TRL-${counter}`;
   } finally {
     closeSync(lockFd);
@@ -164,6 +205,11 @@ function getIssueLinks(
   return links
     .filter((l) => l.a === attr && l.e1 === entityId)
     .map((l) => l.e2);
+}
+
+function issueInfoIdFromEntityId(entityId: string): string {
+  const bare = entityId.replace(/^issue:/, '');
+  return bare.includes(':') ? entityId : bare;
 }
 
 function getCriteriaForIssue(
@@ -218,20 +264,20 @@ function buildIssueInfo(ctx: EngineContext, entityId: string): IssueInfo {
   const childOfLinks = getIssueLinks(ctx, entityId, 'childOf');
   const parentId =
     childOfLinks.length > 0
-      ? childOfLinks[0].replace(/^issue:/, '')
+      ? issueInfoIdFromEntityId(childOfLinks[0])
       : undefined;
 
-  const bareId = entityId.replace(/^issue:/, '');
+  const issueId = issueInfoIdFromEntityId(entityId);
 
   // Blocking: forward blockedBy links (this issue is blocked by...)
   const blockedByLinks = getIssueLinks(ctx, entityId, 'blockedBy');
-  const blockedBy = blockedByLinks.map((e) => e.replace(/^issue:/, ''));
+  const blockedBy = blockedByLinks.map(issueInfoIdFromEntityId);
 
   // Blocking: reverse blockedBy links (this issue blocks...)
   const allBlockedByLinks = ctx.store.getLinksByAttribute('blockedBy');
   const blocking = allBlockedByLinks
     .filter((l) => l.e2 === entityId)
-    .map((l) => l.e1.replace(/^issue:/, ''));
+    .map((l) => issueInfoIdFromEntityId(l.e1));
 
   // Derived: isBlocked if any blocker is not closed
   const isBlocked = blockedByLinks.some((blockerEid) => {
@@ -240,7 +286,8 @@ function buildIssueInfo(ctx: EngineContext, entityId: string): IssueInfo {
   });
 
   return {
-    id: bareId,
+    id: issueId,
+    displayId: defaultDisplayId(issueId),
     title: get('title'),
     description: get('description'),
     status: get('status'),
@@ -258,8 +305,17 @@ function buildIssueInfo(ctx: EngineContext, entityId: string): IssueInfo {
     blockedBy,
     blocking,
     isBlocked,
-    criteria: getCriteriaForIssue(ctx, bareId),
+    criteria: getCriteriaForIssue(ctx, issueId),
   };
+}
+
+/**
+ * Default display alias for a canonical issue id.
+ * Legacy `TRL-N` ids are already human-readable; lane-scoped canonical ids
+ * have no alias until a promotion step assigns one.
+ */
+function defaultDisplayId(id: string): string | undefined {
+  return /^TRL-\d+$/.test(id) ? id : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -273,17 +329,9 @@ export async function createIssue(
   ctx: EngineContext,
   rootPath: string,
   title: string,
-  opts?: {
-    priority?: 'critical' | 'high' | 'medium' | 'low';
-    labels?: string[];
-    assignee?: string;
-    parentId?: string;
-    description?: string;
-    status?: 'backlog' | 'queue';
-    criteria?: Array<{ description: string; command?: string }>;
-  },
+  opts?: IssueCreateOptions,
 ): Promise<VcsOp> {
-  const id = nextIssueId(rootPath);
+  const id = nextIssueId(rootPath, opts?.laneId);
 
   const op = await createVcsOp('vcs:issueCreate', {
     agentId: ctx.agentId,

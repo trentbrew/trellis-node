@@ -12,7 +12,8 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import type { ProjectContext } from './infer.js';
 import type { UserProfile } from './profile.js';
 
@@ -94,6 +95,12 @@ function writeTrellisHooks(rootPath: string, ide: IdeType): void {
   writeFileSync(
     join(trellisHarnessDir, 'pre-prompt-recall.sh'),
     renderPrePromptRecallScript(),
+    'utf-8',
+  );
+
+  writeFileSync(
+    join(trellisHarnessDir, 'normalize-op.jq'),
+    readHarnessTemplate('normalize-op.jq'),
     'utf-8',
   );
 
@@ -607,58 +614,44 @@ fi
 exit 0`;
 }
 
+const SCAFFOLD_MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+
+function readHarnessTemplate(name: string): string {
+  return readFileSync(
+    join(SCAFFOLD_MODULE_DIR, '..', '..', 'templates', 'trellis-harness', name),
+    'utf-8',
+  );
+}
+
 function renderPostToolOplogScript(): string {
   return `#!/usr/bin/env bash
-# Post-tool operation logging for Trellis integration
-# Normalized contract: TRELLIS_ORIGIN, TRELLIS_DESK_ROOT, stdin with tool data
+# Post-tool operation logging for Trellis integration (agent-ops v1 schema).
 set -euo pipefail
 
-# Import desk root detection
-source "$(dirname "$0")/../../desk-root.sh"
+source "$(dirname "$0")/../desk-root.sh"
 
-# Environment variables from contract
 ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
-
-# Read tool data from stdin (normalized format)
 TOOL_DATA=$(cat)
 
-# Extract relevant information from tool data
-# Expected format: JSON with tool, action, file_path, etc.
-TOOL_NAME=$(echo "$TOOL_DATA" | jq -r '.tool // "unknown"' 2>/dev/null || echo "unknown")
-ACTION=$(echo "$TOOL_DATA" | jq -r '.action // "unknown"' 2>/dev/null || echo "unknown")
-FILE_PATH=$(echo "$TOOL_DATA" | jq -r '.file_path // .filePath // .path // ""' 2>/dev/null || echo "")
-
-# Only run if we're in a Trellis workspace
-if ! command -v trellis >/dev/null 2>&1; then
+if [ ! -f ".trellis/config.json" ]; then
+  exit 0
+fi
+if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-if [ -f ".trellis/config.json" ]; then
-  # Create operation log entry
-  OP_ENTRY=$(cat << EOF
-{
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)",
-  "origin": "$ORIGIN",
-  "tool": "$TOOL_NAME",
-  "action": "$ACTION",
-  "target": "$FILE_PATH",
-  "type": "agent-operation"
-}
-EOF
-  )
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+LOG_DIR=".trellis/agent-ops"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/ops-$(date +%Y-%m-%d).jsonl"
+NORMALIZE_JQ="$(dirname "$0")/normalize-op.jq"
 
-  # Try to append to Trellis op log (non-blocking)
-  # Note: This would need a corresponding trellis operation command
-  # For now, we'll create a local log file that can be imported
-  LOG_DIR=".trellis/agent-ops"
-  mkdir -p "$LOG_DIR"
+OP_ENTRY=$(printf '%s' "$TOOL_DATA" | jq -c -f "$NORMALIZE_JQ" \\
+  --arg ts "$TS" \\
+  --arg origin "$ORIGIN" 2>/dev/null) || OP_ENTRY="{\\"schema_version\\":1,\\"timestamp\\":\\"$TS\\",\\"origin\\":\\"$ORIGIN\\",\\"tool\\":\\"unknown\\",\\"action\\":\\"unknown\\",\\"target\\":\\"\\",\\"command\\":\\"\\",\\"pattern\\":\\"\\",\\"mcp_server\\":\\"\\",\\"mcp_tool\\":\\"\\",\\"model\\":\\"\\",\\"tool_use_id\\":\\"\\",\\"type\\":\\"agent-operation\\"}"
 
-  LOG_FILE="$LOG_DIR/ops-$(date +%Y-%m-%d).jsonl"
-  echo "$OP_ENTRY" >> "$LOG_FILE"
-
-  # Keep only last 7 days of logs
-  find "$LOG_DIR" -name "ops-*.jsonl" -mtime +7 -delete 2>/dev/null || true
-fi
+printf '%s\\n' "$OP_ENTRY" >> "$LOG_FILE"
+find "$LOG_DIR" -name "ops-*.jsonl" -mtime +7 -delete 2>/dev/null || true
 
 exit 0`;
 }
@@ -678,10 +671,12 @@ ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
 # Read tool data from stdin
 TOOL_DATA=$(cat)
 
-# Extract relevant information
-TOOL_NAME=$(echo "$TOOL_DATA" | jq -r '.tool // "unknown"' 2>/dev/null || echo "unknown")
-ACTION=$(echo "$TOOL_DATA" | jq -r '.action // "unknown"' 2>/dev/null || echo "unknown")
-FILE_PATH=$(echo "$TOOL_DATA" | jq -r '.file_path // .filePath // .path // ""' 2>/dev/null || echo "")
+NORMALIZE_JQ="$(dirname "$0")/normalize-op.jq"
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+NORM=$(printf '%s' "$TOOL_DATA" | jq -c -f "$NORMALIZE_JQ" --arg ts "$TS" --arg origin "$ORIGIN" 2>/dev/null || echo "")
+TOOL_NAME=$(echo "$NORM" | jq -r '.tool // "unknown"' 2>/dev/null || echo "unknown")
+ACTION=$(echo "$NORM" | jq -r '.action // "unknown"' 2>/dev/null || echo "unknown")
+FILE_PATH=$(echo "$NORM" | jq -r '.target // ""' 2>/dev/null || echo "")
 
 # Only run if we're in a Trellis workspace
 if ! command -v trellis >/dev/null 2>&1; then
@@ -841,50 +836,34 @@ function renderAdapterScript(ide: IdeType): string {
   switch (ide) {
     case 'cursor':
       return `#!/usr/bin/env bash
-# Cursor adapter for Trellis harness
-# Translates Cursor events to normalized contract
+# Cursor adapter for Trellis harness — raw stdin → shared normalizer
 set -euo pipefail
 
-# Import desk root detection
 source "\$(dirname "\$0")/../desk-root.sh"
 
-# Set origin
 export TRELLIS_ORIGIN="cursor"
 export TRELLIS_DESK_ROOT="\$PWD"
 
-# Route based on event type
 EVENT_TYPE="\${1:-unknown}"
+HARNESS="\$(dirname "\$0")/../trellis-harness"
+
+log_tool_event() {
+  local data
+  data=\$(cat)
+  printf '%s' "\$data" | "\$HARNESS/post-tool-oplog.sh"
+  printf '%s' "\$data" | "\$HARNESS/post-tool-memory-capture.sh"
+}
 
 case "\$EVENT_TYPE" in
   "session-start")
-    # Cursor sessionStart hook
-    exec "\$(dirname "\$0")/../trellis-harness/pre-prompt-recall.sh"
+    exec "\$HARNESS/pre-prompt-recall.sh"
     ;;
-  "post-tool")
-    # Cursor afterFileEdit hook - read stdin for tool data
-    TOOL_DATA=\$(cat)
-
-    # Transform Cursor format to normalized format
-    NORMALIZED_DATA=\$(cat << EOF
-{
-  "tool": "edit_file",
-  "action": "update",
-  "file_path": \$(echo "\$TOOL_DATA" | jq -r '.file_path // ""' 2>/dev/null || echo '""'),
-  "timestamp": "\$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
-}
-EOF
-    )
-
-    # Call op logger
-    echo "\$NORMALIZED_DATA" | "\$(dirname "\$0")/../trellis-harness/post-tool-oplog.sh"
-
-    # Call memory capture
-    echo "\$NORMALIZED_DATA" | "\$(dirname "\$0")/../trellis-harness/post-tool-memory-capture.sh"
+  "post-tool"|"post-tool-use"|"after-shell"|"afterShellExecution"|"after-mcp"|"afterMCPExecution"|"post-tool-edit"|"afterFileEdit")
+    log_tool_event
     ;;
   "stop")
-    # Cursor stop hook
     export TRELLIS_HOOK_OUTPUT="stdout"
-    exec "\$(dirname "\$0")/../trellis-harness/stop-triage.sh"
+    exec "\$HARNESS/stop-triage.sh"
     ;;
   *)
     echo "Unknown Cursor event: \$EVENT_TYPE" >&2
@@ -967,63 +946,19 @@ case "\$EVENT_TYPE" in
     exec "\$(dirname "\$0")/../trellis-harness/pre-prompt-recall.sh"
     ;;
   "post-tool-use")
-    # Claude Code PostToolUse hook - read stdin for tool data
-    TOOL_DATA=\$(cat)
-
-    # Transform Claude Code format to normalized format
-    NORMALIZED_DATA=\$(cat << EOF
-{
-  "tool": \$(echo "\$TOOL_DATA" | jq -r '.tool_name // "unknown"' 2>/dev/null || echo '"unknown"'),
-  "action": \$(echo "\$TOOL_DATA" | jq -r '.action // "unknown"' 2>/dev/null || echo '"unknown"'),
-  "file_path": \$(echo "\$TOOL_DATA" | jq -r '.file_path // .filePath // ""' 2>/dev/null || echo '""'),
-  "timestamp": "\$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
-}
-EOF
-    )
-
-    # Call op logger
-    echo "\$NORMALIZED_DATA" | "\$(dirname "\$0")/../trellis-harness/post-tool-oplog.sh"
-
-    # Call memory capture
-    echo "\$NORMALIZED_DATA" | "\$(dirname "\$0")/../trellis-harness/post-tool-memory-capture.sh"
+    data=\$(cat)
+    printf '%s' "\$data" | "\$(dirname "\$0")/../trellis-harness/post-tool-oplog.sh"
+    printf '%s' "\$data" | "\$(dirname "\$0")/../trellis-harness/post-tool-memory-capture.sh"
     ;;
   "post-tool-batch")
-    # Claude Code PostToolBatch hook - process multiple tools
-    TOOL_DATA=\$(cat)
-
-    # Process each tool in the batch
-    echo "\$TOOL_DATA" | jq -c '.[]' 2>/dev/null | while read -r tool; do
-      NORMALIZED_DATA=\$(cat << EOF
-{
-  "tool": \$(echo "\$tool" | jq -r '.tool_name // "unknown"' 2>/dev/null || echo '"unknown"'),
-  "action": \$(echo "\$tool" | jq -r '.action // "unknown"' 2>/dev/null || echo '"unknown"'),
-  "file_path": \$(echo "\$tool" | jq -r '.file_path // .filePath // ""' 2>/dev/null || echo '""'),
-  "timestamp": "\$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
-}
-EOF
-    )
-
-      # Call op logger
-      echo "\$NORMALIZED_DATA" | "\$(dirname "\$0")/../trellis-harness/post-tool-oplog.sh"
-
-      # Call memory capture
-      echo "\$NORMALIZED_DATA" | "\$(dirname "\$0")/../trellis-harness/post-tool-memory-capture.sh"
+    jq -c '.[]' 2>/dev/null | while read -r row; do
+      printf '%s\\n' "\$row" | "\$(dirname "\$0")/../trellis-harness/post-tool-oplog.sh"
+      printf '%s\\n' "\$row" | "\$(dirname "\$0")/../trellis-harness/post-tool-memory-capture.sh"
     done
     ;;
   "permission-denied")
-    # Claude Code PermissionDenied hook
-    NORMALIZED_DATA=\$(cat << EOF
-{
-  "tool": "permission_denied",
-  "action": "blocked",
-  "file_path": "",
-  "timestamp": "\$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
-}
-EOF
-    )
-
-    # Call op logger
-    echo "\$NORMALIZED_DATA" | "\$(dirname "\$0")/../trellis-harness/post-tool-oplog.sh"
+    TS=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    printf '%s\\n' "{\\"tool_name\\":\\"permission_denied\\",\\"action\\":\\"blocked\\",\\"timestamp\\":\\"\$TS\\"}" | "\$(dirname "\$0")/../trellis-harness/post-tool-oplog.sh"
     ;;
   *)
     echo "Unknown Claude Code event: \$EVENT_TYPE" >&2
@@ -1146,28 +1081,19 @@ exit 1`;
 }
 
 function renderCursorHooksConfig(): Record<string, unknown> {
+  const hookCmd = (event: string) =>
+    `bash .cursor/hooks/adapters/cursor-adapter.sh ${event}`;
   return {
     version: 1,
     hooks: {
       sessionStart: [
-        {
-          command:
-            'bash .cursor/hooks/adapters/cursor-adapter.sh session-start',
-          timeout: 15,
-        },
+        { command: hookCmd('session-start'), timeout: 15 },
       ],
-      afterFileEdit: [
-        {
-          command: 'bash .cursor/hooks/adapters/cursor-adapter.sh post-tool',
-          timeout: 10,
-        },
-      ],
-      stop: [
-        {
-          command: 'bash .cursor/hooks/adapters/cursor-adapter.sh stop',
-          timeout: 10,
-        },
-      ],
+      postToolUse: [{ command: hookCmd('post-tool-use'), timeout: 10 }],
+      afterShellExecution: [{ command: hookCmd('after-shell'), timeout: 10 }],
+      afterMCPExecution: [{ command: hookCmd('after-mcp'), timeout: 10 }],
+      afterFileEdit: [{ command: hookCmd('afterFileEdit'), timeout: 10 }],
+      stop: [{ command: hookCmd('stop'), timeout: 10 }],
     },
   };
 }

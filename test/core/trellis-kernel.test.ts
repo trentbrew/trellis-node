@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import type { KernelMiddleware } from '../../src/core/kernel/middleware.js';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
@@ -11,12 +11,12 @@ import { tmpdir } from 'os';
 
 describe('TrellisKernel', () => {
   let tmpDir: string;
-  let backend: SqliteKernelBackend;
+  let backend: BetterSqliteKernelBackend;
   let kernel: TrellisKernel;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-kernel-'));
-    backend = new SqliteKernelBackend(join(tmpDir, 'kernel.db'));
+    backend = new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db'));
     kernel = new TrellisKernel({
       backend,
       agentId: 'test-agent',
@@ -45,7 +45,7 @@ describe('TrellisKernel', () => {
 
     // Create a new kernel on the same database
     const kernel2 = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     const { opsReplayed } = kernel2.boot();
@@ -211,7 +211,7 @@ describe('TrellisKernel', () => {
 
     // New kernel boots from snapshot + replays remaining ops
     const kernel2 = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     const { opsReplayed, fromSnapshot } = kernel2.boot();
@@ -300,7 +300,7 @@ describe('TrellisKernel', () => {
 
     // Reboot on same DB
     const kernel2 = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel2.boot();
@@ -323,7 +323,7 @@ describe('TrellisKernel', () => {
     kernel.close();
 
     const autoKernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'auto.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'auto.db')),
       agentId: 'test-agent',
       snapshotThreshold: 3,
     });
@@ -335,7 +335,7 @@ describe('TrellisKernel', () => {
 
     // Verify snapshot exists by booting a new kernel
     const k2 = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'auto.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'auto.db')),
       agentId: 'test-agent',
     });
     const { fromSnapshot } = k2.boot();

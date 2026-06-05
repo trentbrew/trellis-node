@@ -9,7 +9,7 @@ describe('createVcsOp', () => {
       vcs: { filePath: 'src/index.ts', contentHash: 'abc123' },
     });
 
-    expect(op.hash).toStartWith('trellis:op:');
+    expect(op.hash).toMatch(/^trellis:op:/);
     expect(op.kind).toBe('vcs:fileAdd');
     expect(op.agentId).toBe('agent:test');
     expect(op.timestamp).toBeTruthy();
@@ -48,7 +48,9 @@ describe('createVcsOp', () => {
 
 describe('isVcsOp', () => {
   test('returns true for ops with vcs payload', () => {
-    expect(isVcsOp({ kind: 'vcs:fileAdd', vcs: { filePath: 'a.ts' } })).toBe(true);
+    expect(isVcsOp({ kind: 'vcs:fileAdd', vcs: { filePath: 'a.ts' } })).toBe(
+      true,
+    );
   });
 
   test('returns true for ops with vcs: kind prefix', () => {

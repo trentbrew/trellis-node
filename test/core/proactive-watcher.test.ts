@@ -7,7 +7,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import { AgentHarness } from '../../src/core/agents/harness.js';
 import { PluginRegistry } from '../../src/core/plugins/registry.js';
 import { createProactiveWatcherPlugin } from '../../src/plugins/proactive-watcher/plugin.js';
@@ -90,7 +90,7 @@ describe('Proactive Watcher', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-watcher-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();

@@ -13,6 +13,19 @@ trellis *args="status":
 # Development
 # ---------------------------------------------------------------------------
 
+# Start the app — graph explorer on current directory (inits repo if needed)
+run port="4000" trellis_port="3920":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  ROOT="$(pwd)"
+  if [ ! -f "$ROOT/.trellis/config.json" ]; then
+    echo "⚠ No trellis repo at $ROOT — initializing…"
+    bun run src/cli/index.ts init --path "$ROOT" --no-interactive
+  fi
+  echo "⚡ Starting live graph explorer on http://localhost:{{port}}"
+  (sleep 2 && open "http://localhost:{{port}}") &
+  bun run src/cli/index.ts ui --path "$ROOT" --port "{{port}}" --trellis-port "{{trellis_port}}"
+
 # Run all tests
 test:
   bun test
@@ -27,18 +40,21 @@ build:
   bun run build
 
 # Launch the System Visualizer (builds if needed, opens browser)
-ui path="sandbox/workspace" port="3333":
+ui path="sandbox/workspace" port="4000" trellis_port="3920":
   #!/usr/bin/env bash
   set -euo pipefail
-  # Ensure target is an initialized repo
-  if [ ! -f "{{path}}/.trellis/config.json" ]; then
-    echo "⚠ No trellis repo at {{path}} — initializing sandbox first…"
-    just sandbox-init
+  ROOT="$(cd "{{path}}" && pwd)"
+  if [ ! -f "$ROOT/.trellis/config.json" ]; then
+    echo "⚠ No trellis repo at $ROOT — initializing…"
+    bun run src/cli/index.ts init --path "$ROOT" --no-interactive
   fi
-  echo "⚡ Starting Trellis System Visualizer on http://localhost:{{port}}"
-  # Auto-open browser after a short delay
-  (sleep 1 && open "http://localhost:{{port}}") &
-  bun run src/cli/index.ts ui --path "{{path}}" --port "{{port}}"
+  echo "⚡ Starting live graph explorer on http://localhost:{{port}}"
+  (sleep 2 && open "http://localhost:{{port}}") &
+  bun run src/cli/index.ts ui --path "$ROOT" --port "{{port}}" --trellis-port "{{trellis_port}}"
+
+# Sync Svelte realtime explorer from sandbox → demo/realtime-app
+explorer-sync:
+  node scripts/sync-realtime-app.mjs
 
 # ---------------------------------------------------------------------------
 # VS Code Extension
@@ -446,6 +462,101 @@ ext-publish level="patch":
 publish-all level="patch" message="":
   just publish {{level}} "{{message}}"
   just ext-publish {{level}}
+
+# ---------------------------------------------------------------------------
+# Realtime demos (impolite about ports)
+# ---------------------------------------------------------------------------
+
+# Build the browser bundle for demo/realtime/index.html
+realtime-bundle:
+  npm run build:realtime-bundle
+
+# Sync all embed demos → trellis.computer www
+docs-demos-sync www="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  export TRELLIS_DOCS_WWW="{{www}}"
+  if [ -z "${TRELLIS_DOCS_WWW}" ]; then
+    export TRELLIS_DOCS_WWW="$(cd "{{justfile_directory()}}/../../Packages/trellis-docs/www" && pwd)"
+  fi
+  node scripts/sync-docs-demos.mjs
+
+# Copy state-demo bundle + todo/DAG embed into trellis.computer (Packages/trellis-docs/www)
+docs-state-demo-sync www="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  export TRELLIS_DOCS_WWW="{{www}}"
+  if [ -z "${TRELLIS_DOCS_WWW}" ]; then
+    export TRELLIS_DOCS_WWW="$(cd "{{justfile_directory()}}/../../Packages/trellis-docs/www" && pwd)"
+  fi
+  node scripts/sync-state-demo-docs.mjs
+
+# Copy realtime bundle + embed demo into trellis.computer (Packages/trellis-docs/www)
+docs-realtime-sync www="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  export TRELLIS_DOCS_WWW="{{www}}"
+  if [ -z "${TRELLIS_DOCS_WWW}" ]; then
+    export TRELLIS_DOCS_WWW="$(cd "{{justfile_directory()}}/../../Packages/trellis-docs/www" && pwd)"
+  fi
+  node scripts/sync-realtime-docs.mjs
+
+# Kill whatever is listening on PORT and any prior demo/realtime/serve.mjs. No questions.
+realtime-evict port="8231":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  port="{{port}}"
+  pids=""
+  if command -v lsof >/dev/null 2>&1; then
+    pids=$(lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null || true)
+  fi
+  if [ -n "${pids}" ]; then
+    echo "Port ${port} was occupied. Evicting without ceremony."
+    for pid in ${pids}; do
+      name=$(ps -p "${pid}" -o comm= 2>/dev/null || echo "pid ${pid}")
+      echo "  → SIGKILL ${name} (${pid})"
+      kill -9 "${pid}" 2>/dev/null || true
+    done
+    sleep 0.2
+  fi
+  if pkill -f "demo/realtime/serve.mjs" 2>/dev/null; then
+    echo "Also cleared a lingering demo/realtime/serve.mjs."
+  fi
+  echo "Port ${port} belongs to Trellis now."
+
+# Run realtime unit tests
+realtime-test:
+  ./node_modules/.bin/vitest run test/realtime
+
+# Serve multiplayer demos — fixed port, no fallback, squatters get killed
+realtime-demo port="8231" open="1":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  port="{{port}}"
+  url="http://localhost:${port}/demo/realtime/index.html"
+
+  just realtime-evict "${port}"
+
+  if [ ! -f dist/realtime.bundle.js ] || [ ! -f dist/realtime/relay-persistence.js ]; then
+    echo "Building realtime demo bundles…"
+    just realtime-bundle
+  fi
+
+  echo ""
+  echo "⚡ Realtime demos → ${url}"
+  echo "   Simulated room in-page. Live relay (?live=1): WebSocket /rt — all browsers."
+  echo "   This recipe does not share the port. Pick another: just realtime-demo 8242"
+  echo ""
+
+  if [ "{{open}}" = "1" ]; then
+    (sleep 0.4 && open "${url}") &
+  fi
+
+  exec node demo/realtime/serve.mjs "${port}"
+
+# Stop the demo server (same eviction — impolite, effective)
+realtime-stop port="8231":
+  just realtime-evict "{{port}}"
 
 # ---------------------------------------------------------------------------
 # Sandbox — test trellis as a fresh user

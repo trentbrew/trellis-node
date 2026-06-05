@@ -28,7 +28,7 @@ describe('Milestones', () => {
     const op = await engine.createMilestone('first milestone');
     expect(op.kind).toBe('vcs:milestoneCreate');
     expect(op.vcs?.message).toBe('first milestone');
-    expect(op.vcs?.milestoneId).toStartWith('milestone:');
+    expect(op.vcs?.milestoneId).toMatch(/^milestone:/);
   });
 
   test('milestone has fromOpHash and toOpHash', async () => {

@@ -60,12 +60,17 @@ describe('importFromGit', () => {
   });
 
   test('creates .trellis directory with config and ops', async () => {
-    expect(existsSync(join(TRELLIS_REPO, '.trellis', 'config.json'))).toBe(true);
+    expect(existsSync(join(TRELLIS_REPO, '.trellis', 'config.json'))).toBe(
+      true,
+    );
     expect(existsSync(join(TRELLIS_REPO, '.trellis', 'ops.json'))).toBe(true);
   });
 
   test('ops.json contains valid JSON array', async () => {
-    const raw = readFileSync(join(TRELLIS_REPO, '.trellis', 'ops.json'), 'utf-8');
+    const raw = readFileSync(
+      join(TRELLIS_REPO, '.trellis', 'ops.json'),
+      'utf-8',
+    );
     const ops = JSON.parse(raw);
     expect(Array.isArray(ops)).toBe(true);
     expect(ops.length).toBeGreaterThan(0);
@@ -130,7 +135,7 @@ describe('importFromGit', () => {
     const milestones = ops.filter((o: any) => o.kind === 'vcs:milestoneCreate');
 
     for (const m of milestones) {
-      expect(m.vcs.milestoneId).toStartWith('milestone:git:');
+      expect(m.vcs.milestoneId).toMatch(/^milestone:git:/);
     }
   });
 
@@ -161,7 +166,9 @@ describe('importFromGit', () => {
       from: GIT_REPO,
       to: TRELLIS_REPO,
       onProgress: (p) => {
-        if (!phases.includes(p.phase)) { phases.push(p.phase); }
+        if (!phases.includes(p.phase)) {
+          phases.push(p.phase);
+        }
       },
     });
 

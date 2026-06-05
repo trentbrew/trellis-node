@@ -7,13 +7,17 @@ import { join } from 'path';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import {
   MultiRepoManager,
   parseCrossRepoRef,
   formatCrossRepoRef,
 } from '../../src/sync/multi-repo.js';
-import { HttpSyncTransport, createSyncHandler } from '../../src/sync/http-transport.js';
+import { PROTOCOL_VERSION } from '../../src/sync/types.js';
+import {
+  HttpSyncTransport,
+  createSyncHandler,
+} from '../../src/sync/http-transport.js';
 
 // ---------------------------------------------------------------------------
 // Cross-repo ref helpers
@@ -34,7 +38,9 @@ describe('Cross-repo ref helpers', () => {
   });
 
   it('should format a cross-repo ref', () => {
-    expect(formatCrossRepoRef('backend', 'user:alice')).toBe('@backend:user:alice');
+    expect(formatCrossRepoRef('backend', 'user:alice')).toBe(
+      '@backend:user:alice',
+    );
   });
 });
 
@@ -50,7 +56,7 @@ describe('MultiRepoManager', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-multirepo-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test',
     });
     kernel.boot();
@@ -59,7 +65,9 @@ describe('MultiRepoManager', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should link a remote repo', async () => {
@@ -79,7 +87,9 @@ describe('MultiRepoManager', () => {
 
   it('should reject duplicate aliases', async () => {
     await manager.linkRepo('dup', '/path/a');
-    await expect(manager.linkRepo('dup', '/path/b')).rejects.toThrow('already linked');
+    await expect(manager.linkRepo('dup', '/path/b')).rejects.toThrow(
+      'already linked',
+    );
   });
 
   it('should unlink a repo', async () => {
@@ -92,7 +102,12 @@ describe('MultiRepoManager', () => {
     await manager.linkRepo('backend', '/path/to/backend');
     await kernel.createEntity('proj:frontend', 'Project', { name: 'Frontend' });
 
-    await manager.addCrossRepoLink('proj:frontend', 'dependsOn', 'backend', 'lib:api-client');
+    await manager.addCrossRepoLink(
+      'proj:frontend',
+      'dependsOn',
+      'backend',
+      'lib:api-client',
+    );
 
     const links = manager.getCrossRepoLinks('proj:frontend');
     expect(links).toHaveLength(1);
@@ -105,8 +120,18 @@ describe('MultiRepoManager', () => {
     await manager.linkRepo('backend', '/path/to/backend');
     await kernel.createEntity('proj:frontend', 'Project', { name: 'Frontend' });
 
-    await manager.addCrossRepoLink('proj:frontend', 'dependsOn', 'backend', 'lib:api');
-    await manager.removeCrossRepoLink('proj:frontend', 'dependsOn', 'backend', 'lib:api');
+    await manager.addCrossRepoLink(
+      'proj:frontend',
+      'dependsOn',
+      'backend',
+      'lib:api',
+    );
+    await manager.removeCrossRepoLink(
+      'proj:frontend',
+      'dependsOn',
+      'backend',
+      'lib:api',
+    );
 
     const links = manager.getCrossRepoLinks('proj:frontend');
     expect(links).toHaveLength(0);
@@ -115,7 +140,12 @@ describe('MultiRepoManager', () => {
   it('should reject cross-repo links to unlinked repos', async () => {
     await kernel.createEntity('proj:frontend', 'Project', { name: 'Frontend' });
     await expect(
-      manager.addCrossRepoLink('proj:frontend', 'dependsOn', 'nonexistent', 'lib:api'),
+      manager.addCrossRepoLink(
+        'proj:frontend',
+        'dependsOn',
+        'nonexistent',
+        'lib:api',
+      ),
     ).rejects.toThrow('not linked');
   });
 
@@ -165,6 +195,7 @@ describe('HttpSyncTransport', () => {
     transport.onMessage((msg) => received.push(msg));
 
     transport.receiveMessage({
+      version: PROTOCOL_VERSION,
       type: 'have',
       peerId: 'peer-b',
       heads: { main: 'hash123' },
@@ -181,6 +212,7 @@ describe('HttpSyncTransport', () => {
     transport.onMessage(() => {});
 
     transport.receiveMessage({
+      version: PROTOCOL_VERSION,
       type: 'ack',
       peerId: 'peer-c',
       integrated: [],

@@ -332,7 +332,10 @@ export class TrellisKernel {
    */
   async query(q: Query): Promise<QueryResult> {
     const engine = new QueryEngine(this.store);
-    const ctx: MiddlewareContext = { agentId: this.agentId };
+    const ctx: MiddlewareContext = {
+      agentId: this.agentId,
+      store: this.store,
+    };
 
     // Build middleware chain for queries
     const chain = this.middleware.filter((m) => m.handleQuery);

@@ -65,6 +65,11 @@ export interface RollupConfig {
   relationProperty: string;
   targetProperty: string;
   aggregation: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'median' | 'mode';
+  /** Traverse join-entities (e.g. frameworkTag rows) instead of graph links. */
+  joinEntity?: {
+    type: string;
+    foreignKey: string;
+  };
 }
 
 export interface AiGeneratedConfig {

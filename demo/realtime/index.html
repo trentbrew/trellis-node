@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trellis Realtime — Demos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --bg2: #0f1015;
+        --surface: #15161b;
+        --surface2: #1a1b22;
+        --border: #25262e;
+        --border2: #32333d;
+        --text: #e4e4e7;
+        --text2: #a1a1aa;
+        --text3: #63637a;
+        --accent: #6d5bfa;
+        --accent2: #8b7cf6;
+        --accent-glow: rgba(109, 91, 250, 0.15);
+        --green: #34d399;
+        --yellow: #fbbf24;
+        --red: #f87171;
+        --radius: 10px;
+        --radius-lg: 14px;
+        --font: 'Inter', -apple-system, sans-serif;
+        --mono: 'JetBrains Mono', ui-monospace, monospace;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: var(--font);
+        background:
+          radial-gradient(
+            1200px 600px at 80% -10%,
+            rgba(109, 91, 250, 0.12),
+            transparent 60%
+          ),
+          var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border2);
+        border-radius: 4px;
+      }
+      a {
+        color: var(--accent2);
+        text-decoration: none;
+      }
+
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+      }
+
+      /* Header */
+      header {
+        margin-bottom: 28px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--accent2);
+      }
+      .brand .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 10px var(--green);
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+      h1 {
+        font-size: 34px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin: 14px 0 8px;
+      }
+      h1 span {
+        color: var(--accent2);
+      }
+      .sub {
+        color: var(--text2);
+        font-size: 15px;
+        max-width: 640px;
+        line-height: 1.6;
+      }
+      .modebar {
+        margin-top: 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: var(--text3);
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 11px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text2);
+        font: 500 12px var(--font);
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .pill:hover {
+        border-color: var(--accent);
+        color: var(--text);
+      }
+      .pill.live {
+        border-color: var(--green);
+        color: var(--green);
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin: 26px 0 20px;
+        border-bottom: 1px solid var(--border);
+        flex-wrap: wrap;
+      }
+      .tab {
+        background: none;
+        border: none;
+        color: var(--text3);
+        font: 500 13px var(--font);
+        padding: 11px 16px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: color 0.15s;
+      }
+      .tab:hover {
+        color: var(--text2);
+      }
+      .tab.active {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+      }
+      .tab .num {
+        font: 500 10px var(--mono);
+        color: var(--text3);
+        background: var(--surface2);
+        border-radius: 5px;
+        padding: 1px 6px;
+      }
+
+      /* Panel */
+      .panel-head {
+        margin-bottom: 16px;
+      }
+      .panel-head h2 {
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .panel-head p {
+        color: var(--text2);
+        font-size: 13.5px;
+        margin-top: 4px;
+        line-height: 1.55;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 14px 0 18px;
+      }
+      .btn {
+        padding: 7px 13px;
+        border-radius: 8px;
+        font: 600 12px var(--font);
+        border: 1px solid var(--border2);
+        background: var(--surface2);
+        color: var(--text);
+        cursor: pointer;
+        transition: all 0.12s;
+      }
+      .btn:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent2);
+        color: #fff;
+      }
+      .count {
+        font: 500 12px var(--mono);
+        color: var(--text3);
+        margin-left: auto;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+      }
+
+      /* Avatars */
+      .avatar-stack {
+        display: flex;
+        align-items: center;
+        padding: 8px 0;
+        min-height: 64px;
+      }
+      .avatar {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font: 600 15px var(--font);
+        color: #fff;
+        border: 3px solid var(--surface);
+        margin-left: -12px;
+        position: relative;
+        transition:
+          transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+          margin 0.18s;
+        cursor: default;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+      .avatar:first-child {
+        margin-left: 0;
+      }
+      .avatar:hover {
+        transform: translateY(-4px);
+        z-index: 5;
+      }
+      .avatar .status {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--green);
+        border: 2px solid var(--surface);
+      }
+      .avatar .tip {
+        position: absolute;
+        bottom: 54px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg2);
+        border: 1px solid var(--border2);
+        color: var(--text);
+        font: 500 11px var(--font);
+        padding: 4px 9px;
+        border-radius: 6px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s;
+      }
+      .avatar:hover .tip {
+        opacity: 1;
+      }
+      .avatar-meta {
+        margin-top: 12px;
+        color: var(--text2);
+        font-size: 13px;
+      }
+      .avatar-meta b {
+        color: var(--text);
+      }
+
+      /* Chat */
+      .panes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 760px) {
+        .panes {
+          grid-template-columns: 1fr;
+        }
+      }
+      .chat {
+        display: flex;
+        flex-direction: column;
+        height: 380px;
+      }
+      .chat-head {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 12px;
+      }
+      .mini-av {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font: 600 12px var(--font);
+        color: #fff;
+        flex-shrink: 0;
+      }
+      .chat-head .who {
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .chat-head .role {
+        font: 500 10px var(--mono);
+        color: var(--text3);
+      }
+      .chat-log {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-right: 4px;
+      }
+      .msg {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+      }
+      .msg.mine {
+        flex-direction: row-reverse;
+      }
+      .msg .bubble {
+        max-width: 78%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 7px 11px;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .msg.mine .bubble {
+        background: var(--accent-glow);
+        border-color: rgba(109, 91, 250, 0.4);
+      }
+      .msg .name {
+        font: 600 11px var(--font);
+        margin-bottom: 2px;
+      }
+      .typing {
+        height: 16px;
+        font: 400 11px var(--font);
+        color: var(--text3);
+        font-style: italic;
+        padding: 2px 0;
+      }
+      .chat-input {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .chat-input input {
+        flex: 1;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 9px 12px;
+        color: var(--text);
+        font: 400 13px var(--font);
+        outline: none;
+      }
+      .chat-input input:focus {
+        border-color: var(--accent);
+      }
+
+      /* Cursors */
+      .stage {
+        position: relative;
+        height: 340px;
+        background:
+          linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 100% 28px,
+          linear-gradient(90deg, var(--border) 1px, transparent 1px) 0 0 /
+            28px 100%,
+          var(--bg2);
+        background-blend-mode: normal;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        cursor: none;
+      }
+      .stage-label {
+        position: absolute;
+        top: 10px;
+        left: 12px;
+        font: 500 11px var(--mono);
+        color: var(--text3);
+        pointer-events: none;
+      }
+      .rt-cursor {
+        position: absolute;
+        transform: translate(-2px, -2px);
+        pointer-events: none;
+        transition:
+          left 0.08s linear,
+          top 0.08s linear;
+        z-index: 2;
+        will-change: left, top;
+      }
+      .rt-cursor svg {
+        display: block;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+      }
+      .rt-cursor .label {
+        margin-left: 12px;
+        margin-top: -4px;
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 6px;
+        font: 600 11px var(--font);
+        color: #fff;
+        white-space: nowrap;
+      }
+
+      /* Text editor */
+      .editor {
+        display: flex;
+        flex-direction: column;
+        height: 340px;
+      }
+      .editor textarea {
+        flex: 1;
+        resize: none;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 14px;
+        color: var(--text);
+        font: 400 13.5px/1.6 var(--mono);
+        outline: none;
+        margin-top: 10px;
+      }
+      .editor textarea:focus {
+        border-color: var(--accent);
+      }
+      .editor-foot {
+        margin-top: 8px;
+        font: 400 11px var(--mono);
+        color: var(--text3);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .note {
+        margin-top: 22px;
+        padding: 13px 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 8px;
+        font-size: 12.5px;
+        color: var(--text2);
+        line-height: 1.6;
+      }
+      .note code {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--accent2);
+        background: var(--bg2);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+      .hidden {
+        display: none !important;
+      }
+
+      /* Docs embed (trellis.computer iframe) */
+      html.embed body {
+        min-height: 0;
+        background: var(--bg);
+      }
+      html.embed .wrap {
+        max-width: none;
+        padding: 12px 14px 20px;
+      }
+      html.embed header .brand,
+      html.embed header h1,
+      html.embed header .sub,
+      html.embed .modebar {
+        display: none !important;
+      }
+      html.embed header {
+        margin-bottom: 0;
+      }
+      html.embed .tabs {
+        margin: 0 0 14px;
+      }
+      html.embed .note {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div class="brand"><span class="dot"></span> Trellis Realtime</div>
+        <h1>Multiplayer <span>demos</span></h1>
+        <p class="sub">
+          Four primitives built on the Trellis realtime layer — ephemeral
+          presence and broadcast that never touches the persisted causal log.
+          Default mode runs in this page across simulated peers; live relay mode
+          syncs real browser windows through the demo server.
+        </p>
+        <div class="modebar">
+          <span id="mode-label">Mode: simulated room (peers in this page)</span>
+          <span class="pill" id="mode-toggle">Switch to live relay ↗</span>
+          <span id="live-hint" class="hidden"
+            >Live mode relays through <code>ws://…/rt</code> (all browsers).
+            Chat is a <strong>grow-only set keyed by message id</strong>: each
+            browser keeps its own replica (this tab's
+            <code>localStorage</code>) and the relay keeps another. They converge
+            on reconnect — so a refresh restores instantly and even survives a
+            relay restart on this browser. The shared document persists for the
+            server session. Same origin everywhere (<code>localhost</code>, not
+            <code>127.0.0.1</code>).</span
+          >
+          <button type="button" class="pill hidden" id="open-peer-tab">
+            Open peer in new tab ↗
+          </button>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-demo="avatars">
+          <span class="num">1</span> Active avatars
+        </button>
+        <button class="tab" data-demo="chat">
+          <span class="num">2</span> Chat
+        </button>
+        <button class="tab" data-demo="cursors">
+          <span class="num">3</span> Live cursors
+        </button>
+        <button class="tab" data-demo="text">
+          <span class="num">4</span> Text editor
+        </button>
+      </nav>
+
+      <main id="stage-root"></main>
+    </div>
+
+    <script type="module">
+      import {
+        RealtimeRoom,
+        RealtimeText,
+        MemoryHub,
+        WebSocketRelayTransport,
+        PersistentChannel,
+        localStorageChannelStore,
+      } from '../../dist/realtime.bundle.js';
+
+      // ─── User palette ──────────────────────────────────────────────────────
+      const PALETTE = [
+        { name: 'Ada', color: '#6d5bfa' },
+        { name: 'Linus', color: '#34d399' },
+        { name: 'Grace', color: '#fbbf24' },
+        { name: 'Alan', color: '#f472b6' },
+        { name: 'Margaret', color: '#67e8f9' },
+        { name: 'Dennis', color: '#fb923c' },
+      ];
+      const initials = (name) => {
+        const parts = name.split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+          return parts
+            .map((w) => w[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase();
+        }
+        return name.slice(0, 2).toUpperCase();
+      };
+
+      const params = new URLSearchParams(location.search);
+      const EMBED = params.get('embed') === '1';
+      if (EMBED) document.documentElement.classList.add('embed');
+      let LIVE = !EMBED && params.get('live') === '1';
+      if (LIVE) sessionStorage.removeItem('trellis-rt-profile');
+
+      // Fresh peer id every page load (never sessionStorage, which duplicate
+      // tabs can copy and then ignore each other's messages as "self").
+      const TAB_PEER_ID =
+        globalThis.crypto?.randomUUID?.() ??
+        `peer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+      const BROWSER_COLORS = {
+        Chrome: '#4285f4',
+        Firefox: '#ff7139',
+        Safari: '#0fb5ff',
+        Edge: '#0078d4',
+        Opera: '#ff1b2d',
+        Brave: '#fb542b',
+      };
+
+      /** Display name from navigator.userAgent (live relay mode). */
+      function browserNameFromUA(ua = navigator.userAgent) {
+        if (/firefox/i.test(ua)) return 'Firefox';
+        if (/edg\//i.test(ua)) return 'Edge';
+        if (/opr\//i.test(ua) || /opera/i.test(ua)) return 'Opera';
+        if (/brave/i.test(ua)) return 'Brave';
+        if (/chrome/i.test(ua) && !/chromium/i.test(ua)) return 'Chrome';
+        if (/safari/i.test(ua)) return 'Safari';
+        if (/chromium/i.test(ua)) return 'Chromium';
+        return 'Browser';
+      }
+
+      function colorForBrowser(name) {
+        if (BROWSER_COLORS[name]) return BROWSER_COLORS[name];
+        let h = 0;
+        for (let i = 0; i < name.length; i++) {
+          h = (h * 31 + name.charCodeAt(i)) >>> 0;
+        }
+        return PALETTE[h % PALETTE.length].color;
+      }
+
+      function liveUser() {
+        const name = browserNameFromUA();
+        return { name, color: colorForBrowser(name), id: TAB_PEER_ID };
+      }
+
+      function liveRelayUrl() {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${proto}//${location.host}/rt`;
+      }
+
+      const el = (tag, attrs = {}, ...kids) => {
+        const node = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+          if (k === 'class') node.className = v;
+          else if (k === 'style') node.setAttribute('style', v);
+          else if (k.startsWith('on') && typeof v === 'function')
+            node.addEventListener(k.slice(2), v);
+          else if (v != null) node.setAttribute(k, v);
+        }
+        for (const kid of kids)
+          node.append(kid instanceof Node ? kid : document.createTextNode(kid));
+        return node;
+      };
+
+      // ─── Session: a hub + a set of peer rooms ───────────────────────────────
+      // Sim mode: N simulated peers in one MemoryHub.
+      // Live mode: one peer per tab, relayed via WebSocket (cross-browser).
+      function createSession(demoName, peerCount) {
+        const cleanups = [];
+        let peers = [];
+
+        if (LIVE) {
+          const u = liveUser();
+          const room = RealtimeRoom.join({
+            transport: new WebSocketRelayTransport({
+              id: u.id,
+              url: liveRelayUrl(),
+            }),
+            initialPresence: { name: u.name, color: u.color },
+            heartbeatMs: 1500,
+            timeoutMs: 5000,
+          });
+          peers = [{ id: u.id, user: u, room }];
+          cleanups.push(() => room.leave());
+          window.addEventListener('pagehide', () => room.leave(), { once: true });
+        } else {
+          const hub = new MemoryHub();
+          peers = PALETTE.slice(0, peerCount).map((u, i) => {
+            const id = `${u.name.toLowerCase()}-${i}`;
+            const room = RealtimeRoom.join({
+              transport: hub.connect(id),
+              initialPresence: { name: u.name, color: u.color },
+              heartbeatMs: 0,
+            });
+            cleanups.push(() => room.leave());
+            return { id, user: u, room, hub };
+          });
+          peers.hub = hub;
+        }
+
+        return {
+          peers,
+          addPeer() {
+            if (LIVE || !peers.length) return null;
+            const hub = peers[0].hub;
+            const idx = peers.length;
+            const u = PALETTE[idx % PALETTE.length];
+            const id = `${u.name.toLowerCase()}-${idx}`;
+            const room = RealtimeRoom.join({
+              transport: hub.connect(id),
+              initialPresence: { name: u.name, color: u.color },
+              heartbeatMs: 0,
+            });
+            const peer = { id, user: u, room, hub };
+            peers.push(peer);
+            cleanups.push(() => room.leave());
+            return peer;
+          },
+          removePeer() {
+            if (peers.length <= 1) return;
+            const peer = peers.pop();
+            peer.room.leave();
+            return peer;
+          },
+          dispose() {
+            cleanups.forEach((fn) => fn());
+          },
+        };
+      }
+
+      // ─── Demo: Active avatars ────────────────────────────────────────────────
+      function mountAvatars(root, session) {
+        root.append(
+          panelHead(
+            'Active user avatars',
+            'Presence-driven avatar stack. Each peer publishes name + color on join; everyone else renders the live roster. Join and leave to watch it update.',
+          ),
+        );
+
+        const toolbar = el('div', { class: 'toolbar' });
+        const joinBtn = el('button', { class: 'btn primary' }, '+ Join user');
+        const leaveBtn = el('button', { class: 'btn' }, '− Leave user');
+        const count = el('span', { class: 'count' });
+        toolbar.append(joinBtn, leaveBtn, count);
+        root.append(toolbar);
+
+        const card = el('div', { class: 'card' });
+        const stack = el('div', { class: 'avatar-stack' });
+        const meta = el('div', { class: 'avatar-meta' });
+        card.append(stack, meta);
+        root.append(card);
+
+        // Render from the first peer's vantage point.
+        const observer = session.peers[0];
+
+        const render = (peers) => {
+          stack.innerHTML = '';
+          const shown = peers.slice(0, 8);
+          for (const p of shown) {
+            const av = el(
+              'div',
+              {
+                class: 'avatar',
+                style: `background:${p.state.color || '#666'}`,
+                'data-testid': 'avatar',
+              },
+              initials(p.state.name || '?'),
+            );
+            av.append(el('span', { class: 'status' }));
+            av.append(
+              el(
+                'span',
+                { class: 'tip' },
+                `${p.state.name}${p.self ? ' (you)' : ''}`,
+              ),
+            );
+            stack.append(av);
+          }
+          if (peers.length > 8) {
+            stack.append(
+              el(
+                'div',
+                { class: 'avatar', style: 'background:var(--surface2)' },
+                `+${peers.length - 8}`,
+              ),
+            );
+          }
+          const names = peers.map((p) => p.state.name).join(', ');
+          meta.innerHTML = '';
+          meta.append(
+            el('b', {}, String(peers.length)),
+            ` online — ${names}`,
+          );
+          count.textContent = `${peers.length} active`;
+        };
+
+        const unsub = observer.room.onPresence(render);
+        leaveBtn.disabled = LIVE;
+        joinBtn.disabled = LIVE;
+        if (LIVE) {
+          joinBtn.textContent = 'Open a new tab to add users';
+        }
+
+        joinBtn.addEventListener('click', () => {
+          session.addPeer();
+          render(observer.room.getPresence());
+        });
+        leaveBtn.addEventListener('click', () => {
+          session.removePeer();
+          render(observer.room.getPresence());
+        });
+
+        return () => unsub();
+      }
+
+      // ─── Demo: Chat ──────────────────────────────────────────────────────────
+      function mountChat(root, session) {
+        root.append(
+          panelHead(
+            'Chat with names & avatars',
+            'Fire-and-forget broadcast on a `chat` channel. Identity (name, color, avatar) rides along on presence. Includes a live typing indicator.',
+          ),
+        );
+
+        const panes = el('div', { class: 'panes' });
+        root.append(panes);
+
+        const cleanups = [];
+        const view = LIVE ? session.peers : session.peers.slice(0, 2);
+        for (const peer of view) {
+          cleanups.push(buildChatPane(panes, peer));
+        }
+        return () => cleanups.forEach((fn) => fn());
+      }
+
+      function buildChatPane(parent, peer) {
+        const { room, user } = peer;
+        const card = el('div', { class: 'card chat' });
+        const head = el(
+          'div',
+          { class: 'chat-head' },
+          el(
+            'div',
+            { class: 'mini-av', style: `background:${user.color}` },
+            initials(user.name),
+          ),
+          el(
+            'div',
+            {},
+            el('div', { class: 'who' }, `${user.name} (you)`),
+            el('div', { class: 'role' }, room.selfId),
+          ),
+        );
+        const log = el('div', { class: 'chat-log' });
+        const typing = el('div', { class: 'typing' });
+        const input = el('input', {
+          type: 'text',
+          placeholder: 'Message…',
+          'data-testid': `chat-input-${peer.id}`,
+        });
+        const send = el('button', { class: 'btn primary' }, 'Send');
+        const form = el('div', { class: 'chat-input' }, input, send);
+        card.append(head, log, typing, form);
+        parent.append(card);
+
+        const presenceById = () => {
+          const map = {};
+          for (const p of room.getPresence()) map[p.id] = p.state;
+          return map;
+        };
+
+        // ── Durable chat as a PersistentChannel (grow-only set, keyed by id) ──
+        // The helper owns dedup, (ts,id) ordering, the local replica, and
+        // merge-on-replay. In LIVE mode it persists to this tab's localStorage
+        // (instant first-paint on refresh, converges with the relay replica).
+        // SIM mode shares one origin across simulated peers, so it stays
+        // in-memory to avoid cross-peer clobber.
+        const chat = PersistentChannel.create(room, 'chat', {
+          max: 200,
+          store: LIVE
+            ? localStorageChannelStore(`trellis:chat:${liveRelayUrl()}`)
+            : undefined,
+          // Capture the sender's name/color so history renders after they leave.
+          resolveMeta: (e) => presenceById()[e.from],
+        });
+
+        const renderRow = (rec) => {
+          const live = presenceById()[rec.from];
+          const meta = rec.meta || {};
+          const name = (live && live.name) || meta.name || rec.from;
+          const color = (live && live.color) || meta.color || '#666';
+          const mine = rec.from === room.selfId;
+          const row = el('div', { class: `msg ${mine ? 'mine' : ''}` });
+          row.append(
+            el(
+              'div',
+              { class: 'mini-av', style: `background:${color}` },
+              initials(name || '?'),
+            ),
+            el(
+              'div',
+              { class: 'bubble' },
+              el('div', { class: 'name', style: `color:${color}` }, name),
+              rec.payload.text,
+            ),
+          );
+          return row;
+        };
+
+        // Reactive: the signal is already deduped + sorted on every change.
+        const unMsg = chat.messages.subscribe((messages) => {
+          log.replaceChildren(...messages.map(renderRow));
+          log.scrollTop = log.scrollHeight;
+        });
+
+        const submit = () => {
+          const text = input.value.trim();
+          if (!text) return;
+          chat.send({ text }, { name: user.name, color: user.color });
+          room.broadcast('chat', 'typing', { typing: false });
+          input.value = '';
+        };
+        send.addEventListener('click', submit);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') submit();
+          else room.broadcast('chat', 'typing', { typing: true });
+        });
+
+        // Typing is transient — handled directly, never persisted.
+        let typingTimer;
+        const unTyping = room.on('chat', (e) => {
+          if (e.event !== 'typing') return;
+          const name = presenceById()[e.from]?.name || 'Someone';
+          if (e.payload.typing) {
+            typing.textContent = `${name} is typing…`;
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => (typing.textContent = ''), 1800);
+          } else {
+            typing.textContent = '';
+          }
+        });
+
+        return () => {
+          unMsg();
+          unTyping();
+          chat.dispose();
+          clearTimeout(typingTimer);
+        };
+      }
+
+      // ─── Demo: Live cursors ───────────────────────────────────────────────────
+      const CURSOR_SVG = (color) =>
+        `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 2l5.5 13 2.2-5.3L15 7.5 2 2z" fill="${color}" stroke="#0d1117" stroke-width="1"/></svg>`;
+
+      function mountCursors(root, session) {
+        root.append(
+          panelHead(
+            'Cursors with colors & names',
+            'Cursor position is published as ephemeral presence (normalized 0–1) at pointer-move rate. Move your mouse inside a stage — every peer renders every cursor.',
+          ),
+        );
+
+        const panes = el('div', { class: 'panes' });
+        root.append(panes);
+
+        const cleanups = [];
+        const view = LIVE ? session.peers : session.peers.slice(0, 2);
+        for (const peer of view) {
+          cleanups.push(buildCursorStage(panes, peer, view.length > 1));
+        }
+
+        // In sim mode, add an autonomous "bot" peer so there's always motion.
+        if (!LIVE) {
+          const bot = session.addPeer();
+          if (bot) {
+            let t = 0;
+            const timer = setInterval(() => {
+              t += 0.05;
+              bot.room.setPresence({
+                cursor: {
+                  x: 0.5 + 0.34 * Math.cos(t),
+                  y: 0.5 + 0.3 * Math.sin(t * 1.3),
+                },
+              });
+            }, 60);
+            cleanups.push(() => clearInterval(timer));
+          }
+        }
+
+        return () => cleanups.forEach((fn) => fn());
+      }
+
+      function buildCursorStage(parent, peer, labelSelf) {
+        const { room, user } = peer;
+        const stage = el('div', {
+          class: 'stage',
+          'data-testid': `stage-${peer.id}`,
+        });
+        stage.append(
+          el(
+            'div',
+            { class: 'stage-label' },
+            labelSelf ? `viewport · ${user.name}` : 'shared stage',
+          ),
+        );
+        parent.append(stage);
+
+        const cursors = new Map();
+
+        stage.addEventListener('pointermove', (e) => {
+          const r = stage.getBoundingClientRect();
+          room.setPresence({
+            cursor: {
+              x: (e.clientX - r.left) / r.width,
+              y: (e.clientY - r.top) / r.height,
+            },
+          });
+        });
+
+        const render = (peers) => {
+          const seen = new Set();
+          for (const p of peers) {
+            const c = p.state.cursor;
+            if (!c) continue;
+            seen.add(p.id);
+            let node = cursors.get(p.id);
+            if (!node) {
+              node = el('div', {
+                class: 'rt-cursor',
+                'data-testid': `cursor-${p.id}`,
+              });
+              node.innerHTML =
+                CURSOR_SVG(p.state.color || '#fff') +
+                `<span class="label" style="background:${p.state.color || '#666'}">${p.state.name}${p.self ? ' (you)' : ''}</span>`;
+              stage.append(node);
+              cursors.set(p.id, node);
+            }
+            node.style.left = `${Math.max(0, Math.min(1, c.x)) * 100}%`;
+            node.style.top = `${Math.max(0, Math.min(1, c.y)) * 100}%`;
+          }
+          for (const [id, node] of cursors) {
+            if (!seen.has(id)) {
+              node.remove();
+              cursors.delete(id);
+            }
+          }
+        };
+
+        const unsub = room.onPresence(render);
+        return () => unsub();
+      }
+
+      // ─── Demo: Text editor ────────────────────────────────────────────────────
+      function mountText(root, session) {
+        root.append(
+          panelHead(
+            'Basic multiplayer text editor',
+            'Each keystroke becomes an RGA sequence-CRDT op (insert/delete) broadcast to peers. Concurrent edits converge — type in both editors at once.',
+          ),
+        );
+
+        const panes = el('div', { class: 'panes' });
+        root.append(panes);
+
+        const cleanups = [];
+        const view = LIVE ? session.peers : session.peers.slice(0, 2);
+        for (const peer of view) {
+          cleanups.push(buildEditorPane(panes, peer));
+        }
+
+        root.append(
+          el(
+            'div',
+            { class: 'note' },
+            'Convergence is guaranteed by an RGA-style CRDT (',
+            el('code', {}, 'RealtimeText'),
+            '): each character is an addressed node ordered by a Lamport clock, so concurrent inserts never clobber. Late joiners pull a full state sync.',
+          ),
+        );
+
+        return () => cleanups.forEach((fn) => fn());
+      }
+
+      function diff(oldStr, newStr) {
+        let start = 0;
+        const min = Math.min(oldStr.length, newStr.length);
+        while (start < min && oldStr[start] === newStr[start]) start++;
+        let endOld = oldStr.length;
+        let endNew = newStr.length;
+        while (
+          endOld > start &&
+          endNew > start &&
+          oldStr[endOld - 1] === newStr[endNew - 1]
+        ) {
+          endOld--;
+          endNew--;
+        }
+        return {
+          index: start,
+          removed: endOld - start,
+          inserted: newStr.slice(start, endNew),
+        };
+      }
+
+      function buildEditorPane(parent, peer) {
+        const { room, user } = peer;
+        const card = el('div', { class: 'card editor' });
+        const head = el(
+          'div',
+          { class: 'chat-head' },
+          el(
+            'div',
+            { class: 'mini-av', style: `background:${user.color}` },
+            initials(user.name),
+          ),
+          el(
+            'div',
+            {},
+            el('div', { class: 'who' }, `${user.name} (you)`),
+            el('div', { class: 'role' }, 'RealtimeText · RGA CRDT'),
+          ),
+        );
+        const ta = el('textarea', {
+          spellcheck: 'false',
+          placeholder: 'Start typing — edits sync across editors…',
+          'data-testid': `editor-${peer.id}`,
+        });
+        const foot = el('div', { class: 'editor-foot' });
+        const chars = el('span', {}, '0 chars');
+        foot.append(chars, el('span', {}, room.selfId));
+        card.append(head, ta, foot);
+        parent.append(card);
+
+        const text = new RealtimeText({ peerId: room.selfId, room });
+        let last = '';
+        let applyingRemote = false;
+
+        ta.addEventListener('input', () => {
+          if (applyingRemote) return;
+          const next = ta.value;
+          const d = diff(last, next);
+          if (d.removed > 0) text.delete(d.index, d.removed);
+          if (d.inserted) text.insert(d.index, d.inserted);
+          last = text.toString();
+          chars.textContent = `${last.length} chars`;
+        });
+
+        const unsub = text.onChange((value) => {
+          if (value === ta.value) return;
+          applyingRemote = true;
+          const caret = ta.selectionStart;
+          const delta = value.length - ta.value.length;
+          ta.value = value;
+          last = value;
+          // Best-effort caret preservation for remote edits.
+          const pos = Math.max(0, Math.min(value.length, caret + (delta > 0 && caret > 0 ? delta : 0)));
+          try {
+            ta.setSelectionRange(pos, pos);
+          } catch {}
+          chars.textContent = `${value.length} chars`;
+          applyingRemote = false;
+        });
+
+        // Initialize from any existing shared state.
+        const initial = text.toString();
+        if (initial) {
+          ta.value = initial;
+          last = initial;
+          chars.textContent = `${initial.length} chars`;
+        }
+
+        return () => {
+          unsub();
+          text.dispose();
+        };
+      }
+
+      // ─── Shell / routing ──────────────────────────────────────────────────────
+      function panelHead(title, desc) {
+        return el(
+          'div',
+          { class: 'panel-head' },
+          el('h2', {}, title),
+          el('p', {}, desc),
+        );
+      }
+
+      const DEMOS = {
+        avatars: { mount: mountAvatars, peers: 3 },
+        chat: { mount: mountChat, peers: 2 },
+        cursors: { mount: mountCursors, peers: 2 },
+        text: { mount: mountText, peers: 2 },
+      };
+
+      const stageRoot = document.getElementById('stage-root');
+      let current = null;
+
+      function activate(name) {
+        if (current) {
+          current.cleanup?.();
+          current.session.dispose();
+        }
+        stageRoot.innerHTML = '';
+        document.querySelectorAll('.tab').forEach((t) => {
+          t.classList.toggle('active', t.dataset.demo === name);
+        });
+        const def = DEMOS[name];
+        const session = createSession(name, def.peers);
+        const cleanup = def.mount(stageRoot, session);
+        current = { name, session, cleanup };
+        history.replaceState(null, '', `?${LIVE ? 'live=1&' : ''}demo=${name}`);
+      }
+
+      document.getElementById('tabs').addEventListener('click', (e) => {
+        const tab = e.target.closest('.tab');
+        if (tab) activate(tab.dataset.demo);
+      });
+
+      const modeToggle = document.getElementById('mode-toggle');
+      const modeLabel = document.getElementById('mode-label');
+      const liveHint = document.getElementById('live-hint');
+      function reflectMode() {
+        modeToggle.classList.toggle('live', LIVE);
+        modeToggle.textContent = LIVE
+          ? 'Switch to simulated ↩'
+          : 'Switch to live relay ↗';
+        modeLabel.textContent = LIVE
+          ? 'Mode: live relay (WebSocket — all browsers)'
+          : 'Mode: simulated room (peers in this page)';
+        liveHint.classList.toggle('hidden', !LIVE);
+        document
+          .getElementById('open-peer-tab')
+          ?.classList.toggle('hidden', !LIVE);
+      }
+      document.getElementById('open-peer-tab')?.addEventListener('click', () => {
+        const url = new URL(location.href);
+        url.searchParams.set('live', '1');
+        url.searchParams.set('demo', current?.name || 'avatars');
+        window.open(url.toString(), '_blank', 'noopener');
+      });
+      modeToggle.addEventListener('click', () => {
+        const next = new URLSearchParams(location.search);
+        if (LIVE) next.delete('live');
+        else next.set('live', '1');
+        next.set('demo', current?.name || 'avatars');
+        location.search = next.toString();
+      });
+
+      reflectMode();
+      activate(params.get('demo') || 'avatars');
+    </script>
+  </body>
+</html>

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trellis State — Todo + causal DAG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --surface: #15161b;
+        --border: #25262e;
+        --text: #e4e4e7;
+        --text2: #a1a1aa;
+        --text3: #63637a;
+        --accent: #6d5bfa;
+        --alice: #6d5bfa;
+        --bob: #34d399;
+        --font: 'Inter', system-ui, sans-serif;
+        --mono: 'JetBrains Mono', ui-monospace, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 20px 16px 28px;
+      }
+      html.embed .wrap {
+        max-width: none;
+        padding: 10px 12px 14px;
+      }
+      html.embed .hero {
+        display: none;
+      }
+      .hero h1 {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .hero p {
+        margin-top: 6px;
+        font-size: 13px;
+        color: var(--text2);
+        line-height: 1.5;
+        max-width: 52rem;
+      }
+      .sync-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+        font: 500 11px var(--mono);
+        color: var(--text3);
+        padding: 4px 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .sync-pill .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--bob);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(220px, 1.2fr);
+        gap: 10px;
+        min-height: 340px;
+      }
+      @media (max-width: 900px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+        .pane.dag {
+          min-height: 260px;
+        }
+      }
+      .pane {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .pane.dag {
+        min-height: 300px;
+      }
+      .pane-head {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text3);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .pane-head .who {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .peer-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .peer-dot.alice {
+        background: var(--alice);
+      }
+      .peer-dot.bob {
+        background: var(--bob);
+      }
+      .pane-head .stat {
+        font-family: var(--mono);
+        font-weight: 500;
+        color: var(--text2);
+        text-transform: none;
+        letter-spacing: 0;
+        font-size: 10px;
+      }
+      .todo-form {
+        display: flex;
+        gap: 6px;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      .todo-form input,
+      .todo-form select {
+        font: 400 12px var(--font);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        padding: 7px 9px;
+      }
+      .todo-form input {
+        flex: 1;
+        min-width: 0;
+      }
+      .todo-form button {
+        font: 600 11px var(--font);
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 7px 10px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .todo-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px;
+        max-height: 220px;
+      }
+      html.embed .todo-list {
+        max-height: 160px;
+      }
+      .todo-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.12s;
+      }
+      .todo-item:hover {
+        background: rgba(109, 91, 250, 0.08);
+      }
+      .todo-item.done .todo-title {
+        color: var(--text3);
+        text-decoration: line-through;
+      }
+      .todo-check {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 2px solid var(--border);
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .todo-item.done .todo-check {
+        background: var(--bob);
+        border-color: var(--bob);
+      }
+      .todo-item.done .todo-check::after {
+        content: '✓';
+        display: block;
+        text-align: center;
+        font-size: 10px;
+        line-height: 12px;
+        color: #052e1c;
+        font-weight: 700;
+      }
+      .todo-title {
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.35;
+      }
+      .todo-meta {
+        font: 500 9px var(--mono);
+        color: var(--text3);
+        margin-top: 2px;
+      }
+      .todo-empty {
+        padding: 20px 10px;
+        text-align: center;
+        color: var(--text3);
+        font-size: 12px;
+      }
+      #dag-root {
+        flex: 1;
+        min-height: 240px;
+        position: relative;
+      }
+      #dag-root svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .foot {
+        margin-top: 10px;
+        font-size: 11px;
+        color: var(--text3);
+        text-align: center;
+      }
+      html.embed .foot {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1>Todo lists ↔ merged causal DAG</h1>
+        <p>
+          Alice and Bob each write <code>VcsOp</code> records on their own chain. A
+          <code>MemorySyncRoom</code> relays ops; the graph shows the merged stream. Lists are
+          projections.
+        </p>
+        <div class="sync-pill"><span class="dot"></span> MemorySyncRoom · have → want → ops → ack</div>
+      </header>
+
+      <div class="split">
+        <section class="pane todos" data-peer="alice">
+          <div class="pane-head">
+            <span class="who"><span class="peer-dot alice"></span> Alice</span>
+            <span class="stat" id="alice-stat">0 items</span>
+          </div>
+          <form class="todo-form" id="alice-form">
+            <input type="text" placeholder="Alice adds…" autocomplete="off" maxlength="80" />
+            <button type="submit">Add</button>
+          </form>
+          <div class="todo-list" id="alice-list"></div>
+        </section>
+
+        <section class="pane todos" data-peer="bob">
+          <div class="pane-head">
+            <span class="who"><span class="peer-dot bob"></span> Bob</span>
+            <span class="stat" id="bob-stat">0 items</span>
+          </div>
+          <form class="todo-form" id="bob-form">
+            <input type="text" placeholder="Bob adds…" autocomplete="off" maxlength="80" />
+            <button type="submit">Add</button>
+          </form>
+          <div class="todo-list" id="bob-list"></div>
+        </section>
+
+        <section class="pane dag">
+          <div class="pane-head">
+            <span>Merged op graph</span>
+            <span class="stat" id="op-stat">0 ops</span>
+          </div>
+          <div id="dag-root"></div>
+        </section>
+      </div>
+
+      <p class="foot">
+        Browser bundle: real <code>createVcsOp</code> + <code>SyncEngine</code> over
+        <code>MemorySyncRoom</code>. Production apps use <code>TrellisClient</code>.
+      </p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">
+      import { MultiplayerRoom } from '../../dist/state-demo.bundle.js';
+
+      const params = new URLSearchParams(location.search);
+      const isEmbed = params.get('embed') === '1';
+      if (isEmbed) document.documentElement.classList.add('embed');
+
+      function reportEmbedHeight() {
+        if (!isEmbed) return;
+        const h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+        parent.postMessage({ type: 'trellis-embed-resize', height: h }, '*');
+      }
+      if (isEmbed) {
+        window.addEventListener('load', reportEmbedHeight);
+        new ResizeObserver(() => reportEmbedHeight()).observe(document.body);
+      }
+
+      const AGENT_COLOR = {
+        'agent:alice': '#6d5bfa',
+        'agent:bob': '#34d399',
+      };
+      const KIND_COLOR = {
+        'vcs:issueCreate': '#34d399',
+        'vcs:issueClose': '#fbbf24',
+        'vcs:issueReopen': '#60a5fa',
+      };
+
+      let highlightHash = null;
+
+      const els = {
+        aliceList: document.getElementById('alice-list'),
+        bobList: document.getElementById('bob-list'),
+        aliceForm: document.getElementById('alice-form'),
+        bobForm: document.getElementById('bob-form'),
+        aliceStat: document.getElementById('alice-stat'),
+        bobStat: document.getElementById('bob-stat'),
+        opStat: document.getElementById('op-stat'),
+        dagRoot: document.getElementById('dag-root'),
+      };
+
+      const room = new MultiplayerRoom({
+        pushDebounceMs: 80,
+        onChange: ({ alice, bob, mergedOps }) => {
+          els.aliceStat.textContent = `${alice.issues.length} items`;
+          els.bobStat.textContent = `${bob.issues.length} items`;
+          els.opStat.textContent = `${mergedOps.length} ops`;
+          renderPeerList(els.aliceList, alice.issues, room.alice);
+          renderPeerList(els.bobList, bob.issues, room.bob);
+          renderDag(mergedOps);
+        },
+      });
+
+      function renderPeerList(container, issues, session) {
+        container.innerHTML = '';
+        if (!issues.length) {
+          container.innerHTML = '<div class="todo-empty">No tasks yet</div>';
+          return;
+        }
+        for (const issue of issues) {
+          const row = document.createElement('div');
+          row.className = 'todo-item' + (issue.status === 'closed' ? ' done' : '');
+          row.innerHTML = `
+            <div class="todo-check" aria-hidden="true"></div>
+            <div>
+              <div class="todo-title"></div>
+              <div class="todo-meta"></div>
+            </div>`;
+          row.querySelector('.todo-title').textContent = issue.title;
+          row.querySelector('.todo-meta').textContent = issue.id;
+          row.addEventListener('click', async () => {
+            const closed = issue.status !== 'closed';
+            const op = await session.setIssueClosed(issue.id, closed);
+            if (op) highlightHash = op.hash;
+          });
+          container.append(row);
+        }
+      }
+
+      function renderDag(ops) {
+        const filtered = ops.filter((o) => o.kind !== 'vcs:branchAdvance');
+        els.dagRoot.innerHTML = '';
+        if (!filtered.length) {
+          els.dagRoot.innerHTML =
+            '<div class="todo-empty" style="padding-top:72px">Ops appear as peers sync</div>';
+          return;
+        }
+
+        const w = els.dagRoot.clientWidth || 400;
+        const h = els.dagRoot.clientHeight || 260;
+        const svg = d3.select(els.dagRoot).append('svg').attr('width', w).attr('height', h);
+        const g = svg.append('g');
+
+        const nodeByHash = new Map();
+        const nodes = filtered.map((op) => {
+          const n = { id: op.hash, op, x: 0, y: 0 };
+          nodeByHash.set(op.hash, n);
+          return n;
+        });
+
+        const links = [];
+        for (const op of filtered) {
+          if (op.previousHash && nodeByHash.has(op.previousHash)) {
+            links.push({
+              source: nodeByHash.get(op.previousHash),
+              target: nodeByHash.get(op.hash),
+            });
+          }
+        }
+
+        const step = Math.min(72, (w - 56) / Math.max(1, nodes.length - 1));
+        const midY = h / 2;
+        nodes.forEach((n, i) => {
+          n.x = 40 + i * step;
+          const lane = n.op.agentId?.includes('bob') ? 18 : -18;
+          n.y = midY + lane;
+        });
+
+        g.selectAll('line.link')
+          .data(links)
+          .join('line')
+          .attr('x1', (d) => d.source.x)
+          .attr('y1', (d) => d.source.y)
+          .attr('x2', (d) => d.target.x)
+          .attr('y2', (d) => d.target.y)
+          .attr('stroke', '#3f3f46')
+          .attr('stroke-width', 1.2);
+
+        const nodeG = g
+          .selectAll('g.node')
+          .data(nodes)
+          .join('g')
+          .attr('transform', (d) => `translate(${d.x},${d.y})`);
+
+        nodeG
+          .append('circle')
+          .attr('r', 9)
+          .attr('fill', (d) => AGENT_COLOR[d.op.agentId] || KIND_COLOR[d.op.kind] || '#71717a')
+          .attr('stroke', (d) => (d.id === highlightHash ? '#fff' : 'transparent'))
+          .attr('stroke-width', 2);
+
+        nodeG
+          .append('text')
+          .attr('y', 20)
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#71717a')
+          .attr('font-size', 8)
+          .attr('font-family', 'JetBrains Mono, monospace')
+          .text((d) => d.op.hash.slice(-5));
+
+        nodeG.append('title').text(
+          (d) => `${d.op.agentId}\n${d.op.kind}\n${d.op.vcs?.issueTitle ?? ''}`,
+        );
+
+        highlightHash = null;
+      }
+
+      function wireForm(form, session) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const input = form.querySelector('input');
+          const title = input.value.trim();
+          if (!title) return;
+          const op = await session.addIssue(title, 'medium');
+          highlightHash = op.hash;
+          input.value = '';
+          input.focus();
+        });
+      }
+
+      wireForm(els.aliceForm, room.alice);
+      wireForm(els.bobForm, room.bob);
+
+      room.alice.addIssue('Alice: explore the graph', 'high');
+      window.addEventListener('resize', () => renderDag(room.getMergedOps()));
+      if (isEmbed) reportEmbedHeight();
+    </script>
+  </body>
+</html>

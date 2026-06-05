@@ -17,6 +17,33 @@ import {
 import { dirname } from 'path';
 import type { VcsOp } from './types.js';
 
+/**
+ * Backend-agnostic op log surface.
+ *
+ * Implementations may persist to filesystem (`JsonOpLog`), IndexedDB
+ * (`IdbOpLog`), or any other store. The contract:
+ *
+ * - `load()` returns `void | Promise<void>` so filesystem backends can stay
+ *   synchronous while browser backends (IndexedDB, OPFS) are async. Callers
+ *   that may use either backend should `await opLog.load()`.
+ * - `append()`, `readAll()`, `getLastOp()`, `count()` are sync — they
+ *   operate on an in-memory cache the backend maintains. Sync reads are
+ *   required by the engine, which does not await op-log access on hot paths.
+ * - `flush()` is optional — when present, awaiting it guarantees durability
+ *   for backends with deferred writes (e.g. IndexedDB). Filesystem backends
+ *   that write synchronously may omit it.
+ *
+ * Implementations are responsible for hash-deduplication on `append`.
+ */
+export interface OpLog {
+  load(): void | Promise<void>;
+  append(op: VcsOp): void;
+  readAll(): VcsOp[];
+  getLastOp(): VcsOp | undefined;
+  count(): number;
+  flush?(): Promise<void>;
+}
+
 function lockTimeoutMs(): number {
   const raw = process.env.TRELLIS_OPLOG_LOCK_MS;
   if (!raw) return 5000;
@@ -24,7 +51,7 @@ function lockTimeoutMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 5000;
 }
 
-export class JsonOpLog {
+export class JsonOpLog implements OpLog {
   private ops: VcsOp[] = [];
   private filePath: string;
   private lockPath: string;
@@ -68,7 +95,7 @@ export class JsonOpLog {
       }
 
       this.ops.push(op);
-      this.flush();
+      this.writeOpsToDisk();
     });
   }
 
@@ -84,7 +111,7 @@ export class JsonOpLog {
     return this.ops.length;
   }
 
-  private flush(): void {
+  private writeOpsToDisk(): void {
     const dir = dirname(this.filePath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     if (existsSync(this.filePath)) {

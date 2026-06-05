@@ -17,6 +17,7 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { startNodeServer } from '../server/node-adapter.js';
 import { TrellisVcsEngine } from '../engine.js';
 import {
@@ -466,26 +467,63 @@ export async function startUIServer(opts: UIServerOptions): Promise<{
   const engine = new TrellisVcsEngine({ rootPath: opts.rootPath });
   engine.open();
 
-  // Resolve client.html — works in dev (src/ui/) and production (dist/cli/ chunk)
+  // Resolve client.html — cwd (WebContainer/npx), import.meta (bundled), argv (bin).
   function findClientHtml(): string {
-    const here = dirname(process.argv[1]);
-    const candidates = [
-      join(here, 'client.html'), // dev: src/ui/client.html
-      join(here, '..', 'ui', 'client.html'), // built: dist/cli → dist/ui
-      join(here, 'ui', 'client.html'), // built: dist/ → dist/ui
-    ];
-    // Also walk up from here looking for package root → dist/ui/client.html
-    let dir = here;
-    for (let i = 0; i < 5; i++) {
-      candidates.push(join(dir, 'dist', 'ui', 'client.html'));
-      candidates.push(join(dir, 'ui', 'client.html'));
-      dir = dirname(dir);
+    const candidates: string[] = [];
+    const push = (...paths: string[]) => {
+      for (const p of paths) candidates.push(p);
+    };
+
+    // Project cwd first — WebContainer / monorepo desk layouts.
+    push(join(process.cwd(), 'dist', 'ui', 'client.html'));
+
+    // Bundled module location (dist/cli/index.js → dist/ui/client.html).
+    try {
+      const moduleDir = dirname(fileURLToPath(import.meta.url));
+      push(
+        join(moduleDir, 'client.html'),
+        join(moduleDir, '..', 'ui', 'client.html'),
+        join(moduleDir, 'ui', 'client.html'),
+      );
+    } catch {
+      // import.meta.url unavailable in some hosts
     }
+
+    // CLI entry (bin/trellis.mjs → ../dist/ui/client.html).
+    const argvEntry = process.argv[1];
+    if (argvEntry) {
+      const argvDir = dirname(argvEntry);
+      push(
+        join(argvDir, 'client.html'),
+        join(argvDir, '..', 'ui', 'client.html'),
+        join(argvDir, 'ui', 'client.html'),
+        join(argvDir, '..', 'dist', 'ui', 'client.html'),
+      );
+      let dir = argvDir;
+      for (let i = 0; i < 6; i++) {
+        push(join(dir, 'dist', 'ui', 'client.html'), join(dir, 'ui', 'client.html'));
+        dir = dirname(dir);
+      }
+    }
+
+    // Walk up from cwd (npm package root, global install, etc.).
+    let cwd = process.cwd();
+    for (let i = 0; i < 8; i++) {
+      push(
+        join(cwd, 'dist', 'ui', 'client.html'),
+        join(cwd, 'node_modules', 'trellis', 'dist', 'ui', 'client.html'),
+      );
+      const parent = dirname(cwd);
+      if (parent === cwd) break;
+      cwd = parent;
+    }
+
     for (const p of candidates) {
       if (existsSync(p)) return p;
     }
     throw new Error(
-      `Could not find client.html. Searched from: ${here}\nTry reinstalling the package or running \`bun run build\`.`,
+      `Could not find client.html. cwd=${process.cwd()} argv=${argvEntry ?? '(none)'}\n` +
+        'Try reinstalling the package or running `npm run build`.',
     );
   }
 

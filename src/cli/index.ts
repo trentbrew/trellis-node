@@ -32,6 +32,7 @@ import { embed } from '../embeddings/model.js';
 import { EmbeddingManager } from '../embeddings/search.js';
 import { importFromGit } from '../git/git-importer.js';
 import { exportToGit } from '../git/git-exporter.js';
+import { buildRepoExamples } from './examples.js';
 import {
   createIdentity,
   saveIdentity,
@@ -2151,7 +2152,11 @@ issueCmd
     engine.open();
 
     const lane = engine.findLaneForIssue(id);
-    if (lane && lane.status === 'active' && engine.getLaneOpCount(lane.id) > 0) {
+    if (
+      lane &&
+      lane.status === 'active' &&
+      engine.getLaneOpCount(lane.id) > 0
+    ) {
       console.log(
         chalk.yellow(
           `⚠ Lane ${lane.id} has unpromoted ops — promote before close when W3 lands (trellis lane promote)`,
@@ -2782,43 +2787,88 @@ program
 
 program
   .command('ui')
-  .description('Launch the interactive graph explorer in your browser')
-  .option('-p, --path <path>', 'Repository path', '.')
-  .option('--port <port>', 'Server port', '3333')
+  .description(
+    'Launch the live graph explorer (SvelteKit realtime-app at demo/realtime-app)',
+  )
+  .option('-p, --path <path>', 'Repository path (init .trellis if missing)', '.')
+  .option('--port <port>', 'SvelteKit app port', '4000')
+  .option('--trellis-port <port>', 'Trellis graph sidecar port', '3920')
+  .option(
+    '--legacy',
+    'Use legacy client.html System Visualizer instead of the Svelte explorer',
+  )
   .option('--no-open', 'Do not auto-open browser')
   .action(async (opts) => {
     const rootPath = resolveRepoRoot(opts.path);
+    const appPort = parseInt(opts.port, 10) || 4000;
+    const trellisPort = parseInt(opts.trellisPort, 10) || 3920;
 
-    const { startUIServer } = require('../ui/server.js');
-    const port = parseInt(opts.port, 10) || 3000;
+    const openBrowser = (url: string) => {
+      if (opts.open === false) return;
+      const { exec } = require('child_process');
+      const cmd =
+        process.platform === 'darwin'
+          ? 'open'
+          : process.platform === 'win32'
+            ? 'start'
+            : 'xdg-open';
+      exec(`${cmd} ${url}`);
+    };
+
+    if (opts.legacy) {
+      const { startUIServer } = require('../ui/server.js');
+      try {
+        const server = await startUIServer({ rootPath, port: appPort });
+        const url = `http://localhost:${server.port}`;
+        console.log(
+          chalk.yellow('Legacy System Visualizer (client.html)'),
+        );
+        console.log(
+          chalk.green(`✓ Running at ${chalk.bold(url)}`),
+        );
+        openBrowser(url);
+        process.on('SIGINT', () => {
+          server.stop();
+          process.exit(0);
+        });
+      } catch (err: any) {
+        console.error(chalk.red(`Failed to start server: ${err.message}`));
+        process.exit(1);
+      }
+      return;
+    }
 
     try {
-      const server = await startUIServer({ rootPath, port });
-      const url = `http://localhost:${server.port}`;
+      const { launchRealtimeExplorer } = await import(
+        '../ui/launch-explorer.js'
+      );
       console.log(
-        chalk.green(`✓ Trellis Graph Explorer running at ${chalk.bold(url)}`),
+        chalk.dim(`Workspace: ${rootPath}`),
+      );
+      console.log(
+        chalk.dim('Starting Svelte realtime explorer (sidecar + Vite)…\n'),
+      );
+      const handle = await launchRealtimeExplorer({
+        rootPath,
+        appPort,
+        trellisPort,
+      });
+      console.log(
+        chalk.green(`✓ Live graph explorer → ${chalk.bold(handle.appUrl)}`),
+      );
+      console.log(
+        chalk.dim(`  Trellis sidecar / inspector → ${handle.trellisUrl}`),
       );
       console.log(chalk.dim('  Press Ctrl+C to stop\n'));
-
-      // Auto-open browser
-      if (opts.open !== false) {
-        const { exec } = require('child_process');
-        const cmd =
-          process.platform === 'darwin'
-            ? 'open'
-            : process.platform === 'win32'
-              ? 'start'
-              : 'xdg-open';
-        exec(`${cmd} ${url}`);
-      }
+      openBrowser(handle.appUrl);
 
       process.on('SIGINT', () => {
-        server.stop();
-        console.log(chalk.dim('\nServer stopped.'));
+        handle.stop();
+        console.log(chalk.dim('\nExplorer stopped.'));
         process.exit(0);
       });
     } catch (err: any) {
-      console.error(chalk.red(`Failed to start server: ${err.message}`));
+      console.error(chalk.red(`Failed to start explorer: ${err.message}`));
       process.exit(1);
     }
   });
@@ -2830,12 +2880,16 @@ program
 async function bootKernel(rootPath: string): Promise<TrellisKernel> {
   const dbPath = join(rootPath, '.trellis', 'kernel.db');
   const { createKernelBackend } = await import('../core/persist/factory.js');
+  const { attachStandardMiddleware } = await import(
+    '../core/kernel/boot-middleware.js'
+  );
   const backend = await createKernelBackend(dbPath);
   const kernel = new TrellisKernel({
     backend,
     agentId: `agent:${process.env.USER ?? 'unknown'}`,
   });
   kernel.boot();
+  attachStandardMiddleware(kernel);
   return kernel;
 }
 
@@ -3259,6 +3313,51 @@ linkCmd
       }
     } finally {
       kernel.close();
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// trellis examples
+// ---------------------------------------------------------------------------
+
+program
+  .command('examples')
+  .description('Print example CLI commands and EQL-S queries for this repo')
+  .option('-p, --path <path>', 'Repository path', '.')
+  .option('--json', 'Output as JSON')
+  .action(async (opts: any) => {
+    const rootPath = resolveRepoRoot(opts.path);
+
+    const engine = new TrellisVcsEngine({ rootPath });
+    engine.open();
+
+    const examples = buildRepoExamples({
+      issues: engine.listIssues(),
+      milestones: engine.listMilestones(),
+      branches: engine.listBranches(),
+      files: engine.trackedFiles(),
+    });
+
+    if (opts.json) {
+      console.log(JSON.stringify(examples, null, 2));
+      return;
+    }
+
+    console.log(chalk.bold('Example commands for this repo\n'));
+    for (const section of examples.sections) {
+      console.log(chalk.cyan(section.title));
+      for (const cmd of section.commands) {
+        console.log(`  ${chalk.dim('$')} ${cmd}`);
+      }
+      console.log();
+    }
+
+    console.log(chalk.cyan('EQL-S queries'));
+    console.log(
+      chalk.dim('  (requires kernel materialization — run after init)\n'),
+    );
+    for (const cmd of examples.eql) {
+      console.log(`  ${chalk.dim('$')} ${cmd}`);
     }
   });
 
@@ -4070,12 +4169,10 @@ db.command('deploy')
       console.log(chalk.dim(`  Key:    ${result.apiKey}`));
       console.log('');
       console.log(chalk.bold('SDK usage:'));
-      console.log(
-        chalk.cyan(`  import { TrellisClient } from 'trellis/client';`),
-      );
+      console.log(chalk.cyan(`  import { TrellisDb } from 'trellis/client';`));
       console.log(
         chalk.cyan(
-          `  const db = new TrellisClient({ url: '${result.url}', apiKey: '${result.apiKey}' });`,
+          `  const db = new TrellisDb({ url: '${result.url}', apiKey: '${result.apiKey}' });`,
         ),
       );
     } catch (err: any) {

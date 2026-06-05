@@ -98,6 +98,11 @@
 
   const navLinks = [
     {
+      label: "Studio",
+      to: "/studio/introduction",
+      isActive: (path: string) => path.startsWith("/studio/"),
+    },
+    {
       label: "Docs",
       to: "/getting-started/introduction",
       isActive: (path: string) =>

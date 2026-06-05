@@ -7,7 +7,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import { AgentHarness } from '../../src/core/agents/harness.js';
 
 describe('AgentHarness', () => {
@@ -18,7 +18,7 @@ describe('AgentHarness', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-agent-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();
@@ -27,7 +27,9 @@ describe('AgentHarness', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   // -----------------------------------------------------------------------
@@ -113,7 +115,10 @@ describe('AgentHarness', () => {
   });
 
   it('should invoke a registered tool', async () => {
-    const agentDef = await harness.createAgent({ name: 'Test', status: 'active' });
+    const agentDef = await harness.createAgent({
+      name: 'Test',
+      status: 'active',
+    });
     const runId = await harness.startRun(agentDef.id);
 
     await harness.registerTool(
@@ -121,7 +126,9 @@ describe('AgentHarness', () => {
       async (input) => ({ success: true, output: input }),
     );
 
-    const result = await harness.invokeTool(runId, 'tool:echo', { msg: 'hello' });
+    const result = await harness.invokeTool(runId, 'tool:echo', {
+      msg: 'hello',
+    });
     expect(result.success).toBe(true);
     expect(result.output).toEqual({ msg: 'hello' });
   });
@@ -131,7 +138,10 @@ describe('AgentHarness', () => {
   // -----------------------------------------------------------------------
 
   it('should start and complete a run', async () => {
-    const agent = await harness.createAgent({ name: 'Worker', status: 'active' });
+    const agent = await harness.createAgent({
+      name: 'Worker',
+      status: 'active',
+    });
     const runId = await harness.startRun(agent.id, 'Fix the bug');
 
     const run = harness.getRun(runId);
@@ -149,7 +159,10 @@ describe('AgentHarness', () => {
   });
 
   it('should fail a run', async () => {
-    const agent = await harness.createAgent({ name: 'Worker', status: 'active' });
+    const agent = await harness.createAgent({
+      name: 'Worker',
+      status: 'active',
+    });
     const runId = await harness.startRun(agent.id);
 
     await harness.failRun(runId, 'Out of tokens');
@@ -175,8 +188,9 @@ describe('AgentHarness', () => {
   });
 
   it('should throw when starting run for non-existent agent', async () => {
-    await expect(harness.startRun('agent:nonexistent'))
-      .rejects.toThrow('not found');
+    await expect(harness.startRun('agent:nonexistent')).rejects.toThrow(
+      'not found',
+    );
   });
 
   // -----------------------------------------------------------------------
@@ -184,7 +198,10 @@ describe('AgentHarness', () => {
   // -----------------------------------------------------------------------
 
   it('should record decision traces', async () => {
-    const agent = await harness.createAgent({ name: 'Tracer', status: 'active' });
+    const agent = await harness.createAgent({
+      name: 'Tracer',
+      status: 'active',
+    });
     const runId = await harness.startRun(agent.id);
 
     const decId = await harness.recordDecision(
@@ -205,7 +222,10 @@ describe('AgentHarness', () => {
   });
 
   it('should auto-record decisions on tool invocations', async () => {
-    const agent = await harness.createAgent({ name: 'AutoTracer', status: 'active' });
+    const agent = await harness.createAgent({
+      name: 'AutoTracer',
+      status: 'active',
+    });
     const runId = await harness.startRun(agent.id);
 
     await harness.registerTool(
@@ -222,7 +242,10 @@ describe('AgentHarness', () => {
   });
 
   it('should track decision chains for entities', async () => {
-    const agent = await harness.createAgent({ name: 'ChainTest', status: 'active' });
+    const agent = await harness.createAgent({
+      name: 'ChainTest',
+      status: 'active',
+    });
     const runId = await harness.startRun(agent.id);
 
     await kernel.createEntity('proj:target', 'Project', { name: 'Target' });
@@ -241,7 +264,10 @@ describe('AgentHarness', () => {
 
   it('should not record decisions when disabled', async () => {
     const quietHarness = new AgentHarness(kernel, { recordDecisions: false });
-    const agent = await quietHarness.createAgent({ name: 'Quiet', status: 'active' });
+    const agent = await quietHarness.createAgent({
+      name: 'Quiet',
+      status: 'active',
+    });
     const runId = await quietHarness.startRun(agent.id);
 
     await quietHarness.registerTool(

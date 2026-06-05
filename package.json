@@ -47,6 +47,16 @@
       "bun": "./dist/vcs/index.js",
       "import": "./dist/vcs/index.js"
     },
+    "./sync": {
+      "types": "./dist/sync/index.d.ts",
+      "bun": "./dist/sync/index.js",
+      "import": "./dist/sync/index.js"
+    },
+    "./realtime": {
+      "types": "./dist/realtime/index.d.ts",
+      "bun": "./dist/realtime/index.js",
+      "import": "./dist/realtime/index.js"
+    },
     "./ai": {
       "types": "./dist/embeddings/index.d.ts",
       "bun": "./dist/embeddings/index.js",
@@ -113,9 +123,11 @@
     "cli": "tsx src/cli/index.ts",
     "mcp": "tsx src/mcp/index.ts",
     "mcp:docs": "tsx src/mcp/docs.ts",
-    "build": "esbuild src/index.ts src/core/index.ts src/vcs/index.ts src/embeddings/index.ts src/links/index.ts src/decisions/index.ts src/server/index.ts src/client/index.ts src/react/index.ts src/db/index.ts src/cli/index.ts src/cms/index.ts src/core/persist/sqljs-backend.ts src/core/persist/factory.ts src/server/node-adapter.ts --bundle --outdir=dist --outbase=src --format=esm --splitting --platform=node --external:@xenova/transformers --external:@huggingface/transformers --external:react --external:sql.js --external:ws --external:better-sqlite3 --external:bun:sqlite && mkdir -p dist/ui && cp src/ui/client.html dist/ui/client.html && tsc -p tsconfig.build.json --emitDeclarationOnly --noEmit false --noEmitOnError false && npm run build:inspector",
+    "build": "esbuild src/index.ts src/core/index.ts src/vcs/index.ts src/sync/index.ts src/realtime/index.ts src/embeddings/index.ts src/links/index.ts src/decisions/index.ts src/server/index.ts src/client/index.ts src/react/index.ts src/db/index.ts src/cli/index.ts src/cms/index.ts src/core/persist/sqljs-backend.ts src/core/persist/factory.ts src/server/node-adapter.ts --bundle --outdir=dist --outbase=src --format=esm --splitting --platform=node --external:@xenova/transformers --external:@huggingface/transformers --external:react --external:sql.js --external:ws --external:better-sqlite3 --external:bun:sqlite --external:commander --external:chalk --external:@inquirer/prompts --external:zod && npm run build:realtime-bundle && mkdir -p dist/ui && cp src/ui/client.html dist/ui/client.html && tsc -p tsconfig.build.json --emitDeclarationOnly --noEmit false --noEmitOnError false && npm run build:inspector",
+    "build:realtime-bundle": "esbuild src/realtime/index.ts --bundle --format=esm --platform=browser --outfile=dist/realtime.bundle.js && esbuild src/realtime/relay-persistence.ts --bundle --format=esm --platform=node --outfile=dist/realtime/relay-persistence.js",
+    "build:state-demo-bundle": "esbuild demo/state-demo/entry.ts --bundle --format=esm --platform=browser --outfile=dist/state-demo.bundle.js",
     "build:inspector": "vite build --config vite.inspector.config.ts",
-    "test": "vitest run test/core test/cms test/vcs test/git test/p2 test/p3 test/p4 test/p5 test/p6 test/p7 test/engine.test.ts test/cli",
+    "test": "vitest run test/core test/cms test/vcs test/git test/p2 test/p3 test/p4 test/p5 test/p6 test/p7 test/client test/realtime test/engine.test.ts test/cli",
     "test:all": "vitest run",
     "test:wc": "node test/webcontainer/server.mjs",
     "prepublishOnly": "npm run test && npm run build"
@@ -126,7 +138,7 @@
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "opencode-ai": "^1.3.5",
-    "turtlecode": "^0.3.23",
+    "turtlecode": "^0.3.59",
     "zod": "3"
   },
   "optionalDependencies": {
@@ -154,6 +166,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^5.2.3",
     "esbuild": "^0.24.0",
+    "fake-indexeddb": "^6.2.5",
     "react": "^19.1.0",
     "tsx": "^4.19.0",
     "typescript": "^5",

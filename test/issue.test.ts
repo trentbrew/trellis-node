@@ -347,6 +347,62 @@ describe('Issue Primitives', () => {
     expect(op3.vcs!.issueId).toBe('TRL-3');
   });
 
+  test('lane-scoped ID generation produces canonical offline-safe issue IDs', async () => {
+    const engine = await initEngine();
+
+    const laneA1 = await engine.createIssue('Lane A first', {
+      laneId: 'lane-a',
+      criteria: [{ description: 'Acceptance criterion' }],
+    });
+    const laneA2 = await engine.createIssue('Lane A second', {
+      laneId: 'lane-a',
+    });
+    const laneB1 = await engine.createIssue('Lane B first', {
+      laneId: 'lane-b',
+    });
+    const global = await engine.createIssue('Global issue');
+
+    expect(laneA1.vcs!.issueId).toBe('issue:lane-a:1');
+    expect(laneA2.vcs!.issueId).toBe('issue:lane-a:2');
+    expect(laneB1.vcs!.issueId).toBe('issue:lane-b:1');
+    expect(global.vcs!.issueId).toBe('TRL-1');
+
+    const issue = engine.getIssue('issue:lane-a:1');
+    expect(issue).not.toBeNull();
+    expect(issue!.id).toBe('issue:lane-a:1');
+    expect(issue!.criteria).toHaveLength(1);
+    expect(issue!.criteria[0].description).toBe('Acceptance criterion');
+  });
+
+  test('displayId mirrors id for legacy TRL-N, undefined for lane-scoped', async () => {
+    const engine = await initEngine();
+
+    await engine.createIssue('Legacy');
+    await engine.createIssue('Lane-scoped', { laneId: 'lane-a' });
+
+    const legacy = engine.getIssue('TRL-1')!;
+    const laned = engine.getIssue('issue:lane-a:1')!;
+
+    expect(legacy.id).toBe('TRL-1');
+    expect(legacy.displayId).toBe('TRL-1');
+
+    expect(laned.id).toBe('issue:lane-a:1');
+    expect(laned.displayId).toBeUndefined();
+  });
+
+  test('startIssue sanitizes lane-scoped IDs in branch names', async () => {
+    const engine = await initEngine();
+    const op = await engine.createIssue('Lane scoped branch', {
+      laneId: 'lane-a',
+    });
+
+    await engine.startIssue(op.vcs!.issueId!, { lane: false });
+
+    const issue = engine.getIssue(op.vcs!.issueId!)!;
+    expect(issue.branchName).toBe('issue/lane-a-1-lane-scoped-branch');
+    expect(engine.getCurrentBranch()).toBe(issue.branchName);
+  });
+
   test('blockIssue creates blockedBy link and sets isBlocked', async () => {
     const engine = await initEngine();
 

@@ -606,9 +606,9 @@ bun add trellis   # or: npm install trellis
 
 ## Initialize
 \`\`\`ts
-import { TrellisClient } from 'trellis/client';
+import { TrellisDb } from 'trellis/client';
 
-const db = new TrellisClient({
+const db = new TrellisDb({
   url: 'http://localhost:3000',
   apiKey: 'your-api-key',    // or: jwtToken
   tenantId: 'default',       // optional
@@ -817,7 +817,11 @@ trellis db import <json-file>
 // ---------------------------------------------------------------------------
 
 function listSections() {
-  return SECTIONS.map(({ path, title, use_cases }) => ({ path, title, use_cases }));
+  return SECTIONS.map(({ path, title, use_cases }) => ({
+    path,
+    title,
+    use_cases,
+  }));
 }
 
 function getSection(path: string): DocSection | undefined {
@@ -849,7 +853,8 @@ function trellisCheck(code: string): CheckIssue[] {
     if (/\bfind\b.*\bwhere\b.*=\s*(?!["'])/.test(line)) {
       issues.push({
         severity: 'warning',
-        message: 'EQL-S: attribute values should be quoted strings (e.g. = "value")',
+        message:
+          'EQL-S: attribute values should be quoted strings (e.g. = "value")',
         line: ln,
       });
     }
@@ -883,9 +888,13 @@ function trellisCheck(code: string): CheckIssue[] {
     }
 
     // Missing await on db SDK calls
-    if (/(?:db|client)\.(create|update|delete|get|list|query|upload)\(/.test(line) &&
-        !/await\s/.test(line) &&
-        !/=\s*db\.|=\s*client\./.test(line)) {
+    if (
+      /(?:db|client)\.(create|update|delete|get|list|query|upload)\(/.test(
+        line,
+      ) &&
+      !/await\s/.test(line) &&
+      !/=\s*db\.|=\s*client\./.test(line)
+    ) {
       issues.push({
         severity: 'warning',
         message: 'TrellisDB SDK methods are async — did you forget `await`?',
@@ -938,7 +947,9 @@ server.registerTool(
     inputSchema: {
       sections: z
         .array(z.string())
-        .describe('Section paths to fetch, e.g. ["vcs/workflows", "db/eql-queries"]'),
+        .describe(
+          'Section paths to fetch, e.g. ["vcs/workflows", "db/eql-queries"]',
+        ),
     },
   },
   async ({ sections: paths }) => {
@@ -984,7 +995,12 @@ server.registerTool(
     const header = filename ? `Issues in ${filename}:\n` : 'Issues found:\n';
     const lines = issues.map((issue) => {
       const loc = issue.line ? `L${issue.line}: ` : '';
-      const icon = issue.severity === 'error' ? '✗' : issue.severity === 'warning' ? '⚠' : 'ℹ';
+      const icon =
+        issue.severity === 'error'
+          ? '✗'
+          : issue.severity === 'warning'
+            ? '⚠'
+            : 'ℹ';
       return `${icon} [${issue.severity.toUpperCase()}] ${loc}${issue.message}`;
     });
 

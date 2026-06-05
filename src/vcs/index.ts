@@ -22,4 +22,5 @@ export * from './diff.js';
 export * from './merge.js';
 export * from './issue.js';
 export * from './op-log.js';
+export * from './idb-op-log.js';
 export * from './lane.js';

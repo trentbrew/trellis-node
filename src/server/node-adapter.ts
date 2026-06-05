@@ -45,15 +45,6 @@ export async function startNodeServer(
   opts: NodeAdapterOptions,
 ): Promise<TrellisHttpServer> {
   const http = await import('http');
-  let WebSocketServer: any;
-  try {
-    ({ WebSocketServer } = await import('ws'));
-  } catch {
-    throw new Error(
-      'Running the Trellis server outside Bun requires the optional ' +
-        'dependency "ws". Install it: npm install ws',
-    );
-  }
 
   const httpServer = http.createServer(
     async (req: IncomingMessage, res: ServerResponse) => {
@@ -70,26 +61,35 @@ export async function startNodeServer(
     },
   );
 
-  const wss = new WebSocketServer({ noServer: true });
+  let wss: any = null;
+  try {
+    const { WebSocketServer } = await import('ws');
+    wss = new WebSocketServer({ noServer: true });
 
-  httpServer.on('upgrade', (req: IncomingMessage, socket: any, head: any) => {
-    wss.handleUpgrade(req, socket, head, (ws: any) => {
-      wss.emit('connection', ws, req);
+    httpServer.on('upgrade', (req: IncomingMessage, socket: any, head: any) => {
+      wss.handleUpgrade(req, socket, head, (ws: any) => {
+        wss.emit('connection', ws, req);
+      });
     });
-  });
 
-  wss.on('connection', (ws: any) => {
-    Promise.resolve(opts.websocket.open(ws)).catch(() => {});
-    ws.on('message', (raw: Buffer | ArrayBuffer | Buffer[]) => {
-      const data = Array.isArray(raw)
-        ? Buffer.concat(raw).toString()
-        : raw instanceof ArrayBuffer
-          ? Buffer.from(raw).toString()
-          : raw.toString();
-      Promise.resolve(opts.websocket.message(ws, data)).catch(() => {});
+    wss.on('connection', (ws: any) => {
+      Promise.resolve(opts.websocket.open(ws)).catch(() => {});
+      ws.on('message', (raw: Buffer | ArrayBuffer | Buffer[]) => {
+        const data = Array.isArray(raw)
+          ? Buffer.concat(raw).toString()
+          : raw instanceof ArrayBuffer
+            ? Buffer.from(raw).toString()
+            : raw.toString();
+        Promise.resolve(opts.websocket.message(ws, data)).catch(() => {});
+      });
+      ws.on('close', () => opts.websocket.close(ws));
     });
-    ws.on('close', () => opts.websocket.close(ws));
-  });
+  } catch {
+    // HTTP-only fallback (e.g. WebContainer graph UI — no WebSocket needed).
+    httpServer.on('upgrade', (_req, socket) => {
+      socket.destroy();
+    });
+  }
 
   await new Promise<void>((resolve) =>
     httpServer.listen(opts.port, opts.hostname, resolve),
@@ -167,14 +167,17 @@ function wrapNodeServer(
     hostname: hostname ?? 'localhost',
     stop(closeActiveConnections?: boolean): Promise<void> {
       return new Promise((resolve, reject) => {
+        const closeHttp = () => {
+          httpServer.close((err?: Error) => (err ? reject(err) : resolve()));
+        };
+        if (!wss) {
+          closeHttp();
+          return;
+        }
         if (closeActiveConnections) {
           for (const client of wss.clients) client.terminate();
         }
-        wss.close(() => {
-          httpServer.close((err?: Error) =>
-            err ? reject(err) : resolve(),
-          );
-        });
+        wss.close(() => closeHttp());
       });
     },
   };

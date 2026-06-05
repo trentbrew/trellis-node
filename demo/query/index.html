@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trellis Query Playground</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --surface: #15161b;
+        --border: #25262e;
+        --text: #e4e4e7;
+        --text2: #a1a1aa;
+        --text3: #63637a;
+        --accent: #6d5bfa;
+        --hit: #34d399;
+        --font: 'Inter', system-ui, sans-serif;
+        --mono: 'JetBrains Mono', monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+      .wrap {
+        padding: 12px 14px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      html.embed .hero {
+        display: none;
+      }
+      html.embed body {
+        min-height: 0;
+        overflow: auto;
+      }
+      html.embed .wrap {
+        padding: 10px 12px;
+      }
+      html.embed .split {
+        min-height: 0;
+        height: auto;
+      }
+      html.embed .pane {
+        overflow: visible;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(200px, 1.1fr);
+        gap: 10px;
+        min-height: 340px;
+      }
+      @media (max-width: 760px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+      }
+      .pane {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        overflow: hidden;
+      }
+      .pane-head {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text3);
+      }
+      .editor {
+        padding: 10px;
+      }
+      select,
+      textarea,
+      button {
+        font-family: var(--font);
+        font-size: 12px;
+      }
+      select {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 8px;
+        margin-bottom: 8px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 72px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: var(--mono);
+        font-size: 11px;
+        line-height: 1.5;
+        resize: vertical;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text2);
+      }
+      .result {
+        margin-top: 10px;
+        padding: 10px;
+        background: var(--bg);
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text2);
+        min-height: 48px;
+      }
+      .result .hit {
+        color: var(--hit);
+      }
+      #graph-root {
+        min-height: 300px;
+      }
+      html.embed #graph-root {
+        min-height: 260px;
+      }
+      #graph-root svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1 style="font-size: 18px; font-weight: 700">EQL-S playground</h1>
+        <p style="font-size: 12px; color: var(--text2); margin-top: 4px">
+          Simplified fixture graph — canned queries highlight matches (full engine in CLI / Studio).
+        </p>
+      </header>
+      <div class="split">
+        <section class="pane">
+          <div class="pane-head">Query</div>
+          <div class="editor">
+            <select id="preset" aria-label="Canned queries"></select>
+            <textarea id="query" spellcheck="false"></textarea>
+            <div class="actions">
+              <button type="button" id="run">Run</button>
+              <button type="button" id="clear" class="secondary">Clear</button>
+            </div>
+            <div class="result" id="result">Select a query and run.</div>
+          </div>
+        </section>
+        <section class="pane">
+          <div class="pane-head">Fixture graph</div>
+          <div id="graph-root"></div>
+        </section>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">
+      const isEmbed = new URLSearchParams(location.search).get('embed') === '1';
+      if (isEmbed) {
+        document.documentElement.classList.add('embed');
+      }
+
+      function reportEmbedHeight() {
+        if (!document.documentElement.classList.contains('embed')) return;
+        const h = Math.max(
+          document.documentElement.scrollHeight,
+          document.body.scrollHeight,
+          document.querySelector('.split')?.scrollHeight ?? 0,
+        );
+        parent.postMessage({ type: 'trellis-embed-resize', height: h }, '*');
+      }
+
+      if (isEmbed) {
+        window.addEventListener('load', reportEmbedHeight);
+        new ResizeObserver(() => reportEmbedHeight()).observe(document.body);
+        requestAnimationFrame(reportEmbedHeight);
+      }
+
+      const FIXTURE = {
+        nodes: [
+          { id: 'file:auth', type: 'file', label: 'src/auth.ts' },
+          { id: 'file:api', type: 'file', label: 'src/api.ts' },
+          { id: 'issue:42', type: 'issue', label: 'Fix auth flow' },
+          { id: 'issue:7', type: 'issue', label: 'API pagination' },
+          { id: 'fn:validate', type: 'function', label: 'validateSession' },
+          { id: 'milestone:1', type: 'milestone', label: 'v0.9 release' },
+        ],
+        links: [
+          { source: 'issue:42', target: 'file:auth', label: 'affects' },
+          { source: 'fn:validate', target: 'file:auth', label: 'definedIn' },
+          { source: 'issue:7', target: 'file:api', label: 'affects' },
+          { source: 'milestone:1', target: 'issue:42', label: 'includes' },
+          { source: 'milestone:1', target: 'issue:7', label: 'includes' },
+        ],
+      };
+
+      const QUERIES = [
+        {
+          name: 'Open issues affecting auth',
+          eql: 'SELECT ?issue WHERE { ?issue type Issue . ?issue status open . ?issue affects file:auth }',
+          match: (n) => n.id === 'issue:42',
+        },
+        {
+          name: 'Functions in auth file',
+          eql: 'SELECT ?fn WHERE { ?fn definedIn file:auth }',
+          match: (n) => n.id === 'fn:validate',
+        },
+        {
+          name: 'Milestone scope',
+          eql: 'SELECT ?x WHERE { milestone:1 includes ?x }',
+          match: (n) => n.id === 'issue:42' || n.id === 'issue:7',
+        },
+        {
+          name: 'All files',
+          eql: 'SELECT ?file WHERE { ?file type File }',
+          match: (n) => n.type === 'file',
+        },
+      ];
+
+      const TYPE_COLOR = {
+        file: '#58a6ff',
+        issue: '#fbbf24',
+        function: '#a78bfa',
+        milestone: '#34d399',
+      };
+
+      let hitIds = new Set();
+
+      const preset = document.getElementById('preset');
+      const queryEl = document.getElementById('query');
+      const resultEl = document.getElementById('result');
+
+      QUERIES.forEach((q, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = q.name;
+        preset.append(opt);
+      });
+
+      function renderGraph() {
+        const root = document.getElementById('graph-root');
+        root.innerHTML = '';
+        const w = root.clientWidth || 420;
+        const h = 300;
+        const nodes = FIXTURE.nodes.map((n) => ({ ...n }));
+        const links = FIXTURE.links.map((l) => ({ ...l }));
+
+        const svg = d3.select(root).append('svg').attr('width', w).attr('height', h);
+        const g = svg.append('g');
+        const sim = d3
+          .forceSimulation(nodes)
+          .force(
+            'link',
+            d3
+              .forceLink(links)
+              .id((d) => d.id)
+              .distance(70),
+          )
+          .force('charge', d3.forceManyBody().strength(-100))
+          .force('center', d3.forceCenter(w / 2, h / 2));
+
+        const link = g
+          .append('g')
+          .selectAll('line')
+          .data(links)
+          .join('line')
+          .attr('stroke', '#3f3f46')
+          .attr('stroke-width', 1);
+
+        const linkText = g
+          .append('g')
+          .selectAll('text')
+          .data(links)
+          .join('text')
+          .attr('font-size', 8)
+          .attr('fill', '#52525b')
+          .text((d) => d.label);
+
+        const node = g
+          .append('g')
+          .selectAll('g')
+          .data(nodes)
+          .join('g');
+
+        node
+          .append('circle')
+          .attr('r', 11)
+          .attr('fill', (d) => TYPE_COLOR[d.type] || '#666')
+          .attr('stroke', (d) => (hitIds.has(d.id) ? '#fff' : 'transparent'))
+          .attr('stroke-width', 2)
+          .attr('opacity', (d) => (hitIds.size && !hitIds.has(d.id) ? 0.35 : 1));
+
+        node
+          .append('text')
+          .attr('y', 24)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 8)
+          .attr('fill', '#a1a1aa')
+          .text((d) => d.label.slice(0, 12));
+
+        sim.on('tick', () => {
+          link
+            .attr('x1', (d) => d.source.x)
+            .attr('y1', (d) => d.source.y)
+            .attr('x2', (d) => d.target.x)
+            .attr('y2', (d) => d.target.y);
+          linkText
+            .attr('x', (d) => (d.source.x + d.target.x) / 2)
+            .attr('y', (d) => (d.source.y + d.target.y) / 2);
+          node.attr('transform', (d) => `translate(${d.x},${d.y})`);
+        });
+      }
+
+      function runQuery() {
+        const q = QUERIES[Number(preset.value)];
+        queryEl.value = q.eql;
+        hitIds = new Set(FIXTURE.nodes.filter(q.match).map((n) => n.id));
+        const names = FIXTURE.nodes.filter((n) => hitIds.has(n.id)).map((n) => n.label);
+        resultEl.innerHTML = names.length
+          ? `<span class="hit">${names.length} match(es):</span> ${names.join(', ')}`
+          : 'No matches.';
+        renderGraph();
+      }
+
+      document.getElementById('run').addEventListener('click', runQuery);
+      document.getElementById('clear').addEventListener('click', () => {
+        hitIds = new Set();
+        resultEl.textContent = 'Select a query and run.';
+        renderGraph();
+      });
+      preset.addEventListener('change', () => {
+        queryEl.value = QUERIES[Number(preset.value)].eql;
+      });
+
+      queryEl.value = QUERIES[0].eql;
+      renderGraph();
+      if (isEmbed) reportEmbedHeight();
+
+      if (new URLSearchParams(location.search).get('autoplay') === '1') {
+        let i = 0;
+        const play = () => {
+          preset.value = String(i % QUERIES.length);
+          runQuery();
+          i += 1;
+          if (i < QUERIES.length) setTimeout(play, 2200);
+        };
+        setTimeout(play, 800);
+      }
+    </script>
+  </body>
+</html>

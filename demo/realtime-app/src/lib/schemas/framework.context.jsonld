@@ -1,0 +1,9 @@
+{
+	"@context": {
+		"@vocab": "https://trellis.dev/ns/framework/v1/",
+		"Framework": "https://trellis.dev/ns/framework/v1/Framework",
+		"title": "https://schema.org/name",
+		"slug": "https://schema.org/identifier",
+		"sortOrder": "https://schema.org/position"
+	}
+}

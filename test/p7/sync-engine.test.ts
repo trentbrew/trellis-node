@@ -3,6 +3,7 @@ import { SyncEngine } from '../../src/sync/sync-engine.js';
 import { MemoryTransport } from '../../src/sync/memory-transport.js';
 import type { VcsOp } from '../../src/vcs/types.js';
 import type { SyncMessage } from '../../src/sync/types.js';
+import { PROTOCOL_VERSION } from '../../src/sync/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,6 +34,7 @@ describe('MemoryTransport', () => {
     tB.onMessage((msg) => received.push(msg));
 
     await tA.send('peer-b', {
+      version: PROTOCOL_VERSION,
       type: 'have',
       peerId: 'peer-a',
       heads: { main: 'h1' },
@@ -67,7 +69,13 @@ describe('MemoryTransport', () => {
   test('send to unconnected peer throws', async () => {
     const tA = new MemoryTransport('peer-a');
     await expect(
-      tA.send('unknown', { type: 'have', peerId: 'peer-a', heads: {}, opCount: 0 }),
+      tA.send('unknown', {
+        version: PROTOCOL_VERSION,
+        type: 'have',
+        peerId: 'peer-a',
+        heads: {},
+        opCount: 0,
+      }),
     ).rejects.toThrow('Peer not connected');
   });
 });
@@ -146,10 +154,11 @@ describe('SyncEngine', () => {
     await engineA.pushTo('peer-b');
     // B's handler processes 'have', sends 'want', A responds with 'ops'
 
-    // Since messages are synchronous in MemoryTransport, the full
+    // Since messages are awaited in MemoryTransport, the full
     // have→want→ops chain happens immediately
     // B should have received the new op
-    expect(receivedByB.length).toBeGreaterThanOrEqual(0);
+    expect(receivedByB.length).toBe(1);
+    expect(receivedByB[0].hash).toBe('a1');
   });
 
   test('sendOps directly sends ops to peer', async () => {

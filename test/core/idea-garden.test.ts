@@ -7,7 +7,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import { IdeaGarden } from '../../src/plugins/idea-garden/api.js';
 
 describe('Idea Garden', () => {
@@ -18,7 +18,7 @@ describe('Idea Garden', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-garden-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();
@@ -27,7 +27,9 @@ describe('Idea Garden', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should harvest rejected and cancelled plans', async () => {
@@ -60,9 +62,9 @@ describe('Idea Garden', () => {
     // Filter to ensure both the rejected and cancelled plans are properly harvested.
     const harvestedIds = ideas.map((i) => i.sourceEntityId).sort();
     expect(harvestedIds).toEqual(['plan:2', 'plan:3']);
-    
+
     // Find rejected plan
-    const rejectedIdea = ideas.find(i => i.sourceEntityId === 'plan:2');
+    const rejectedIdea = ideas.find((i) => i.sourceEntityId === 'plan:2');
     expect(rejectedIdea).toBeDefined();
     expect(rejectedIdea?.title).toBe('Rejected Plan');
     expect(rejectedIdea?.payload?.operations).toBeDefined();
@@ -110,7 +112,7 @@ describe('Idea Garden', () => {
     expect(ideas[0].sourceType).toBe('unexplored_alternative');
     expect(ideas[0].sourceEntityId).toBe('trace:2');
     expect(ideas[0].title).toBe('Alternatives for complexTool');
-    expect((ideas[0].payload?.alternatives as string[])).toHaveLength(2);
+    expect(ideas[0].payload?.alternatives as string[]).toHaveLength(2);
   });
 
   it('should be able to resurrect a rejected plan', async () => {
@@ -127,13 +129,19 @@ describe('Idea Garden', () => {
     const ideaId = ideas[0].id;
     const newPlanId = await garden.resurrectPlan(ideaId);
 
-    const newPlan = kernel.listEntities('PendingPlan').find(p => p.id === newPlanId);
+    const newPlan = kernel
+      .listEntities('PendingPlan')
+      .find((p) => p.id === newPlanId);
     expect(newPlan).toBeDefined();
     if (!newPlan) return;
-    
+
     // Check that it cloned the data and is pending
-    expect(newPlan.facts.find(f => f.a === 'status')?.v).toBe('pending');
-    expect(newPlan.facts.find(f => f.a === 'operations')?.v).toBe('[{"kind":"delete"}]');
-    expect(newPlan.facts.find(f => f.a === 'title')?.v).toContain('(Resurrected)');
+    expect(newPlan.facts.find((f) => f.a === 'status')?.v).toBe('pending');
+    expect(newPlan.facts.find((f) => f.a === 'operations')?.v).toBe(
+      '[{"kind":"delete"}]',
+    );
+    expect(newPlan.facts.find((f) => f.a === 'title')?.v).toContain(
+      '(Resurrected)',
+    );
   });
 });
