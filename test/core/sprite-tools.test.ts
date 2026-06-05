@@ -8,7 +8,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import { createCheckpointMiddleware } from '../../src/plugins/sprite-tools/checkpoint-middleware.js';
 import {
   createCheckpointTool,
@@ -39,7 +39,7 @@ describe('CheckpointMiddleware', () => {
     });
 
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
       middleware: [mw],
     });
@@ -48,7 +48,9 @@ describe('CheckpointMiddleware', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should NOT trigger checkpoint for small mutations', async () => {
@@ -74,7 +76,7 @@ describe('CheckpointMiddleware', () => {
   it('should track stats', async () => {
     const mw = createCheckpointMiddleware({ threshold: 3 });
     const k2 = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'k2.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'k2.db')),
       agentId: 'test',
       middleware: [mw],
     });
@@ -93,7 +95,11 @@ describe('CheckpointMiddleware', () => {
   it('should allow mutations to proceed regardless of checkpoint', async () => {
     // Even when checkpoint triggers, the mutation should complete
     await kernel.createEntity('big', 'Task', {
-      a: '1', b: '2', c: '3', d: '4', e: '5',
+      a: '1',
+      b: '2',
+      c: '3',
+      d: '4',
+      e: '5',
     });
 
     const entity = kernel.getEntity('big');
@@ -113,7 +119,7 @@ describe('Checkpoint Tool', () => {
   beforeEach(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-cpt-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();
@@ -121,7 +127,9 @@ describe('Checkpoint Tool', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should create a checkpoint and return success', async () => {
@@ -160,7 +168,7 @@ describe('Rollback Tool', () => {
   beforeEach(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-rb-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();
@@ -168,7 +176,9 @@ describe('Rollback Tool', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should rollback to a previous state', async () => {
@@ -186,7 +196,7 @@ describe('Rollback Tool', () => {
     const output = result.output as Record<string, unknown>;
     expect(output.message).toContain('Rolled back');
     // The snapshot should have task-1 but NOT task-2
-    expect((output.factCount as number)).toBeGreaterThan(0);
+    expect(output.factCount as number).toBeGreaterThan(0);
   });
 
   it('should handle invalid op hash gracefully', async () => {
@@ -209,7 +219,7 @@ describe('Deploy Status Tool', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-ds-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();
@@ -217,7 +227,9 @@ describe('Deploy Status Tool', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should report when no config exists', async () => {
@@ -280,7 +292,7 @@ describe('List Ops Tool', () => {
   beforeEach(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-ops-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();
@@ -288,7 +300,9 @@ describe('List Ops Tool', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should list recent ops', async () => {

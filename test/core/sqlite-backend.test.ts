@@ -1,8 +1,8 @@
 /**
- * Tests for SqliteKernelBackend
+ * Tests for BetterSqliteKernelBackend
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import type { KernelOp } from '../../src/core/persist/backend.js';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
@@ -23,13 +23,13 @@ function makeOp(
   };
 }
 
-describe('SqliteKernelBackend', () => {
+describe('BetterSqliteKernelBackend', () => {
   let tmpDir: string;
-  let backend: SqliteKernelBackend;
+  let backend: BetterSqliteKernelBackend;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-test-'));
-    backend = new SqliteKernelBackend(join(tmpDir, 'test.db'));
+    backend = new BetterSqliteKernelBackend(join(tmpDir, 'test.db'));
     backend.init();
   });
 

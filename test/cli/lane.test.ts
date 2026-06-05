@@ -3,9 +3,16 @@ import { mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
+
+// Skip CLI tests outside Bun — they shell out to `bun run` which is not
+// available in Node-only CI or when the package is consumed as `trellis`.
+const isBun = !!(process as any).isBun;
+const bunTest = isBun ? test : test.skip;
 
 let testDir: string;
-const cliPath = join(import.meta.dir, '../../src/cli/index.ts');
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const cliPath = join(__dirname, '../../src/cli/index.ts');
 
 function shellQuote(arg: string): string {
   if (/^[a-zA-Z0-9_./:-]+$/.test(arg)) return arg;
@@ -16,13 +23,14 @@ function runCli(
   args: string[],
   opts?: { env?: Record<string, string> },
 ): { stdout: string; stderr: string; code: number } {
-  const withPath = args.includes('-p') || args.includes('--path')
-    ? args
-    : [...args, '-p', testDir];
-  const cmd = `bun ${cliPath} ${withPath.map(shellQuote).join(' ')}`;
+  const withPath =
+    args.includes('-p') || args.includes('--path')
+      ? args
+      : [...args, '-p', testDir];
+  const cmd = `npx tsx ${cliPath} ${withPath.map(shellQuote).join(' ')}`;
   try {
     const stdout = execSync(cmd, {
-      cwd: join(import.meta.dir, '../..'),
+      cwd: join(__dirname, '../..'),
       env: { ...process.env, HOME: testDir, NO_COLOR: '1', ...opts?.env },
       stdio: 'pipe',
       encoding: 'utf-8',
@@ -39,6 +47,7 @@ function runCli(
 }
 
 beforeEach(() => {
+  if (!isBun) return;
   testDir = join(
     tmpdir(),
     `trellis-lane-cli-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -49,12 +58,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (existsSync(testDir)) {
-    rmSync(testDir, { recursive: true, force: true });
-  }
+  if (!isBun || !existsSync(testDir)) return;
+  rmSync(testDir, { recursive: true, force: true });
 });
 
-test('lane create and status golden path', () => {
+bunTest('lane create and status golden path', () => {
   const created = runCli(['lane', 'create']);
   expect(created.code).toBe(0);
   expect(created.stdout).toContain('Lane created:');
@@ -70,23 +78,25 @@ test('lane create and status golden path', () => {
   expect(status.stdout).toContain('(active)');
 });
 
-test('lane list shows created lane', () => {
+bunTest('lane list shows created lane', () => {
   runCli(['lane', 'create']);
   const list = runCli(['lane', 'list']);
   expect(list.code).toBe(0);
   expect(list.stdout).toContain('lane-');
 });
 
-test('TRELLIS_LANE_ID auto-enters on lane status', () => {
+bunTest('TRELLIS_LANE_ID auto-enters on lane status', () => {
   const created = runCli(['lane', 'create']);
   const laneId = created.stdout.match(/lane-[0-9a-f-]+/)?.[0]!;
 
-  const status = runCli(['lane', 'status'], { env: { TRELLIS_LANE_ID: laneId } });
+  const status = runCli(['lane', 'status'], {
+    env: { TRELLIS_LANE_ID: laneId },
+  });
   expect(status.code).toBe(0);
   expect(status.stdout).toContain('(active)');
 });
 
-test('issue start creates and enters lane', () => {
+bunTest('issue start creates and enters lane', () => {
   const createIssue = runCli(['issue', 'create', '-t', 'Lane CLI test']);
   expect(createIssue.code).toBe(0);
   const match = createIssue.stdout.match(/TRL-\d+/);
@@ -99,7 +109,7 @@ test('issue start creates and enters lane', () => {
   expect(start.stdout).toContain('lane-');
 });
 
-test('lane promote dry-run reports plan', () => {
+bunTest('lane promote dry-run reports plan', () => {
   const created = runCli(['lane', 'create']);
   const laneId = created.stdout.match(/lane-[0-9a-f-]+/)?.[0]!;
 
@@ -109,14 +119,21 @@ test('lane promote dry-run reports plan', () => {
   expect(dryRun.stdout).toContain(laneId);
 });
 
-test('lane fork --child creates child lane from parent head', () => {
+bunTest('lane fork --child creates child lane from parent head', () => {
   const created = runCli(['lane', 'create']);
   const parentId = created.stdout.match(/lane-[0-9a-f-]+/)?.[0]!;
   runCli(['lane', 'enter', parentId]);
   runCli(['issue', 'create', '-t', 'fork seed']);
   runCli(['lane', 'leave']);
 
-  const forked = runCli(['lane', 'fork', parentId, '--child', '--session', 'sess-child']);
+  const forked = runCli([
+    'lane',
+    'fork',
+    parentId,
+    '--child',
+    '--session',
+    'sess-child',
+  ]);
   expect(forked.code).toBe(0);
   expect(forked.stdout).toContain('Fork kind:  child');
   expect(forked.stdout).toContain('Virtual base:');
@@ -126,7 +143,7 @@ test('lane fork --child creates child lane from parent head', () => {
   expect(status.stdout).toContain('Fork kind:  child');
 });
 
-test('lane fork creates sibling from parent', () => {
+bunTest('lane fork creates sibling from parent', () => {
   const created = runCli(['lane', 'create', '--issue', 'TRL-fork-test']);
   const parentId = created.stdout.match(/lane-[0-9a-f-]+/)?.[0]!;
   runCli(['lane', 'enter', parentId]);
@@ -146,7 +163,7 @@ test('lane fork creates sibling from parent', () => {
   expect(status.stdout).toContain('Fork kind:  sibling');
 });
 
-test('lane leave clears active session', () => {
+bunTest('lane leave clears active session', () => {
   const created = runCli(['lane', 'create']);
   const laneId = created.stdout.match(/lane-[0-9a-f-]+/)?.[0]!;
   runCli(['lane', 'enter', laneId]);

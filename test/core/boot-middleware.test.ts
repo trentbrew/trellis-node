@@ -1,9 +1,9 @@
-import { describe, expect, test, afterEach } from 'bun:test';
+import { describe, expect, test, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import { attachStandardMiddleware } from '../../src/core/kernel/boot-middleware.js';
 
 describe('attachStandardMiddleware', () => {
@@ -13,7 +13,7 @@ describe('attachStandardMiddleware', () => {
   test('registers logic-computation middleware once', async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-boot-mw-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'test.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'test.db')),
       agentId: 'test',
     });
     kernel.boot();

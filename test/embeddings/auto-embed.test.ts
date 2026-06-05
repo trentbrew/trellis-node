@@ -8,8 +8,11 @@ import { join } from 'path';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
-import { createAutoEmbedMiddleware, buildRAGContext } from '../../src/embeddings/auto-embed.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
+import {
+  createAutoEmbedMiddleware,
+  buildRAGContext,
+} from '../../src/embeddings/auto-embed.js';
 import { VectorStore } from '../../src/embeddings/store.js';
 
 // ---------------------------------------------------------------------------
@@ -46,7 +49,7 @@ describe('Auto-Embed Middleware', () => {
   beforeEach(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-autoembed-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test',
     });
     kernel.boot();
@@ -61,7 +64,9 @@ describe('Auto-Embed Middleware', () => {
   afterEach(() => {
     kernel.close();
     mw.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should embed entities on creation', async () => {
@@ -114,7 +119,10 @@ describe('Auto-Embed Middleware', () => {
   });
 
   it('should handle multiple entities', async () => {
-    await kernel.createEntity('user:1', 'User', { name: 'Alice', role: 'admin' });
+    await kernel.createEntity('user:1', 'User', {
+      name: 'Alice',
+      role: 'admin',
+    });
     await kernel.createEntity('user:2', 'User', { name: 'Bob', role: 'dev' });
     await kernel.createEntity('proj:1', 'Project', { name: 'Trellis' });
 
@@ -138,25 +146,44 @@ describe('RAG Context Builder', () => {
 
     // Seed with some embeddings
     const texts = [
-      { id: 'entity:proj:1:summary', entityId: 'proj:1', content: 'Project: Authentication System. Handles user login, JWT tokens, OAuth2.' },
-      { id: 'entity:proj:2:summary', entityId: 'proj:2', content: 'Project: Database Layer. PostgreSQL connection pooling and migrations.' },
-      { id: 'entity:user:1:summary', entityId: 'user:1', content: 'User: Alice. Role: admin. Expert in security and authentication.' },
+      {
+        id: 'entity:proj:1:summary',
+        entityId: 'proj:1',
+        content:
+          'Project: Authentication System. Handles user login, JWT tokens, OAuth2.',
+      },
+      {
+        id: 'entity:proj:2:summary',
+        entityId: 'proj:2',
+        content:
+          'Project: Database Layer. PostgreSQL connection pooling and migrations.',
+      },
+      {
+        id: 'entity:user:1:summary',
+        entityId: 'user:1',
+        content:
+          'User: Alice. Role: admin. Expert in security and authentication.',
+      },
     ];
 
     for (const t of texts) {
       const vec = await mockEmbed(t.content);
-      vs.upsertBatch([{
-        ...t,
-        chunkType: 'summary_md' as any,
-        updatedAt: new Date().toISOString(),
-        embedding: vec,
-      }]);
+      vs.upsertBatch([
+        {
+          ...t,
+          chunkType: 'summary_md' as any,
+          updatedAt: new Date().toISOString(),
+          embedding: vec,
+        },
+      ]);
     }
   });
 
   afterEach(() => {
     vs.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should build RAG context from a query', async () => {

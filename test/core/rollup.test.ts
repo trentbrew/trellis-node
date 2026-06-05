@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { EAVStore } from '../../src/core/store/eav-store.js';
 import {
   collectRollupRelatedIds,

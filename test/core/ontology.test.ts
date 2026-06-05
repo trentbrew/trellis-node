@@ -18,7 +18,7 @@ import {
 } from '../../src/core/ontology/builtins.js';
 import type { OntologySchema } from '../../src/core/ontology/types.js';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import { join } from 'path';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
@@ -303,7 +303,7 @@ describe('Validation Middleware', () => {
 
   it('should allow valid mutations', async () => {
     const kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'test.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'test.db')),
       agentId: 'test',
     });
     kernel.boot();
@@ -324,7 +324,7 @@ describe('Validation Middleware', () => {
 
   it('should reject invalid enum values via middleware', async () => {
     const kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'test.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'test.db')),
       agentId: 'test',
     });
     kernel.boot();
@@ -345,7 +345,7 @@ describe('Validation Middleware', () => {
 
   it('should reject type mismatches via middleware', async () => {
     const kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'test.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'test.db')),
       agentId: 'test',
     });
     kernel.boot();
@@ -365,7 +365,7 @@ describe('Validation Middleware', () => {
 
   it('should allow unknown types in non-strict mode', async () => {
     const kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'test.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'test.db')),
       agentId: 'test',
     });
     kernel.boot();
@@ -385,7 +385,7 @@ describe('Validation Middleware', () => {
 
   it('should reject unknown types in strict mode', async () => {
     const kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'test.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'test.db')),
       agentId: 'test',
     });
     kernel.boot();

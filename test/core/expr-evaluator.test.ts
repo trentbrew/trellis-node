@@ -1,5 +1,8 @@
-import { describe, expect, test } from 'bun:test';
-import { ExprEvaluator, evalExpr } from '../../src/core/computation/expr-evaluator.js';
+import { describe, expect, test } from 'vitest';
+import {
+  ExprEvaluator,
+  evalExpr,
+} from '../../src/core/computation/expr-evaluator.js';
 
 describe('ExprEvaluator', () => {
   test('evaluates field references', () => {
@@ -27,8 +30,8 @@ describe('ExprEvaluator', () => {
   });
 
   test('evalExpr returns atoms for bindings', () => {
-    expect(evalExpr('$mul($price, $quantity)', { price: 10, quantity: 3 })).toBe(
-      30,
-    );
+    expect(
+      evalExpr('$mul($price, $quantity)', { price: 10, quantity: 3 }),
+    ).toBe(30);
   });
 });

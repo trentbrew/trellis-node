@@ -8,7 +8,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import { PluginRegistry } from '../../src/core/plugins/registry.js';
 import { OntologyRegistry } from '../../src/core/ontology/registry.js';
 import { createPlanApprovalPlugin } from '../../src/plugins/plan-approval/plugin.js';
@@ -22,7 +22,7 @@ describe('Plan Approval Plugin', () => {
   beforeEach(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-plan-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();
@@ -30,12 +30,18 @@ describe('Plan Approval Plugin', () => {
     pluginRegistry = new PluginRegistry();
     const plugin = createPlanApprovalPlugin();
     pluginRegistry.register(plugin);
-    await pluginRegistry.load('trellis:plan-approval', kernel, new OntologyRegistry());
+    await pluginRegistry.load(
+      'trellis:plan-approval',
+      kernel,
+      new OntologyRegistry(),
+    );
   });
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   it('should register the plugin successfully', () => {
@@ -51,7 +57,7 @@ describe('PlanManager', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-pm-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
       agentId: 'test-agent',
     });
     kernel.boot();
@@ -60,7 +66,9 @@ describe('PlanManager', () => {
 
   afterEach(() => {
     kernel.close();
-    try { rmSync(tmpDir, { recursive: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
   });
 
   // -------------------------------------------------------------------------
@@ -76,13 +84,15 @@ describe('PlanManager', () => {
     const entity = kernel.getEntity(planId);
     expect(entity).not.toBeNull();
     expect(entity!.type).toBe('PendingPlan');
-    const title = entity!.facts.find(f => f.a === 'title')?.v;
+    const title = entity!.facts.find((f) => f.a === 'title')?.v;
     expect(title).toBe('Bulk task import');
   });
 
   it('should prevent entering plan mode twice', async () => {
     await pm.enterPlanMode('Plan A');
-    await expect(pm.enterPlanMode('Plan B')).rejects.toThrow('Already in plan mode');
+    await expect(pm.enterPlanMode('Plan B')).rejects.toThrow(
+      'Already in plan mode',
+    );
   });
 
   it('should not be in plan mode initially', () => {
@@ -97,7 +107,9 @@ describe('PlanManager', () => {
   it('should buffer createEntity operations', async () => {
     await pm.enterPlanMode('Create tasks');
 
-    const opId = await pm.planCreateEntity('task-1', 'Task', { title: 'Buy milk' });
+    const opId = await pm.planCreateEntity('task-1', 'Task', {
+      title: 'Buy milk',
+    });
 
     expect(opId).toMatch(/op:0$/);
     const plan = pm.getActivePlan()!;
@@ -130,7 +142,7 @@ describe('PlanManager', () => {
     const ops = kernel.listEntities('PlannedOperation');
     expect(ops).toHaveLength(1);
     const opEntity = ops[0];
-    const kind = opEntity.facts.find(f => f.a === 'kind')?.v;
+    const kind = opEntity.facts.find((f) => f.a === 'kind')?.v;
     expect(kind).toBe('createEntity');
   });
 
@@ -145,9 +157,9 @@ describe('PlanManager', () => {
   });
 
   it('should throw when buffering without plan mode', async () => {
-    await expect(
-      pm.planCreateEntity('x', 'Thing', {})
-    ).rejects.toThrow('Not in plan mode');
+    await expect(pm.planCreateEntity('x', 'Thing', {})).rejects.toThrow(
+      'Not in plan mode',
+    );
   });
 
   it('should NOT mutate the graph when buffering', async () => {
@@ -181,7 +193,7 @@ describe('PlanManager', () => {
     await pm.submitPlan();
 
     const entity = kernel.getEntity(planId);
-    const status = entity!.facts.find(f => f.a === 'status')?.v;
+    const status = entity!.facts.find((f) => f.a === 'status')?.v;
     expect(status).toBe('submitted');
   });
 
@@ -210,7 +222,7 @@ describe('PlanManager', () => {
     const task1 = kernel.getEntity('task-1');
     expect(task1).not.toBeNull();
     expect(task1!.type).toBe('Task');
-    const title = task1!.facts.find(f => f.a === 'title')?.v;
+    const title = task1!.facts.find((f) => f.a === 'title')?.v;
     expect(title).toBe('Buy milk');
 
     const task2 = kernel.getEntity('task-2');
@@ -230,9 +242,9 @@ describe('PlanManager', () => {
     await pm.approvePlan('user:admin');
 
     const entity = kernel.getEntity(planId);
-    const status = entity!.facts.find(f => f.a === 'status')?.v;
+    const status = entity!.facts.find((f) => f.a === 'status')?.v;
     expect(status).toBe('approved');
-    const resolvedBy = entity!.facts.find(f => f.a === 'resolvedBy')?.v;
+    const resolvedBy = entity!.facts.find((f) => f.a === 'resolvedBy')?.v;
     expect(resolvedBy).toBe('user:admin');
   });
 
@@ -267,9 +279,9 @@ describe('PlanManager', () => {
     // Plan entity should still exist with rejected status
     const entity = kernel.getEntity(planId);
     expect(entity).not.toBeNull();
-    const status = entity!.facts.find(f => f.a === 'status')?.v;
+    const status = entity!.facts.find((f) => f.a === 'status')?.v;
     expect(status).toBe('rejected');
-    const reason = entity!.facts.find(f => f.a === 'rejectionReason')?.v;
+    const reason = entity!.facts.find((f) => f.a === 'rejectionReason')?.v;
     expect(reason).toBe('Not the right approach');
   });
 
@@ -296,7 +308,7 @@ describe('PlanManager', () => {
 
     // Plan should be marked as rejected in graph
     const entity = kernel.getEntity(planId);
-    const status = entity!.facts.find(f => f.a === 'status')?.v;
+    const status = entity!.facts.find((f) => f.a === 'status')?.v;
     expect(status).toBe('rejected');
   });
 
@@ -370,7 +382,7 @@ describe('PlanManager', () => {
     await pm.approvePlan();
 
     const entity = kernel.getEntity('existing-1');
-    const title = entity!.facts.find(f => f.a === 'title')?.v;
+    const title = entity!.facts.find((f) => f.a === 'title')?.v;
     expect(title).toBe('New');
   });
 

@@ -1,9 +1,9 @@
-import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { SqliteKernelBackend } from '../../src/core/persist/sqlite-backend.js';
+import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
 import { attachStandardMiddleware } from '../../src/core/kernel/boot-middleware.js';
 import type { SchemaDefinition } from '../../src/core/ontology/types.js';
 import type { Query } from '../../src/core/query/types.js';
@@ -34,7 +34,7 @@ describe('logic middleware — EQL formula enrichment', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-logic-mw-'));
     kernel = new TrellisKernel({
-      backend: new SqliteKernelBackend(join(tmpDir, 'test.db')),
+      backend: new BetterSqliteKernelBackend(join(tmpDir, 'test.db')),
       agentId: 'test',
     });
     kernel.boot();

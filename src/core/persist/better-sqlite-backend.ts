@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_op ON snapshots(last_op_hash);
 
 export class BetterSqliteKernelBackend implements KernelBackend {
   private db: any;
-  private _stmts: {
+  private _stmts!: {
     insert: any;
     readAll: any;
     readUntil: any;
@@ -58,6 +58,9 @@ export class BetterSqliteKernelBackend implements KernelBackend {
     count: any;
     saveSnapshot: any;
     loadLatestSnapshot: any;
+    putBlob: any;
+    getBlob: any;
+    hasBlob: any;
   };
   private _initialized = false;
 
@@ -76,23 +79,21 @@ export class BetterSqliteKernelBackend implements KernelBackend {
           'Ensure better-sqlite3 is installed: npm install better-sqlite3',
       );
     }
-
-    this._stmts = this._prepareStatements();
   }
 
   private _prepareStatements() {
     const db = this.db;
 
-    return {
+    this._stmts = {
       insert: db.prepare(
         'INSERT OR REPLACE INTO ops (hash, kind, timestamp, agent_id, previous_hash, payload) VALUES (?, ?, ?, ?, ?, ?)',
       ),
       readAll: db.prepare('SELECT * FROM ops ORDER BY timestamp ASC'),
       readUntil: db.prepare(
-        'SELECT * FROM ops WHERE timestamp <= (SELECT timestamp FROM ops WHERE hash = ?) ORDER BY timestamp ASC',
+        'SELECT * FROM ops WHERE rowid <= (SELECT rowid FROM ops WHERE hash = ?) ORDER BY rowid ASC',
       ),
       readAfter: db.prepare(
-        'SELECT * FROM ops WHERE timestamp > (SELECT timestamp FROM ops WHERE hash = ?) ORDER BY timestamp ASC',
+        'SELECT * FROM ops WHERE rowid > (SELECT rowid FROM ops WHERE hash = ?) ORDER BY rowid ASC',
       ),
       getByHash: db.prepare('SELECT * FROM ops WHERE hash = ?'),
       getLast: db.prepare('SELECT * FROM ops ORDER BY timestamp DESC LIMIT 1'),
@@ -103,6 +104,11 @@ export class BetterSqliteKernelBackend implements KernelBackend {
       loadLatestSnapshot: db.prepare(
         'SELECT * FROM snapshots ORDER BY id DESC LIMIT 1',
       ),
+      putBlob: db.prepare(
+        'INSERT OR REPLACE INTO blobs (hash, content) VALUES (?, ?)',
+      ),
+      getBlob: db.prepare('SELECT content FROM blobs WHERE hash = ?'),
+      hasBlob: db.prepare('SELECT 1 FROM blobs WHERE hash = ?'),
     };
   }
 
@@ -111,6 +117,7 @@ export class BetterSqliteKernelBackend implements KernelBackend {
 
     // Create tables
     this.db.exec(SCHEMA_SQL);
+    this._prepareStatements();
     this._initialized = true;
   }
 
@@ -130,6 +137,12 @@ export class BetterSqliteKernelBackend implements KernelBackend {
       op.previousHash ?? null,
       payload,
     );
+  }
+
+  appendBatch(ops: KernelOp[]): void {
+    for (const op of ops) {
+      this.append(op);
+    }
   }
 
   readAll(): KernelOp[] {
@@ -161,6 +174,10 @@ export class BetterSqliteKernelBackend implements KernelBackend {
   }
 
   getByHash(hash: string): KernelOp | undefined {
+    return this.getOpByHash(hash);
+  }
+
+  getOpByHash(hash: string): KernelOp | undefined {
     const row = this._stmts.getByHash.get(hash) as any;
     return row ? this._rowToOp(row) : undefined;
   }
@@ -175,17 +192,61 @@ export class BetterSqliteKernelBackend implements KernelBackend {
     return row?.count ?? 0;
   }
 
-  saveSnapshot(hash: string, data: string): void {
-    this._stmts.saveSnapshot.run(hash, data, new Date().toISOString());
+  count(): number {
+    return this.getOpCount();
   }
 
-  loadLatestSnapshot(): { lastOpHash: string; data: string } | undefined {
+  saveSnapshot(lastOpHash: string, data: any): void {
+    this._stmts.saveSnapshot.run(
+      lastOpHash,
+      JSON.stringify(data),
+      new Date().toISOString(),
+    );
+  }
+
+  loadLatestSnapshot(): { lastOpHash: string; data: any } | undefined {
     const row = this._stmts.loadLatestSnapshot.get() as any;
     if (!row) return undefined;
     return {
       lastOpHash: row.last_op_hash,
-      data: row.data,
+      data: JSON.parse(row.data),
     };
+  }
+
+  putBlob(hash: string, content: Uint8Array): void {
+    this._stmts.putBlob.run(hash, Buffer.from(content));
+  }
+
+  getBlob(hash: string): Uint8Array | undefined {
+    const row = this._stmts.getBlob.get(hash) as any;
+    if (!row) return undefined;
+    return new Uint8Array(row.content);
+  }
+
+  hasBlob(hash: string): boolean {
+    const row = this._stmts.hasBlob.get(hash) as any;
+    return !!row;
+  }
+
+  findCommonAncestor(hashA: string, hashB: string): KernelOp | undefined {
+    const ancestorsA = new Set<string>();
+    let cursor: string | undefined = hashA;
+    while (cursor) {
+      ancestorsA.add(cursor);
+      const op = this.getOpByHash(cursor);
+      cursor = op?.previousHash;
+    }
+
+    cursor = hashB;
+    while (cursor) {
+      if (ancestorsA.has(cursor)) {
+        return this.getOpByHash(cursor);
+      }
+      const op = this.getOpByHash(cursor);
+      cursor = op?.previousHash;
+    }
+
+    return undefined;
   }
 
   close(): void {
