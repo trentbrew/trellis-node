@@ -47,6 +47,18 @@ export type {
   WsClient,
 } from './realtime.js';
 
+// Realtime relay hub (server side of WebSocketRelayTransport)
+export {
+  attachRealtimeRelay,
+  createRealtimeRelay,
+} from '../realtime/relay-server.js';
+export type {
+  RealtimeRelay,
+  RealtimeRelayOptions,
+  StandaloneRealtimeRelay,
+  StandaloneRealtimeRelayOptions,
+} from '../realtime/relay-server.js';
+
 // Import
 export { importFile, importRecords } from './import.js';
 export type { ImportOptions, ImportResult } from './import.js';

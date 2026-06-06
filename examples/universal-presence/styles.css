@@ -1,0 +1,107 @@
+:root {
+  color-scheme: dark;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #161616;
+  color: #f4f4f4;
+}
+
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.hint {
+  font-size: 13px;
+  color: #a8a8a8;
+}
+
+.count {
+  font-size: 13px;
+  color: #a8a8a8;
+}
+
+.surface {
+  position: relative;
+  height: 62vh;
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid #393939;
+  background:
+    linear-gradient(#26262680 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, #26262680 1px, transparent 1px) 0 0 / 24px 24px;
+  cursor: none;
+  touch-action: none;
+}
+
+.cursor {
+  position: absolute;
+  transform: translate(-2px, -2px);
+  pointer-events: none;
+  transition:
+    left 60ms linear,
+    top 60ms linear;
+  will-change: left, top;
+}
+
+/* Your own cursor follows the pointer locally — no smoothing lag. */
+.cursor.self {
+  transition: none;
+}
+
+.cursor svg {
+  display: block;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
+.label {
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  white-space: nowrap;
+  border-radius: 2px;
+  padding: 1px 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #fff;
+}
+
+nav.frameworks {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+nav.frameworks a {
+  color: #78a9ff;
+  text-decoration: none;
+  border: 1px solid #393939;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+nav.frameworks a:hover {
+  background: #262626;
+}

@@ -19,13 +19,17 @@ function remoteCursors(page: Page) {
 	return page.locator('[data-testid^="cursor-"]:not([data-testid="cursor-self"])');
 }
 
+// Presence now rides BroadcastChannel (the local/free tier): cross-tab within
+// one browser, no server. So the two peers are two TABS in a single context
+// (a shared BroadcastChannel namespace) rather than two isolated contexts.
+// Cross-device presence is the relay tier (VITE_PRESENCE_RELAY_URL) and is
+// exercised separately.
 test.describe('live cursors', () => {
 	test('a cursor moved in one tab appears in another', async ({ browser }) => {
 		const room = `e2e-presence-${Date.now()}`;
-		const ctxA = await browser.newContext();
-		const ctxB = await browser.newContext();
-		const pageA = await ctxA.newPage();
-		const pageB = await ctxB.newPage();
+		const context = await browser.newContext();
+		const pageA = await context.newPage();
+		const pageB = await context.newPage();
 
 		await gotoPresence(pageA, room);
 		await gotoPresence(pageB, room);
@@ -36,8 +40,7 @@ test.describe('live cursors', () => {
 		await expect(remoteCursors(pageB)).toHaveCount(1, { timeout: 10_000 });
 		await expect(pageB.getByTestId('cursor-self')).toHaveCount(0);
 
-		await ctxA.close();
-		await ctxB.close();
+		await context.close();
 	});
 
 	test('moving renders your own self-cursor', async ({ page }) => {
@@ -51,10 +54,9 @@ test.describe('live cursors', () => {
 
 	test('leaving removes the cursor for others', async ({ browser }) => {
 		const room = `e2e-presence-leave-${Date.now()}`;
-		const ctxA = await browser.newContext();
-		const ctxB = await browser.newContext();
-		const pageA = await ctxA.newPage();
-		const pageB = await ctxB.newPage();
+		const context = await browser.newContext();
+		const pageA = await context.newPage();
+		const pageB = await context.newPage();
 
 		await gotoPresence(pageA, room);
 		await gotoPresence(pageB, room);
@@ -62,10 +64,11 @@ test.describe('live cursors', () => {
 		await moveOnSurface(pageA);
 		await expect(remoteCursors(pageB)).toHaveCount(1, { timeout: 10_000 });
 
-		// Closing A's context drops its presence stream → server broadcasts the leave.
-		await ctxA.close();
+		// Closing A's tab stops its heartbeat; B prunes the stale peer after the
+		// presence timeout (a `bye` on unload removes it sooner when it fires).
+		await pageA.close();
 		await expect(remoteCursors(pageB)).toHaveCount(0, { timeout: 15_000 });
 
-		await ctxB.close();
+		await context.close();
 	});
 });

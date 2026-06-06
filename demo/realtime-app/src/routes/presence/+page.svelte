@@ -1,22 +1,62 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
 	import { page } from '$app/state';
-	import { getPresence, heartbeatPresence, publishCursor } from '../presence.remote';
+	import { createRoom, type RoomHandle } from 'trellis/svelte';
+	import { joinPresence, type PresencePeer } from 'trellis/realtime';
 	import { identity } from '$lib/presence/identity.svelte';
-	import { CURSOR_OFFSCREEN } from '$lib/schemas/presence';
+	import { CURSOR_OFFSCREEN, type CursorPresence } from '$lib/schemas/presence';
 	import LiveIndicator from '$lib/ui/LiveIndicator.svelte';
 
+	/**
+	 * Presence runs entirely client-side now — no server relay. The default
+	 * transport is BroadcastChannel (cross-tab, $0, works with the network
+	 * killed); set VITE_PRESENCE_RELAY_URL to fan presence across devices through
+	 * a hosted relay (the paid tier). Everything else is identical: `joinPresence`
+	 * picks the transport by intent, `createRoom` exposes it as Svelte stores.
+	 */
+
 	const THROTTLE_MS = 33; // ~30fps cursor publishes
-	const HEARTBEAT_MS = 10_000; // < server TTL (30s)
+	const RELAY_URL = import.meta.env.VITE_PRESENCE_RELAY_URL as string | undefined;
 
 	const room = $derived(page.url.searchParams.get('room')?.trim() || 'lobby');
 	const peerId = identity.peerId;
 
-	// name/color in the key: editing your identity is one clean leave+rejoin.
-	const presence = $derived(
-		getPresence({ room, peerId, name: identity.name, color: identity.color })
-	);
+	// Non-reactive handle for event-time access (setPresence on pointer move).
+	let current: RoomHandle<CursorPresence> | null = null;
+	let peers = $state<PresencePeer<CursorPresence>[]>([]);
+	let connected = $state(false);
+
+	// Recreate the room when the room key or identity changes. Editing your
+	// identity is one clean leave + rejoin — the same key semantics the old live
+	// query had, minus the round-trip. Effects are browser-only, so no transport
+	// is ever constructed during SSR.
+	$effect(() => {
+		const roomKey = room;
+		const name = identity.name;
+		const color = identity.color;
+
+		const handle = createRoom<CursorPresence>(() =>
+			joinPresence<CursorPresence>({
+				peerId,
+				room: roomKey,
+				initialPresence: { name, color, x: CURSOR_OFFSCREEN, y: CURSOR_OFFSCREEN },
+				relayUrl: RELAY_URL
+			})
+		);
+		current = handle;
+		connected = true;
+		const unsub = handle.presence.subscribe((next) => {
+			peers = next;
+		});
+
+		return () => {
+			unsub();
+			handle.destroy();
+			if (current === handle) current = null;
+			connected = false;
+		};
+	});
 
 	// Local self-cursor: rendered instantly from the pointer, no round-trip.
 	let self = $state<{ x: number; y: number } | null>(null);
@@ -31,13 +71,12 @@
 
 	let lastSent = 0;
 	let throttleTimer: ReturnType<typeof setTimeout> | null = null;
-	let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 	const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
 	function send(x: number, y: number) {
 		lastSent = Date.now();
-		void publishCursor({ room, peerId, x, y });
+		current?.room.setPresence({ x, y });
 	}
 
 	function schedule(x: number, y: number) {
@@ -76,16 +115,15 @@
 		send(CURSOR_OFFSCREEN, CURSOR_OFFSCREEN);
 	}
 
-	onMount(() => {
-		heartbeatTimer = setInterval(() => {
-			void heartbeatPresence({ room, peerId });
-		}, HEARTBEAT_MS);
-	});
-
 	onDestroy(() => {
 		if (throttleTimer) clearTimeout(throttleTimer);
-		if (heartbeatTimer) clearInterval(heartbeatTimer);
 	});
+
+	// Other peers currently pointing at the surface (self is rendered separately).
+	const otherCursors = $derived(
+		peers.filter((peer) => !peer.self && peer.state.x >= 0 && peer.state.y >= 0)
+	);
+	const activeCount = $derived(peers.filter((peer) => peer.state.x >= 0).length);
 </script>
 
 <main class="mx-auto max-w-5xl space-y-4 p-6" data-testid="presence-app">
@@ -97,7 +135,7 @@
 				— nothing here is persisted.
 			</p>
 		</div>
-		<LiveIndicator connected={presence.connected} />
+		<LiveIndicator {connected} />
 	</div>
 
 	<section
@@ -108,21 +146,19 @@
 		onpointermove={handlePointerMove}
 		onpointerleave={handlePointerLeave}
 	>
-		{#each await presence as peer (peer.peerId)}
-			{#if peer.peerId !== peerId && peer.payload.x >= 0 && peer.payload.y >= 0}
-				<div
-					class="cursor"
-					style:left="{peer.payload.x * 100}%"
-					style:top="{peer.payload.y * 100}%"
-					style:color={peer.payload.color}
-					data-testid="cursor-{peer.peerId}"
-				>
-					{@render pointer()}
-					<span class="cursor-label" style:background={peer.payload.color}>
-						{peer.payload.name || 'Guest'}
-					</span>
-				</div>
-			{/if}
+		{#each otherCursors as peer (peer.id)}
+			<div
+				class="cursor"
+				style:left="{peer.state.x * 100}%"
+				style:top="{peer.state.y * 100}%"
+				style:color={peer.state.color}
+				data-testid="cursor-{peer.id}"
+			>
+				{@render pointer()}
+				<span class="cursor-label" style:background={peer.state.color}>
+					{peer.state.name || 'Guest'}
+				</span>
+			</div>
 		{/each}
 
 		{#if self}
@@ -140,7 +176,7 @@
 	</section>
 
 	<p class="text-xs text-carbon-text-helper" data-testid="presence-count">
-		{(await presence).filter((peer) => peer.payload.x >= 0).length} cursor(s) active · you are
+		{activeCount} cursor(s) active · you are
 		<span style:color={identity.color}>{identity.name}</span>
 	</p>
 </main>

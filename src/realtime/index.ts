@@ -34,6 +34,15 @@ export type { BroadcastChannelTransportOptions } from './broadcast-channel-trans
 export { WebSocketRelayTransport } from './websocket-relay-transport.js';
 export type { WebSocketRelayTransportOptions } from './websocket-relay-transport.js';
 
+export { DurableObjectRelayTransport } from './durable-object-relay-transport.js';
+export type {
+  DurableObjectRelayTransportOptions,
+  DurableObjectRelayReconnect,
+} from './durable-object-relay-transport.js';
+
+export { joinPresence, createPresenceTransport } from './presence.js';
+export type { PresenceOptions } from './presence.js';
+
 export {
   RelayPersistence,
   DEFAULT_MAX_CHAT,

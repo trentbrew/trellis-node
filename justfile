@@ -464,8 +464,33 @@ publish-all level="patch" message="":
   just ext-publish {{level}}
 
 # ---------------------------------------------------------------------------
-# Realtime demos (impolite about ports)
+# Demos — quick run recipes (impolite about ports)
 # ---------------------------------------------------------------------------
+
+# List runnable demos and their recipes
+demos:
+  @echo "Trellis demos (run from repo root):"
+  @echo ""
+  @echo "  Realtime primitives   just realtime-demo           → :8231/demo/realtime/"
+  @echo "  SvelteKit explorer    just realtime-app              → :4000  (trellis :3920)"
+  @echo "  Universal presence    just universal-presence        → :4100  (react / vue / svelte)"
+  @echo "  State + causal DAG    just state-demo                → :8240/demo/state-demo/"
+  @echo "  Query playground      just query-demo                → :8241/demo/query/"
+  @echo "  Chat + graph          just chat-graph-demo           → :8243/demo/chat-graph/"
+  @echo "  WebContainer host     just realtime-app-wc           → :4500"
+  @echo ""
+  @echo "  Build trellis dist    just demo-ensure-build"
+  @echo "  Realtime unit tests   just realtime-test"
+  @echo "  Stop a static demo    just realtime-stop [port]"
+
+# Ensure dist/ exists (linked demos import trellis from file:../..)
+demo-ensure-build:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ ! -f dist/client/index.js ]; then
+    echo "Building trellis package…"
+    just build
+  fi
 
 # Build the browser bundle for demo/realtime/index.html
 realtime-bundle:
@@ -557,6 +582,158 @@ realtime-demo port="8231" open="1":
 # Stop the demo server (same eviction — impolite, effective)
 realtime-stop port="8231":
   just realtime-evict "{{port}}"
+
+# SvelteKit realtime explorer — Vite (:4000) + Trellis sidecar (:3920)
+realtime-app port="4000" trellis_port="3920" open="1":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  app="demo/realtime-app"
+  url="http://localhost:{{port}}"
+
+  just demo-ensure-build
+  just realtime-evict "{{port}}"
+  just realtime-evict "{{trellis_port}}"
+
+  if [ ! -d "${app}/node_modules" ]; then
+    echo "Installing realtime-app deps…"
+    (cd "${app}" && pnpm install)
+  fi
+
+  echo ""
+  echo "⚡ Realtime explorer → ${url}"
+  echo "   Trellis inspector → http://localhost:{{trellis_port}}"
+  echo "   Presence (BroadcastChannel): ${url}/presence"
+  echo ""
+
+  if [ "{{open}}" = "1" ]; then
+    (sleep 1.2 && open "${url}") &
+  fi
+
+  cd "${app}" && exec pnpm dev:all
+
+# WebContainer playground for the explorer
+realtime-app-wc port="4500" open="1":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  app="demo/realtime-app"
+  url="http://localhost:{{port}}"
+
+  just demo-ensure-build
+  just realtime-evict "{{port}}"
+
+  if [ ! -d "${app}/node_modules" ]; then
+    echo "Installing realtime-app deps…"
+    (cd "${app}" && pnpm install)
+  fi
+
+  echo ""
+  echo "⚡ WebContainer host → ${url}"
+  echo ""
+
+  if [ "{{open}}" = "1" ]; then
+    (sleep 0.6 && open "${url}") &
+  fi
+
+  cd "${app}" && WC_HOST_PORT="{{port}}" exec pnpm wc:host
+
+# React / Vue / Svelte presence tabs on one BroadcastChannel room
+universal-presence port="4100" open="1":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  dir="examples/universal-presence"
+  base="http://localhost:{{port}}"
+
+  just demo-ensure-build
+  just realtime-evict "{{port}}"
+
+  if [ ! -d "${dir}/node_modules" ]; then
+    echo "Installing universal-presence deps…"
+    npm install --prefix "${dir}"
+  fi
+
+  echo ""
+  echo "⚡ Universal presence → ${base}/"
+  echo "   React   → ${base}/react/"
+  echo "   Vue     → ${base}/vue/"
+  echo "   Svelte  → ${base}/svelte/"
+  echo "   Cross-tab BroadcastChannel — open two+ tabs to see cursors sync."
+  echo "   Cross-device: VITE_PRESENCE_RELAY_URL=wss://… just universal-presence"
+  echo ""
+
+  if [ "{{open}}" = "1" ]; then
+    (sleep 0.8 && open "${base}/react/" && open "${base}/vue/" && open "${base}/svelte/") &
+  fi
+
+  cd "${dir}" && exec npm run dev -- --port "{{port}}"
+
+# Todo lists + merged VcsOp DAG (browser bundle)
+state-demo port="8240" open="1":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  url="http://localhost:{{port}}/demo/state-demo/index.html"
+
+  just realtime-evict "{{port}}"
+
+  if [ ! -f dist/state-demo.bundle.js ]; then
+    echo "Building state-demo bundle…"
+    npm run build:state-demo-bundle
+  fi
+
+  echo ""
+  echo "⚡ State demo → ${url}"
+  echo ""
+
+  if [ "{{open}}" = "1" ]; then
+    (sleep 0.4 && open "${url}") &
+  fi
+
+  exec node demo/realtime/serve.mjs "{{port}}"
+
+# EQL-S query playground (static HTML, inline fixture graph)
+query-demo port="8241" open="1":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  url="http://localhost:{{port}}/demo/query/index.html"
+
+  just realtime-evict "{{port}}"
+
+  echo ""
+  echo "⚡ Query playground → ${url}"
+  echo ""
+
+  if [ "{{open}}" = "1" ]; then
+    (sleep 0.4 && open "${url}") &
+  fi
+
+  exec node demo/realtime/serve.mjs "{{port}}"
+
+# Chat + graph visualization (uses dist/realtime.bundle.js)
+chat-graph-demo port="8243" open="1":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  url="http://localhost:{{port}}/demo/chat-graph/index.html"
+
+  just realtime-evict "{{port}}"
+
+  if [ ! -f dist/realtime.bundle.js ]; then
+    echo "Building realtime bundle…"
+    just realtime-bundle
+  fi
+
+  echo ""
+  echo "⚡ Chat + graph → ${url}"
+  echo ""
+
+  if [ "{{open}}" = "1" ]; then
+    (sleep 0.4 && open "${url}") &
+  fi
+
+  exec node demo/realtime/serve.mjs "{{port}}"
+
+# Stop explorer stack (Vite + Trellis sidecar)
+realtime-app-stop port="4000" trellis_port="3920":
+  just realtime-evict "{{port}}"
+  just realtime-evict "{{trellis_port}}"
 
 # ---------------------------------------------------------------------------
 # Sandbox — test trellis as a fresh user

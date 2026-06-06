@@ -28,3 +28,7 @@ export type {
   UseQueryResult,
   UseMutationResult,
 } from './hooks.js';
+
+// Realtime / Signal bindings
+export { useSignal, useRoom, usePresence } from './realtime.js';
+export type { RoomHandle } from './realtime.js';

@@ -33,14 +33,6 @@ export {
 } from './lane';
 export { runLiveQueryStream, reconnectLiveQuery, type LiveQueryStreamOptions } from './live-query';
 export {
-	createInMemoryChannel,
-	type EphemeralChannel,
-	type DisposableEphemeralChannel,
-	type EphemeralPeer,
-	type EphemeralSubscription,
-	type InMemoryChannelOptions
-} from './ephemeral';
-export {
 	refreshLiveQueries,
 	refreshAfterLaneMutation,
 	refreshAfterEntityMutation
