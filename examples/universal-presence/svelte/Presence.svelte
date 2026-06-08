@@ -8,12 +8,13 @@
 		OFFSCREEN,
 		RELAY_URL,
 		ROOM,
+		formatOnline,
 		type CursorPresence
 	} from '../shared';
 
 	const me = makeIdentity('Svelte');
 
-	const { room, presence, others, destroy } = createRoom<CursorPresence>(() =>
+	const { room, presence, destroy } = createRoom<CursorPresence>(() =>
 		joinPresence<CursorPresence>({
 			peerId: me.peerId,
 			room: ROOM,
@@ -27,18 +28,21 @@
 		room.setPresence(normalize(event));
 	}
 
+	function onLeave() {
+		room.setPresence({ x: OFFSCREEN, y: OFFSCREEN });
+	}
+
 	// Render everyone on-surface — self included — so your own cursor is visible.
 	const visible = $derived($presence.filter((p) => p.state.x >= 0 && p.state.y >= 0));
-	const otherCount = $derived($others.filter((p) => p.state.x >= 0).length);
 </script>
 
 <div class="app">
 	<header>
 		<h1>Svelte</h1>
-		<span class="count">{otherCount} other cursor(s)</span>
+		<span class="count">{formatOnline($presence.length)}</span>
 	</header>
 	<p class="hint">Same room as the React & Vue tabs — one BroadcastChannel mesh, three frameworks.</p>
-	<div class="surface" onpointermove={onMove}>
+	<div class="surface" onpointermove={onMove} onpointerleave={onLeave}>
 		{#each visible as peer (peer.id)}
 			<div
 				class="cursor"

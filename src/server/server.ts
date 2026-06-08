@@ -33,6 +33,7 @@ import { fileURLToPath } from 'url';
 const __moduleDir =
   (import.meta as any).dir ?? dirname(fileURLToPath(import.meta.url));
 import { parseSimple } from '../core/query/index.js';
+import { entityRecordToPlain } from '../schema/entity-projection.js';
 import { jsonEntityFacts } from '../core/store/eav-store.js';
 import type { TrellisDbConfig } from '../client/config.js';
 import type { TenantPool } from './tenancy.js';
@@ -279,6 +280,11 @@ async function route(
     return handleQuery(req, auth, tenantId, ctx);
   }
 
+  // ── Ontologies ──────────────────────────────────────────────────────────────
+  if (method === 'POST' && (path === '/ontologies' || path === '/ontologies/')) {
+    return handleCreateOntology(req, auth, tenantId, ctx);
+  }
+
   // ── Files ─────────────────────────────────────────────────────────────────
   if (method === 'POST' && path === '/upload') {
     return handleUpload(req, auth, tenantId, ctx);
@@ -471,6 +477,30 @@ async function handleQuery(
     bindings: result.bindings,
     executionTime: result.executionTime,
   });
+}
+
+async function handleCreateOntology(
+  req: Request,
+  auth: import('./auth.js').AuthContext,
+  tenantId: string | null,
+  ctx: RouteCtx,
+): Promise<Response> {
+  const schema = (await req.json()) as import('../core/ontology/types.js').SchemaDefinition;
+  if (!schema || !schema['@id'] || !Array.isArray(schema.fields)) {
+    return json({ error: 'A SchemaDefinition (with @id and fields) is required' }, 400);
+  }
+  if ((schema.tier ?? 'user') === 'core') {
+    return json({ error: 'Core ontologies are immutable' }, 403);
+  }
+
+  const kernel = ctx.pool.get(tenantId);
+  try {
+    kernel.createOntology(schema);
+  } catch (err) {
+    return json({ error: 'Could not register schema', message: String(err) }, 409);
+  }
+
+  return json({ id: schema['@id'], registered: true }, 201);
 }
 
 // ---------------------------------------------------------------------------
@@ -782,13 +812,7 @@ async function verifyPassword(
 function entityToJson(
   entity: import('../core/kernel/trellis-kernel.js').EntityRecord,
 ) {
-  const attrs: Record<string, unknown> = {};
-  for (const f of entity.facts) {
-    if (f.a !== 'type') {
-      attrs[f.a] = f.v;
-    }
-  }
-  return { id: entity.id, type: entity.type, ...attrs };
+  return entityRecordToPlain(entity);
 }
 
 function json(data: unknown, status = 200): Response {

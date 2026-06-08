@@ -10,6 +10,7 @@ import {
   OFFSCREEN,
   RELAY_URL,
   ROOM,
+  formatOnline,
   type CursorPresence,
 } from '../shared';
 import '../styles.css';
@@ -30,7 +31,7 @@ function Pointer() {
 }
 
 function App() {
-  const { room, presence, others } = useRoom<CursorPresence>(
+  const { room, presence } = useRoom<CursorPresence>(
     () =>
       joinPresence<CursorPresence>({
         peerId: me.peerId,
@@ -49,22 +50,25 @@ function App() {
     [room],
   );
 
+  const onLeave = useCallback(() => {
+    room?.setPresence({ x: OFFSCREEN, y: OFFSCREEN });
+  }, [room]);
+
   // Render everyone on-surface — self included — so you can see your own cursor
   // (the surface hides the native pointer).
   const visible = presence.filter((p) => p.state.x >= 0 && p.state.y >= 0);
-  const otherCount = others.filter((p) => p.state.x >= 0).length;
 
   return (
     <div className="app">
       <header>
         <h1>React</h1>
-        <span className="count">{otherCount} other cursor(s)</span>
+        <span className="count">{formatOnline(presence.length)}</span>
       </header>
       <p className="hint">
         Same room as the Vue & Svelte tabs — open all three to watch one
         BroadcastChannel mesh drive every framework.
       </p>
-      <div className="surface" onPointerMove={onMove}>
+      <div className="surface" onPointerMove={onMove} onPointerLeave={onLeave}>
         {visible.map((peer) => (
           <div
             key={peer.id}

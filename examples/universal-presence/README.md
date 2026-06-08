@@ -1,74 +1,67 @@
-# Universal Presence
+# Universal Realtime
 
-One realtime SDK, three framework adapters, **zero server**.
+One realtime SDK, three framework adapters, three demo primitives.
 
-This example proves the cross-framework contract: React, Vue, and Svelte each
-mount the *same* `RealtimeRoom` through their thin adapter and join the *same*
-BroadcastChannel room. Move a cursor in the React tab and it shows up in the Vue
-and Svelte tabs — and vice versa.
+| Demo | Primitive | What it exercises |
+|------|-----------|-------------------|
+| **Presence** | `joinPresence` + presence state | Ephemeral cursors, transport selection |
+| **Chat** | `PersistentChannel` | Grow-only set, localStorage replica, relay replay |
+| **Text** | `RealtimeText` | RGA CRDT, `onChange` callbacks, state sync |
+
+Each demo has React, Vue, and Svelte mounts that join the **same logical room** for that demo. Open all three framework tabs and they sync live.
 
 ```
 React  →  trellis/react/realtime ┐
-Vue    →  trellis/vue             ├─→ joinPresence() → RealtimeRoom → BroadcastChannelTransport
+Vue    →  trellis/vue             ├─→ joinPresence() → RealtimeRoom → transport
 Svelte →  trellis/svelte          ┘
+         PersistentChannel / RealtimeText hang off the same room
 ```
 
-> React uses `trellis/react/realtime` (the browser-safe realtime entry). The
-> `trellis/react` root barrel also exports the DB/SSR hooks (`useQuery`,
-> `useMutation`, …), whose module graph imports Node `fs` — fine for SSR, but it
-> would break a browser-only bundle. Vue and Svelte have no such split: their
-> packages are realtime-only.
-
-The only per-framework code is the ~20-line mount in `react/`, `vue/`, and
-`svelte/`. Engine, transport, room, and presence semantics are identical —
-that's the whole point.
+> React uses `trellis/react/realtime` (browser-safe). The `trellis/react` root barrel also exports DB/SSR hooks that pull in Node `fs`.
 
 ## Run
 
 ```sh
-# from this directory (the trellis package is linked via file:../..)
 npm install
 npm run dev
 ```
 
-Then open the three tabs:
+Landing page: http://localhost:4100/
 
-- http://localhost:4100/react/
-- http://localhost:4100/vue/
-- http://localhost:4100/svelte/
+| Demo | React | Vue | Svelte |
+|------|-------|-----|--------|
+| Presence | [/react/](http://localhost:4100/react/) | [/vue/](http://localhost:4100/vue/) | [/svelte/](http://localhost:4100/svelte/) |
+| Chat | [/chat/react/](http://localhost:4100/chat/react/) | [/chat/vue/](http://localhost:4100/chat/vue/) | [/chat/svelte/](http://localhost:4100/chat/svelte/) |
+| Text | [/text/react/](http://localhost:4100/text/react/) | [/text/vue/](http://localhost:4100/text/vue/) | [/text/svelte/](http://localhost:4100/text/svelte/) |
 
-(Or the landing page at http://localhost:4100/ which links all three.)
+> If `trellis/*` fails to resolve, build once from the repo root: `npm run build`
 
-> **Scope of the default:** `BroadcastChannel` bridges tabs/windows within **one
-> browser instance** only. It does *not* cross to a different browser (Chrome ↔
-> Safari) or a different device — that's not a bug, it's the zero-server free
-> tier. For cross-browser / cross-device, add a relay (below).
+## Cross-browser (relay)
 
-> If `trellis/*` fails to resolve, build the package once from the repo root:
-> `npm install && npm run build` — the adapters are published from `dist/`.
-
-## Cross-browser / cross-device (add a relay)
-
-A relay is a dumb, room-scoped WebSocket fan-out. `joinPresence` swaps
-`BroadcastChannelTransport` for `DurableObjectRelayTransport` the moment a
-`relayUrl` is present — no other code changes.
-
-Run the bundled local relay (uses `createRealtimeRelay` from `trellis/server`),
-then point the dev server at it:
+BroadcastChannel only bridges tabs in **one browser**. For Chrome ↔ Safari or cross-device:
 
 ```sh
-# terminal 1 — start the relay (ws://localhost:8231/rt)
+# terminal 1
 npm run relay
 
-# terminal 2 — run the demo against it
+# terminal 2
 VITE_PRESENCE_RELAY_URL=ws://localhost:8231/rt npm run dev
 ```
 
-Now open the tabs in **different browsers** (or on other devices on your LAN via
-`ws://<your-ip>:8231/rt`) and cursors sync across all of them. `joinPresence`
-appends the room id, so the client actually connects to
-`ws://localhost:8231/rt/universal-demo` and the relay isolates that room from any
-other.
+`joinPresence` appends the room id → `ws://localhost:8231/rt/universal-chat` (etc.).
 
-For a hosted production relay, deploy the reference Cloudflare Durable Object at
-`demo/durable-object-relay/worker.ts` and use its `wss://…` URL instead.
+## Gaps surfaced by these demos
+
+| Gap | Where it shows up | Notes |
+|-----|-------------------|-------|
+| `RealtimeText` uses callbacks, not `Signal` | Text demo | React/Vue wire `onChange` + local state; unlike `PersistentChannel.messages` which binds via `useSignal` / `toStore` |
+| React room is `null` briefly on mount | Chat demo | `PersistentChannel` must be created in `useEffect` after `useRoom` resolves — can't call `useSignal(chat.messages)` unconditionally |
+| No `usePersistentChannel` helper | Chat demo | Each framework wires ~15 lines manually — candidate for a thin shared hook |
+| `resolveMeta` reads presence at receive time | Chat demo | Sender name/color captured from `room.getPresence()` — stale if peer left before message arrives (meta on send is the fix, already used on `send()`) |
+
+## QA checklist
+
+- [ ] Presence: three framework tabs, cursors sync (same browser)
+- [ ] Chat: send from React, appears in Vue + Svelte; refresh tab, history repaints from localStorage
+- [ ] Text: type concurrently in two tabs, CRDT converges (no clobber)
+- [ ] Relay mode: repeat chat + text across two browsers

@@ -24,6 +24,7 @@
  */
 
 import { parseSimple } from '../core/query/index.js';
+import { hydrateBindings } from '../schema/entity-projection.js';
 import type { TenantPool } from './tenancy.js';
 import type { AuthContext } from './auth.js';
 import type { PermissionRegistry } from './permissions.js';
@@ -187,7 +188,7 @@ export class SubscriptionManager {
     let result: Record<string, unknown>[];
     try {
       const qr = await kernel.query(parsedQuery);
-      result = qr.bindings as Record<string, unknown>[];
+      result = hydrateBindings(kernel, qr.bindings as Record<string, unknown>[]);
     } catch (err: unknown) {
       this._send(client, {
         type: 'error',
@@ -222,7 +223,7 @@ export class SubscriptionManager {
     try {
       const parsed = parseSimple(sub.query);
       const qr = await kernel.query(parsed);
-      newResult = qr.bindings as Record<string, unknown>[];
+      newResult = hydrateBindings(kernel, qr.bindings as Record<string, unknown>[]);
     } catch {
       return;
     }

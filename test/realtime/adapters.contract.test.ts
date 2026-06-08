@@ -19,9 +19,10 @@
 import { describe, test, expect } from 'vitest';
 import { effectScope } from 'vue';
 import { useRoom as useVueRoom } from '../../src/vue/hooks.js';
-import { createRoom as createSvelteRoom } from '../../src/svelte/stores.js';
+import { createRoom as createSvelteRoom, toStore } from '../../src/svelte/stores.js';
 import { RealtimeRoom } from '../../src/realtime/room.js';
 import { MemoryHub } from '../../src/realtime/memory-hub.js';
+import { PersistentChannel } from '../../src/realtime/persistent-channel.js';
 import type { PresencePeer, PresenceState } from '../../src/realtime/types.js';
 
 interface Demo extends PresenceState {
@@ -92,6 +93,44 @@ describe('framework adapters over one RealtimeRoom', () => {
     );
 
     unsub();
+    svelte.destroy();
+    scope.stop();
+  });
+
+  test('Vue and Svelte PersistentChannel replicas converge on the same hub', async () => {
+    const hub = new MemoryHub();
+    const scope = effectScope();
+    let vue!: ReturnType<typeof useVueRoom<Demo>>;
+    scope.run(() => {
+      vue = useVueRoom<Demo>(() => join(hub, 'vue', 'Vue'));
+    });
+
+    const svelte = createSvelteRoom<Demo>(() => join(hub, 'svelte', 'Svelte'));
+    const vueChat = PersistentChannel.create<{ text: string }>(vue.room, 'chat');
+    const svelteChat = PersistentChannel.create<{ text: string }>(
+      svelte.room,
+      'chat',
+    );
+    const svelteMsgs = toStore(svelteChat.messages);
+    let svelteLog: { text: string }[] = [];
+    const unsub = svelteMsgs.subscribe((records) => {
+      svelteLog = records.map((r) => r.payload);
+    });
+
+    vueChat.send({ text: 'from vue' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(svelteLog.map((m) => m.text)).toContain('from vue');
+
+    svelteChat.send({ text: 'from svelte' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(vueChat.snapshot().map((m) => m.payload.text)).toEqual([
+      'from vue',
+      'from svelte',
+    ]);
+
+    unsub();
+    vueChat.dispose();
+    svelteChat.dispose();
     svelte.destroy();
     scope.stop();
   });

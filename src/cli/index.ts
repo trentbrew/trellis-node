@@ -3967,7 +3967,7 @@ db.command('create <type> [json]')
   .option('--tenant <id>', 'Tenant ID')
   .action(async (type, jsonArg, opts) => {
     const { TrellisDb } = await import('../client/sdk.js');
-    const db = TrellisDb.fromConfig(opts.configDir);
+    const db = await TrellisDb.fromConfig(opts.configDir);
 
     let attributes: Record<string, unknown> = {};
     if (jsonArg) {
@@ -3989,7 +3989,7 @@ db.command('read <id>')
   .option('--config-dir <dir>', 'Config directory', '.')
   .action(async (id, opts) => {
     const { TrellisDb } = await import('../client/sdk.js');
-    const db = TrellisDb.fromConfig(opts.configDir);
+    const db = await TrellisDb.fromConfig(opts.configDir);
     const entity = await db.read(id);
     if (!entity) {
       console.error(chalk.red(`Not found: ${id}`));
@@ -4005,7 +4005,7 @@ db.command('update <id> <json>')
   .option('--config-dir <dir>', 'Config directory', '.')
   .action(async (id, jsonArg, opts) => {
     const { TrellisDb } = await import('../client/sdk.js');
-    const db = TrellisDb.fromConfig(opts.configDir);
+    const db = await TrellisDb.fromConfig(opts.configDir);
     const { readFileSync } = await import('fs');
     const raw = jsonArg.startsWith('@')
       ? readFileSync(jsonArg.slice(1), 'utf8')
@@ -4021,7 +4021,7 @@ db.command('delete <id>')
   .option('--config-dir <dir>', 'Config directory', '.')
   .action(async (id, opts) => {
     const { TrellisDb } = await import('../client/sdk.js');
-    const db = TrellisDb.fromConfig(opts.configDir);
+    const db = await TrellisDb.fromConfig(opts.configDir);
     await db.delete(id);
     console.log(chalk.green(`✓ Deleted: ${chalk.bold(id)}`));
     db.close();
@@ -4036,7 +4036,7 @@ db.command('list')
   .option('--config-dir <dir>', 'Config directory', '.')
   .action(async (opts) => {
     const { TrellisDb } = await import('../client/sdk.js');
-    const db = TrellisDb.fromConfig(opts.configDir);
+    const db = await TrellisDb.fromConfig(opts.configDir);
     const result = await db.list(opts.type, {
       limit: parseInt(opts.limit),
       offset: parseInt(opts.offset),
@@ -4051,7 +4051,7 @@ db.command('query <eql>')
   .option('--config-dir <dir>', 'Config directory', '.')
   .action(async (eql, opts) => {
     const { TrellisDb } = await import('../client/sdk.js');
-    const db = TrellisDb.fromConfig(opts.configDir);
+    const db = await TrellisDb.fromConfig(opts.configDir);
     const result = await db.query(eql);
     console.log(JSON.stringify(result.bindings, null, 2));
     console.log(chalk.dim(`Execution time: ${result.executionTime}ms`));
@@ -4083,7 +4083,7 @@ db.command('upload <file>')
       'application/octet-stream';
 
     const buffer = readFileSync(filePath);
-    const db = TrellisDb.fromConfig(opts.configDir);
+    const db = await TrellisDb.fromConfig(opts.configDir);
     const result = await db.upload(new Uint8Array(buffer), contentType);
     console.log(chalk.green(`✓ Uploaded`));
     console.log(chalk.dim(`  Hash: ${result.hash}`));

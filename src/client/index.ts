@@ -47,3 +47,7 @@ export type {
 
 // Reactive primitives (for framework adapters)
 export { Signal, BatchSignal } from './reactive.js';
+
+// Signal-first live reads
+export { liveQuery, liveEntities } from './live.js';
+export type { ReadState, LiveResource } from './live.js';

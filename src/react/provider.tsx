@@ -12,7 +12,7 @@
  * @module trellis/react
  */
 
-import {
+import React, {
   createContext,
   useContext,
   useMemo,

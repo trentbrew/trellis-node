@@ -3,22 +3,51 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Universal Presence · Trellis Realtime SDK</title>
+    <title>Universal Realtime · Trellis SDK</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app">
-      <header><h1>Universal Presence</h1></header>
+      <header><h1>Universal Realtime</h1></header>
       <p class="hint">
-        One realtime SDK (<code>joinPresence</code> + <code>RealtimeRoom</code>), three framework
-        adapters. Open each in its own tab — they share a single BroadcastChannel room, so a cursor
-        moved in the React tab shows up in the Vue and Svelte tabs and vice versa. No server.
+        One SDK (<code>joinPresence</code> + <code>RealtimeRoom</code>), three framework adapters,
+        three demo primitives. Open the same demo in React, Vue, and Svelte tabs — they share one
+        room and sync live. Default transport is BroadcastChannel (same browser); set
+        <code>VITE_PRESENCE_RELAY_URL</code> for cross-browser.
       </p>
-      <nav class="frameworks">
-        <a href="./react/">React</a>
-        <a href="./vue/">Vue</a>
-        <a href="./svelte/">Svelte</a>
-      </nav>
+
+      <section class="demo-section">
+        <h2>Presence</h2>
+        <p>Ephemeral cursors — <code>joinPresence</code> + presence state.</p>
+        <nav class="frameworks">
+          <a href="./react/">React</a>
+          <a href="./vue/">Vue</a>
+          <a href="./svelte/">Svelte</a>
+        </nav>
+      </section>
+
+      <section class="demo-section">
+        <h2>Chat</h2>
+        <p>
+          Grow-only message set — <code>PersistentChannel</code> + localStorage replica +
+          relay replay.
+        </p>
+        <nav class="frameworks">
+          <a href="./chat/react/">React</a>
+          <a href="./chat/vue/">Vue</a>
+          <a href="./chat/svelte/">Svelte</a>
+        </nav>
+      </section>
+
+      <section class="demo-section">
+        <h2>Text</h2>
+        <p>Collaborative editor — <code>RealtimeText</code> RGA CRDT over one room.</p>
+        <nav class="frameworks">
+          <a href="./text/react/">React</a>
+          <a href="./text/vue/">Vue</a>
+          <a href="./text/svelte/">Svelte</a>
+        </nav>
+      </section>
     </div>
   </body>
 </html>

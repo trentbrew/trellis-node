@@ -1,0 +1,189 @@
+/**
+ * Trellis Live Reads — Signal-first reactive queries.
+ *
+ * `liveQuery` is the framework-agnostic read primitive: it returns a {@link Signal}
+ * of read-state that the React/Vue/Svelte adapters all wrap, so the subscription
+ * is implemented once. It is lazy — `start()` opens the underlying source and
+ * returns a disposer — which lets adapters bind start/stop to component lifetime
+ * without side effects during render.
+ *
+ * Source today: the remote WebSocket subscription (`TrellisDb.subscribe`). The
+ * local embedded-kernel path is NOT live yet (`subscribe()` throws in local mode);
+ * a kernel op-stream source is the seam for that and is surfaced here as an error
+ * state rather than a throw.
+ *
+ * @module trellis/client
+ */
+import { Signal } from './reactive.js';
+import {
+  bindingEntityId,
+  bindingToEntity,
+  isSparseBinding,
+} from '../schema/entity-projection.js';
+import { entitiesQuery } from '../schema/eql.js';
+import { resolveRelations, type ResolveSpec } from '../schema/resolve.js';
+import type { AnyType } from '../schema/define.js';
+import type { EntityData, Subscription, TrellisDb } from './sdk.js';
+
+export interface ReadState<T> {
+  data: T;
+  loading: boolean;
+  error: Error | null;
+}
+
+export interface LiveResource<T> {
+  /** Reactive read-state. Subscribe via any framework adapter (or `.subscribe`). */
+  readonly signal: Signal<ReadState<T>>;
+  /** Open the subscription. Idempotent. Returns a disposer. */
+  start(): () => void;
+}
+
+/**
+ * Subscribe to a live EQL-S query as a {@link Signal}. The returned resource is
+ * inert until `start()` is called.
+ */
+export function liveQuery<T = Record<string, unknown>>(
+  client: TrellisDb,
+  eql: string,
+): LiveResource<T[]> {
+  const signal = new Signal<ReadState<T[]>>({
+    data: [],
+    loading: true,
+    error: null,
+  });
+  let sub: Subscription | null = null;
+
+  return {
+    signal,
+    start() {
+      if (sub) return () => stop();
+      try {
+        sub = client.subscribe<T>(eql, (rows) => {
+          signal.value = { data: rows, loading: false, error: null };
+        });
+      } catch (err) {
+        // e.g. local mode: `subscribe() requires remote mode`. Surface, don't throw.
+        signal.value = {
+          data: [],
+          loading: false,
+          error: err instanceof Error ? err : new Error(String(err)),
+        };
+      }
+      return () => stop();
+    },
+  };
+
+  function stop(): void {
+    sub?.unsubscribe();
+    sub = null;
+  }
+}
+
+export interface LiveEntitiesOptions {
+  where?: Record<string, unknown>;
+  /** Expand declared relations after hydration (requires `schema`). */
+  resolve?: ResolveSpec;
+}
+
+function normalizeLiveEntitiesOpts(
+  whereOrOpts?: Record<string, unknown> | LiveEntitiesOptions,
+): LiveEntitiesOptions {
+  if (!whereOrOpts) return {};
+  if ('resolve' in whereOrOpts || 'where' in whereOrOpts) {
+    return whereOrOpts as LiveEntitiesOptions;
+  }
+  return { where: whereOrOpts as Record<string, unknown> };
+}
+
+/**
+ * Live, *hydrated* entity list for a type.
+ *
+ * Remote subscriptions are server-hydrated to full entity records when possible;
+ * the client only falls back to per-id `read()` for sparse `{ e: id }` bindings
+ * (e.g. local mode). Stale hydrations are dropped if a newer push arrives first.
+ *
+ * Pass a {@link AnyType} schema (or `resolve` in options) to expand relations
+ * in one batched pass — e.g. `NavSection` with `{ resolve: { items: true } }`
+ * loads all `NavItem` rows grouped by `section`, avoiding per-parent reads.
+ */
+export function liveEntities<T extends EntityData = EntityData>(
+  client: TrellisDb,
+  typeOrSchema: string | AnyType,
+  whereOrOpts?: Record<string, unknown> | LiveEntitiesOptions,
+): LiveResource<T[]> {
+  const schema =
+    typeof typeOrSchema === 'string' ? undefined : typeOrSchema;
+  const type = typeof typeOrSchema === 'string' ? typeOrSchema : typeOrSchema.type;
+  const { where, resolve } = normalizeLiveEntitiesOpts(whereOrOpts);
+
+  const signal = new Signal<ReadState<T[]>>({
+    data: [],
+    loading: true,
+    error: null,
+  });
+  let sub: Subscription | null = null;
+  let token = 0;
+
+  return {
+    signal,
+    start() {
+      if (sub) return () => stop();
+      try {
+        sub = client.subscribe<Record<string, unknown>>(
+          entitiesQuery(type, where),
+          (rows) => {
+            const turn = ++token;
+            const hydrate = async (): Promise<EntityData[]> => {
+              if (rows.length === 0) return [];
+              if (rows.some((r) => isSparseBinding(r))) {
+                const ids = rows
+                  .map((r) => bindingEntityId(r))
+                  .filter((id): id is string => Boolean(id));
+                const loaded = await Promise.all(ids.map((id) => client.read(id)));
+                return loaded.filter((e): e is EntityData => e != null);
+              }
+              return rows.map((r) => bindingToEntity(r));
+            };
+
+            hydrate()
+              .then(async (entities) => {
+                if (turn !== token) return;
+                let data = entities as T[];
+                if (schema && resolve && Object.keys(resolve).length > 0) {
+                  data = (await resolveRelations(
+                    client,
+                    schema,
+                    data,
+                    resolve,
+                  )) as T[];
+                }
+                if (turn !== token) return;
+                signal.value = { data, loading: false, error: null };
+              })
+              .catch((err: unknown) => {
+                if (turn !== token) return;
+                signal.value = {
+                  data: signal.peek().data,
+                  loading: false,
+                  error: err instanceof Error ? err : new Error(String(err)),
+                };
+              });
+          },
+        );
+      } catch (err) {
+        signal.value = {
+          data: [],
+          loading: false,
+          error: err instanceof Error ? err : new Error(String(err)),
+        };
+      }
+      return () => stop();
+    },
+  };
+
+  function stop(): void {
+    token++; // invalidate any in-flight hydration
+    sub?.unsubscribe();
+    sub = null;
+  }
+}

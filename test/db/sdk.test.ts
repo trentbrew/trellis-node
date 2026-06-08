@@ -116,14 +116,14 @@ describe('TrellisDb (local mode)', () => {
 
   it('fromConfig reads local config', async () => {
     writeConfig({ mode: 'local', dbPath: DB_PATH }, TMP);
-    const db = TrellisDb.fromConfig(TMP);
+    const db = await TrellisDb.fromConfig(TMP);
     const id = await db.create('Thing', { name: 'test' });
     expect(typeof id).toBe('string');
     db.close();
   });
 
-  it('fromConfig throws when no config', () => {
-    expect(() => TrellisDb.fromConfig(TMP + '/missing')).toThrow();
+  it('fromConfig throws when no config', async () => {
+    await expect(TrellisDb.fromConfig(TMP + '/missing')).rejects.toThrow();
   });
 });
 

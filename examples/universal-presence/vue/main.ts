@@ -7,6 +7,7 @@ import {
   OFFSCREEN,
   RELAY_URL,
   ROOM,
+  formatOnline,
   type CursorPresence,
 } from '../shared';
 import '../styles.css';
@@ -24,7 +25,7 @@ const pointer = () =>
   ]);
 
 const App = defineComponent(() => {
-  const { room, presence, others } = useRoom<CursorPresence>(() =>
+  const { room, presence } = useRoom<CursorPresence>(() =>
     joinPresence<CursorPresence>({
       peerId: me.peerId,
       room: ROOM,
@@ -34,15 +35,15 @@ const App = defineComponent(() => {
   );
 
   const onMove = (event: PointerEvent) => room.setPresence(normalize(event));
+  const onLeave = () => room.setPresence({ x: OFFSCREEN, y: OFFSCREEN });
 
   return () => {
     // Render everyone on-surface — self included — so your own cursor is visible.
     const visible = presence.value.filter((p) => p.state.x >= 0 && p.state.y >= 0);
-    const otherCount = others.value.filter((p) => p.state.x >= 0).length;
     return h('div', { class: 'app' }, [
       h('header', [
         h('h1', 'Vue'),
-        h('span', { class: 'count' }, `${otherCount} other cursor(s)`),
+        h('span', { class: 'count' }, formatOnline(presence.value.length)),
       ]),
       h(
         'p',
@@ -51,7 +52,7 @@ const App = defineComponent(() => {
       ),
       h(
         'div',
-        { class: 'surface', onPointermove: onMove },
+        { class: 'surface', onPointermove: onMove, onPointerleave: onLeave },
         visible.map((peer) =>
           h(
             'div',

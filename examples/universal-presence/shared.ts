@@ -1,22 +1,55 @@
 /**
- * Shared, framework-neutral wiring for the universal presence demo.
+ * Shared, framework-neutral wiring for the universal realtime demos.
  *
- * Every framework entry (React / Vue / Svelte) joins the SAME logical room with
- * the SAME transport selection, so three tabs of three different frameworks all
- * appear in each other's cursor surface. The only per-framework code is the
- * ~20-line adapter mount — the engine, transport, and room are identical.
+ * Presence, chat, and text each use their own logical room id but the same
+ * transport selection (`joinPresence` + optional relay). Framework entries only
+ * differ in the ~30-line adapter mount.
  */
 
-export interface CursorPresence {
+/** Minimal presence payload shared across demos (name + color). */
+export interface DemoPresence {
   name: string;
   color: string;
-  /** Normalized 0..1 over the surface; OFFSCREEN = hidden. */
+}
+
+export interface CursorPresence extends DemoPresence {
+  /** Normalized 0..1 over the surface; OFFSCREEN = hidden / out of frame. */
   x: number;
   y: number;
 }
 
-/** All three frameworks share this room id → they see each other. */
-export const ROOM = 'universal-demo';
+/** Text demo presence — caret is a code-point index; -1 when unfocused. */
+export interface TextPresence extends DemoPresence {
+  caret: number;
+  /** Epoch ms of last intentional caret move; unset/0 = don't render remote caret. */
+  caretAt?: number;
+}
+
+/** Hide remote carets after this long without a move (focus alone doesn't refresh). */
+export const CARET_STALE_MS = 2_500;
+
+export function isRemoteCaretVisible(
+  state: TextPresence,
+  now = Date.now(),
+): boolean {
+  if (state.caret < 0) return false;
+  const at = state.caretAt;
+  if (at == null || at <= 0) return false;
+  return now - at < CARET_STALE_MS;
+}
+
+/** Grow-only chat message body. */
+export interface ChatPayload {
+  text: string;
+}
+
+/** Per-demo room ids — peers in the same demo + room see each other. */
+export const PRESENCE_ROOM = 'universal-demo';
+export const CHAT_ROOM = 'universal-chat';
+export const TEXT_ROOM = 'universal-text';
+
+/** @deprecated Use PRESENCE_ROOM */
+export const ROOM = PRESENCE_ROOM;
 
 /** Cursor parked off-surface ("present but not pointing"). */
 export const OFFSCREEN = -1;
@@ -29,12 +62,27 @@ export interface Identity {
   color: string;
 }
 
-/** A throwaway per-tab identity tagged with the framework that created it. */
+/** Best-effort browser label for demo peer names (sync; Brave may read as Chrome). */
+export function detectBrowser(): string {
+  const ua = navigator.userAgent;
+  if (/Firefox\//i.test(ua)) return 'Firefox';
+  if (/Edg\//i.test(ua)) return 'Edge';
+  if (/Chrome\//i.test(ua)) return 'Chrome';
+  if (/Safari\//i.test(ua)) return 'Safari';
+  return 'Web';
+}
+
+/**
+ * Per-tab identity: framework + browser + random suffix.
+ * e.g. "React · Chrome 397" — helps QA cross-browser sessions.
+ */
 export function makeIdentity(framework: string): Identity {
   const n = Math.floor(Math.random() * 1000);
+  const browser = detectBrowser();
+  const slug = framework.toLowerCase().replace(/\s+/g, '-');
   return {
-    peerId: `${framework}-${n}`,
-    name: `${framework} ${n}`,
+    peerId: `${slug}-${browser.toLowerCase()}-${n}`,
+    name: `${framework} · ${browser} ${n}`,
     color: COLORS[n % COLORS.length],
   };
 }
@@ -60,3 +108,34 @@ export function normalize(
     y: clamp((event.clientY - rect.top) / rect.height),
   };
 }
+
+/** localStorage key scoped by demo + room + transport tier. */
+export function storageKey(demo: string, room: string): string {
+  const tier = RELAY_URL ?? 'local';
+  return `trellis:${demo}:${room}:${tier}`;
+}
+
+export {
+  textDiff,
+  codePointLen,
+  utf16ToCodePointIndex,
+  measureCaret,
+  applyRemoteTextareaValue,
+  scheduleCaretSync,
+  cancelCaretSync,
+  hideTextCaret,
+  syncTextCaretPresence,
+  isTextEditorActive,
+  bindTextCaretWindowHide,
+} from './shared/text.js';
+
+/** Header label for connected peers (includes self). */
+export function formatOnline(count: number): string {
+  return `${count} online`;
+}
+export { createTypingTracker, formatTyping, type TypingPeer } from './shared/typing.js';
+
+export const timeFmt = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+});

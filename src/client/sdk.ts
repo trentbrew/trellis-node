@@ -19,9 +19,8 @@
  * @module trellis/client
  */
 
-import type { TrellisDbConfig } from './config.js';
-import { readConfig } from './config.js';
-import { TenantPool } from '../server/tenancy.js';
+import type { SchemaDefinition } from '../core/ontology/types.js';
+import type { TenantPool } from '../server/tenancy.js';
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -101,6 +100,7 @@ function isRemote(opts: TrellisDbOptions): opts is TrellisDbRemoteOptions {
 export class TrellisDb {
   private opts: TrellisDbOptions;
   private _pool: TenantPool | null = null;
+  private _poolPromise: Promise<TenantPool> | null = null;
   private _ws: WebSocket | null = null;
   /** In-flight connect — concurrent subscribe() shares one socket open. */
   private _wsPromise: Promise<WebSocket> | null = null;
@@ -113,7 +113,8 @@ export class TrellisDb {
   /**
    * Create a TrellisDb instance from `.trellis-db.json` in the given directory.
    */
-  static fromConfig(dir = '.'): TrellisDb {
+  static async fromConfig(dir = '.'): Promise<TrellisDb> {
+    const { readConfig } = await import('./config.js');
     const config = readConfig(dir);
     if (!config)
       throw new Error(
@@ -151,7 +152,7 @@ export class TrellisDb {
       return (res as { id: string }).id;
     }
 
-    const pool = this._getPool();
+    const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     const entityId = `${type.toLowerCase()}:${crypto.randomUUID()}`;
@@ -176,7 +177,7 @@ export class TrellisDb {
       }
     }
 
-    const pool = this._getPool();
+    const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     const entity = kernel.getEntity(id);
@@ -197,7 +198,7 @@ export class TrellisDb {
       return;
     }
 
-    const pool = this._getPool();
+    const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     await kernel.updateEntity(id, attributes as any);
@@ -212,7 +213,7 @@ export class TrellisDb {
       return;
     }
 
-    const pool = this._getPool();
+    const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     await kernel.deleteEntity(id);
@@ -238,7 +239,7 @@ export class TrellisDb {
       return (await this._fetch('GET', `/entities${qs}`)) as ListResult<T>;
     }
 
-    const pool = this._getPool();
+    const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     const entities = kernel.listEntities(type, opts.filters as any);
@@ -268,11 +269,44 @@ export class TrellisDb {
     }
 
     const { parseSimple } = await import('../core/query/index.js');
-    const pool = this._getPool();
+    const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     const parsed = parseSimple(eql);
     return kernel.query(parsed);
+  }
+
+  // -------------------------------------------------------------------------
+  // Schema registration
+  // -------------------------------------------------------------------------
+
+  /**
+   * Register a user/system-tier ontology schema with the kernel.
+   *
+   * Accepts a {@link SchemaDefinition} or anything carrying one (e.g. a
+   * `defineType` handle: `client.registerType(NavItem)`). Local mode calls
+   * `kernel.createOntology` directly; remote mode POSTs to `/ontologies`.
+   */
+  async registerType(
+    schema: SchemaDefinition | { definition: SchemaDefinition },
+  ): Promise<void> {
+    const def = '@id' in schema ? schema : schema.definition;
+
+    if (isRemote(this.opts)) {
+      try {
+        await this._fetch('POST', '/ontologies', def);
+      } catch (err) {
+        // Idempotent re-registration (demo hot reload, StrictMode double-mount).
+        if (err instanceof FetchError && err.status === 409) return;
+        throw err;
+      }
+      return;
+    }
+
+    const pool = await this._getPool();
+    const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
+    const kernel = pool.get(tenantId);
+    kernel.createOntology(def);
   }
 
   // -------------------------------------------------------------------------
@@ -313,7 +347,7 @@ export class TrellisDb {
     const hash = `blob:${Array.from(new Uint8Array(hashBuf))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('')}`;
-    const pool = this._getPool();
+    const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     const backend =
@@ -340,7 +374,7 @@ export class TrellisDb {
       return new Uint8Array(await res.arrayBuffer());
     }
 
-    const pool = this._getPool();
+    const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
     const backend =
@@ -432,6 +466,7 @@ export class TrellisDb {
   close(): void {
     this._pool?.closeAll();
     this._pool = null;
+    this._poolPromise = null;
     this.disconnect();
   }
 
@@ -439,12 +474,16 @@ export class TrellisDb {
   // Private
   // -------------------------------------------------------------------------
 
-  private _getPool(): TenantPool {
-    if (!this._pool) {
-      const path = (this.opts as TrellisDbLocalOptions).path;
-      this._pool = new TenantPool(path);
+  private async _getPool(): Promise<TenantPool> {
+    if (this._pool) return this._pool;
+    if (!this._poolPromise) {
+      this._poolPromise = import('../server/tenancy.js').then(({ TenantPool }) => {
+        const path = (this.opts as TrellisDbLocalOptions).path;
+        this._pool = new TenantPool(path);
+        return this._pool;
+      });
     }
-    return this._pool;
+    return this._poolPromise;
   }
 
   private async _fetch(
