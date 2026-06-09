@@ -1,0 +1,122 @@
+demo/state-demo/demo-session.ts(90,34): error TS2353: Object literal may only specify known properties, and 'headHash' does not exist in type 'VcsPayload'.
+examples/universal-presence/shared.ts(95,38): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/react/hooks.ts(11,28): error TS6142: Module './provider.js' was resolved to '/Users/trentbrew/TURTLE/Projects/TRELLIS/trellis-node/src/react/provider.tsx', but '--jsx' is not set.
+src/react/index.ts(12,45): error TS6142: Module './provider.js' was resolved to '/Users/trentbrew/TURTLE/Projects/TRELLIS/trellis-node/src/react/provider.tsx', but '--jsx' is not set.
+src/react/index.ts(13,43): error TS6142: Module './provider.js' was resolved to '/Users/trentbrew/TURTLE/Projects/TRELLIS/trellis-node/src/react/provider.tsx', but '--jsx' is not set.
+src/react/schema-hooks.ts(30,28): error TS6142: Module './provider.js' was resolved to '/Users/trentbrew/TURTLE/Projects/TRELLIS/trellis-node/src/react/provider.tsx', but '--jsx' is not set.
+src/schema/kernel-resolve.ts(89,10): error TS2352: Conversion of type '{ read: (id: string) => Promise<EntityData | null>; query: (q: string) => Promise<{ bindings: EntityData[]; executionTime: number; }>; }' to type 'TrellisDb' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ read: (id: string) => Promise<EntityData | null>; query: (q: string) => Promise<{ bindings: EntityData[]; executionTime: number; }>; }' is missing the following properties from type 'TrellisDb': opts, _pool, _poolPromise, _ws, and 19 more.
+src/schema/resolve.ts(76,51): error TS2304: Cannot find name 'opts'.
+src/server/inspector/entry.ts(11,23): error TS2307: Cannot find module './Inspector.vue' or its corresponding type declarations.
+test/core/proactive-watcher.test.ts(5,55): error TS2724: '"vitest"' has no exported member named 'mock'. Did you mean 'Mock'?
+test/core/proactive-watcher.test.ts(161,35): error TS7006: Parameter 'f' implicitly has an 'any' type.
+test/core/proactive-watcher.test.ts(164,35): error TS7006: Parameter 'f' implicitly has an 'any' type.
+test/db/config.test.ts(13,30): error TS2339: Property 'dir' does not exist on type 'ImportMeta'.
+test/db/sdk.test.ts(7,30): error TS2339: Property 'dir' does not exist on type 'ImportMeta'.
+test/links/cli.test.ts(82,16): error TS2868: Cannot find name 'Bun'. Do you need to install type definitions for Bun? Try `npm i --save-dev @types/bun` and then add 'bun' to the types field in your tsconfig.
+test/links/lifecycle.test.ts(26,3): error TS2739: Type '{ hasTrackedFile: (path: string) => boolean; getIssueTitle: (id: string) => string; getMilestoneTitle: () => undefined; hasSymbol: (fp: string, sym: string) => boolean; hasIdentity: () => boolean; getKnownAgentIds: () => never[]; getTrackedFilePaths: () => string[]; getIssueIds: () => string[]; getMilestoneIds: () =...' is missing the following properties from type 'ResolverContext': hasDecision, getDecisionTitle
+test/links/ref-index.test.ts(25,3): error TS2739: Type '{ hasTrackedFile: (path: string) => boolean; getIssueTitle: (id: string) => string; getMilestoneTitle: () => undefined; hasSymbol: (fp: string, sym: string) => boolean; hasIdentity: (id: string) => id is "trentbrew"; ... 4 more ...; getSymbolNames: (fp: string) => string[]; }' is missing the following properties from type 'ResolverContext': hasDecision, getDecisionTitle
+test/p7/sync-engine.test.ts(34,27): error TS2322: Type 'number' is not assignable to type 'void | Promise<void>'.
+test/p7/sync-engine.test.ts(95,27): error TS2322: Type 'number' is not assignable to type 'void | Promise<void>'.
+test/p7/sync-engine.test.ts(115,27): error TS2322: Type 'number' is not assignable to type 'void | Promise<void>'.
+test/p7/sync-engine.test.ts(150,31): error TS2322: Type 'number' is not assignable to type 'void | OpsReceivedResult | Promise<void | OpsReceivedResult>'.
+test/p7/sync-engine.test.ts(174,31): error TS2322: Type 'number' is not assignable to type 'void | OpsReceivedResult | Promise<void | OpsReceivedResult>'.
+test/p7/sync-engine.test.ts(203,31): error TS2322: Type 'number' is not assignable to type 'void | OpsReceivedResult | Promise<void | OpsReceivedResult>'.
+test/realtime/adapters.contract.test.ts(109,64): error TS2345: Argument of type 'RealtimeRoom<Demo>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<Demo>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<Demo>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<Demo>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<Demo>'.
+              Property 'name' is missing in type 'PresenceState' but required in type 'Demo'.
+test/realtime/adapters.contract.test.ts(111,7): error TS2345: Argument of type 'RealtimeRoom<Demo>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<Demo>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<Demo>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<Demo>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<Demo>'.
+              Property 'name' is missing in type 'PresenceState' but required in type 'Demo'.
+test/realtime/persistent-channel.test.ts(42,49): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/persistent-channel.test.ts(62,50): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/persistent-channel.test.ts(63,50): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/persistent-channel.test.ts(85,49): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/persistent-channel.test.ts(111,50): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/persistent-channel.test.ts(123,50): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/persistent-channel.test.ts(140,49): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/persistent-channel.test.ts(170,49): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/persistent-channel.test.ts(188,50): error TS2345: Argument of type 'RealtimeRoom<{ name: string; }>' is not assignable to parameter of type 'RealtimeRoom<PresenceState>'.
+  The types of '_presence._subs' are incompatible between these types.
+    Type 'Set<(v: PresencePeer<{ name: string; }>[]) => void>' is not assignable to type 'Set<(v: PresencePeer<PresenceState>[]) => void>'.
+      Type '(v: PresencePeer<{ name: string; }>[]) => void' is not assignable to type '(v: PresencePeer<PresenceState>[]) => void'.
+        Types of parameters 'v' and 'v' are incompatible.
+          Type 'PresencePeer<PresenceState>[]' is not assignable to type 'PresencePeer<{ name: string; }>[]'.
+            Type 'PresencePeer<PresenceState>' is not assignable to type 'PresencePeer<{ name: string; }>'.
+              Property 'name' is missing in type 'PresenceState' but required in type '{ name: string; }'.
+test/realtime/presence.test.ts(184,21): error TS2353: Object literal may only specify known properties, and 'cursor' does not exist in type 'Partial<{ name: string; }>'.
+test/realtime/presence.test.ts(185,59): error TS2339: Property 'cursor' does not exist on type '{ name: string; }'.
+test/realtime/realtime.test.ts(416,21): error TS2353: Object literal may only specify known properties, and 'cursor' does not exist in type 'Partial<{ name: string; color: string; }>'.
+test/realtime/realtime.test.ts(417,63): error TS2339: Property 'cursor' does not exist on type '{ name: string; color: string; }'.
+test/realtime/relay-persistence.test.ts(129,22): error TS2339: Property 'event' does not exist on type 'RealtimeMessage'.
+  Property 'event' does not exist on type '{ v: 1; t: "hello"; from: string; }'.
+test/schema/server-resolve.test.ts(77,20): error TS2352: Conversion of type 'EntityData' to type '{ items: { label: string; }[]; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'items' is missing in type 'EntityData' but required in type '{ items: { label: string; }[]; }'.
+test/state-demo/issue-projector.test.ts(10,5): error TS2783: 'kind' is specified more than once, so this usage will be overwritten.
+test/sync/federation.test.ts(195,34): error TS2322: Type 'number' is not assignable to type 'void | Promise<void>'.

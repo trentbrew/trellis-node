@@ -20,6 +20,7 @@
  */
 
 import type { SchemaDefinition } from '../core/ontology/types.js';
+import type { ResolveSpec } from '../schema/resolve.js';
 import type { TenantPool } from '../server/tenancy.js';
 
 // ---------------------------------------------------------------------------
@@ -63,7 +64,15 @@ export interface Subscription<T = EntityData> {
 export type SubscriptionCallback<T = EntityData> = (
   result: T[],
   diff: { added: T[]; updated: T[]; removed: T[] },
+  meta?: { resolved?: boolean },
 ) => void;
+
+/** Options for {@link TrellisDb.subscribe} — server-side relation expansion (TRL-6). */
+export interface SubscribeOptions {
+  /** Entity type name (e.g. `NavSection`) for server `resolve`. */
+  entityType?: string;
+  resolve?: ResolveSpec;
+}
 
 // ---------------------------------------------------------------------------
 // SDK options
@@ -105,6 +114,7 @@ export class TrellisDb {
   /** In-flight connect — concurrent subscribe() shares one socket open. */
   private _wsPromise: Promise<WebSocket> | null = null;
   private _subCallbacks: Map<string, SubscriptionCallback<any>> = new Map();
+  private _subOpts: Map<string, SubscribeOptions> = new Map();
 
   constructor(opts: TrellisDbOptions) {
     this.opts = opts;
@@ -439,6 +449,7 @@ export class TrellisDb {
   subscribe<T = EntityData>(
     eql: string,
     callback: SubscriptionCallback<T>,
+    opts?: SubscribeOptions,
   ): Subscription<T> {
     if (!isRemote(this.opts)) {
       throw new Error(
@@ -448,13 +459,23 @@ export class TrellisDb {
 
     const subId = `sub_${crypto.randomUUID()}`;
     this._subCallbacks.set(subId, callback as SubscriptionCallback<any>);
+    if (opts) this._subOpts.set(subId, opts);
     this._ensureWs().then((ws) => {
-      ws.send(JSON.stringify({ type: 'subscribe', id: subId, query: eql }));
+      ws.send(
+        JSON.stringify({
+          type: 'subscribe',
+          id: subId,
+          query: eql,
+          ...(opts?.entityType ? { entityType: opts.entityType } : {}),
+          ...(opts?.resolve ? { resolve: opts.resolve } : {}),
+        }),
+      );
     });
 
     return {
       unsubscribe: () => {
         this._subCallbacks.delete(subId);
+        this._subOpts.delete(subId);
         this._ws?.send(JSON.stringify({ type: 'unsubscribe', id: subId }));
       },
     };
@@ -551,7 +572,9 @@ export class TrellisDb {
         try {
           const msg = JSON.parse(e.data as string);
           if (msg.type === 'data' && this._subCallbacks.has(msg.id)) {
-            this._subCallbacks.get(msg.id)!(msg.result, msg.diff);
+            const meta =
+              msg.resolved === true ? { resolved: true as const } : undefined;
+            this._subCallbacks.get(msg.id)!(msg.result, msg.diff, meta);
           }
         } catch {
           /* ignore */

@@ -58,6 +58,6 @@
 		"carbon-icons-svelte": "^13.11.0",
 		"trellis": "file:../..",
 		"ws": "^8.20.1",
-		"zod": "^4.4.3"
+		"zod": "^3.25.0"
 	}
 }

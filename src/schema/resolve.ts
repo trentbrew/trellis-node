@@ -15,6 +15,9 @@ import { entitiesQuery } from './eql.js';
 import type { AnyType, Relation } from './define.js';
 import type { EntityData, TrellisDb } from '../client/sdk.js';
 
+/** Read/query surface used by relation expansion (client or in-process kernel). */
+export type RelationResolveClient = Pick<TrellisDb, 'read' | 'query'>;
+
 export type ResolveSpec = {
   [key: string]: boolean | ResolveSpec | undefined;
 };
@@ -31,8 +34,10 @@ function relationTargetName(r: Relation<AnyType, 'one' | 'many'>): string {
 
 function relationTargetSchema(
   r: Relation<AnyType, 'one' | 'many'>,
+  schemaLookup?: (typeName: string) => AnyType | null,
 ): AnyType | null {
-  return typeof r.target === 'string' ? null : r.target();
+  if (typeof r.target !== 'string') return r.target();
+  return schemaLookup?.(r.target) ?? null;
 }
 
 /** Child attribute pointing at `parent` (inverse of a `many` relation). */
@@ -48,7 +53,7 @@ export function inverseForeignKey(
 }
 
 async function loadByIds(
-  client: TrellisDb,
+  client: RelationResolveClient,
   ids: string[],
   cache: Map<string, EntityData | null>,
 ): Promise<void> {
@@ -62,16 +67,17 @@ async function loadByIds(
 }
 
 async function resolveReverseMany(
-  client: TrellisDb,
+  client: RelationResolveClient,
   parent: AnyType,
   relationName: string,
   parents: EntityData[],
   cache: Map<string, EntityData | null>,
+  schemaLookup?: (typeName: string) => AnyType | null,
 ): Promise<void> {
   const rel = parent.relations[relationName];
   if (!rel || rel.cardinality !== 'many') return;
 
-  const childSchema = relationTargetSchema(rel);
+  const childSchema = relationTargetSchema(rel, schemaLookup);
   if (!childSchema) return;
 
   const foreignKey = inverseForeignKey(parent, relationName, childSchema);
@@ -101,7 +107,7 @@ async function resolveReverseMany(
 }
 
 async function resolveForwardOne(
-  client: TrellisDb,
+  client: RelationResolveClient,
   parents: EntityData[],
   relationName: string,
   cache: Map<string, EntityData | null>,
@@ -124,11 +130,11 @@ async function resolveForwardOne(
  * Expand `resolve` relation keys on hydrated entities. Mutates rows in place.
  */
 export async function resolveRelations(
-  client: TrellisDb,
+  client: RelationResolveClient,
   schema: AnyType,
   entities: EntityData[],
   spec: ResolveSpec,
-  opts?: { copy?: boolean },
+  opts?: { copy?: boolean; schemaLookup?: (typeName: string) => AnyType | null },
 ): Promise<EntityData[]> {
   if (entities.length === 0 || Object.keys(spec).length === 0) return entities;
 
@@ -142,9 +148,16 @@ export async function resolveRelations(
     if (!rel) continue;
 
     if (rel.cardinality === 'many') {
-      await resolveReverseMany(client, schema, name, rows, cache);
+      await resolveReverseMany(
+        client,
+        schema,
+        name,
+        rows,
+        cache,
+        opts?.schemaLookup,
+      );
       if (isNestedResolveSpec(enabled)) {
-        const childSchema = relationTargetSchema(rel);
+        const childSchema = relationTargetSchema(rel, opts?.schemaLookup);
         if (childSchema) {
           for (const row of rows) {
             const kids = (row as Record<string, unknown>)[name] as
@@ -153,6 +166,7 @@ export async function resolveRelations(
             if (kids?.length) {
               await resolveRelations(client, childSchema, kids, enabled, {
                 copy: false,
+                schemaLookup: opts?.schemaLookup,
               });
             }
           }
@@ -160,7 +174,7 @@ export async function resolveRelations(
       }
     } else if (isNestedResolveSpec(enabled)) {
       await resolveForwardOne(client, rows, name, cache);
-      const childSchema = relationTargetSchema(rel);
+      const childSchema = relationTargetSchema(rel, opts?.schemaLookup);
       if (childSchema) {
         const nested: EntityData[] = [];
         for (const row of rows) {
@@ -172,6 +186,7 @@ export async function resolveRelations(
         if (nested.length) {
           await resolveRelations(client, childSchema, nested, enabled, {
             copy: false,
+            schemaLookup: opts?.schemaLookup,
           });
         }
       }

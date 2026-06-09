@@ -98,9 +98,10 @@ function normalizeLiveEntitiesOpts(
 /**
  * Live, *hydrated* entity list for a type.
  *
- * Remote subscriptions are server-hydrated to full entity records when possible;
- * the client only falls back to per-id `read()` for sparse `{ e: id }` bindings
- * (e.g. local mode). Stale hydrations are dropped if a newer push arrives first.
+ * Remote subscriptions are server-hydrated to full entity records when possible.
+ * When `resolve` is set, the server expands relations on the wire (TRL-6) and
+ * the client skips a second resolve pass. Stale hydrations are dropped if a
+ * newer push arrives first.
  *
  * Pass a {@link AnyType} schema (or `resolve` in options) to expand relations
  * in one batched pass — e.g. `NavSection` with `{ resolve: { items: true } }`
@@ -129,12 +130,18 @@ export function liveEntities<T extends EntityData = EntityData>(
     start() {
       if (sub) return () => stop();
       try {
+        const serverResolve =
+          schema && resolve && Object.keys(resolve).length > 0;
+
         sub = client.subscribe<Record<string, unknown>>(
           entitiesQuery(type, where),
-          (rows) => {
+          (rows, _diff, meta) => {
             const turn = ++token;
             const hydrate = async (): Promise<EntityData[]> => {
               if (rows.length === 0) return [];
+              if (meta?.resolved) {
+                return rows as EntityData[];
+              }
               if (rows.some((r) => isSparseBinding(r))) {
                 const ids = rows
                   .map((r) => bindingEntityId(r))
@@ -149,7 +156,12 @@ export function liveEntities<T extends EntityData = EntityData>(
               .then(async (entities) => {
                 if (turn !== token) return;
                 let data = entities as T[];
-                if (schema && resolve && Object.keys(resolve).length > 0) {
+                if (
+                  schema &&
+                  resolve &&
+                  Object.keys(resolve).length > 0 &&
+                  !meta?.resolved
+                ) {
                   data = (await resolveRelations(
                     client,
                     schema,
@@ -169,6 +181,9 @@ export function liveEntities<T extends EntityData = EntityData>(
                 };
               });
           },
+          serverResolve
+            ? { entityType: type, resolve }
+            : undefined,
         );
       } catch (err) {
         signal.value = {

@@ -10,13 +10,15 @@
  * Protocol (JSON over WebSocket):
  *
  *   Client → Server:
- *     { type: "subscribe",   id: "sub_1", query: "find Post where ...", tenantId?: "t1" }
+ *     { type: "subscribe", id: "sub_1", query: "find Post where ...",
+ *       entityType?: "Post", resolve?: { author: true }, tenantId?: "t1" }
  *     { type: "unsubscribe", id: "sub_1" }
  *     { type: "ping" }
  *
  *   Server → Client:
  *     { type: "subscribed",  id: "sub_1" }
- *     { type: "data",        id: "sub_1", result: [...], diff: { added, updated, removed } }
+ *     { type: "data",        id: "sub_1", result: [...], diff: { added, updated, removed },
+ *       resolved?: true }
  *     { type: "error",       id: "sub_1", message: "..." }
  *     { type: "pong" }
  *
@@ -24,7 +26,8 @@
  */
 
 import { parseSimple } from '../core/query/index.js';
-import { hydrateBindings } from '../schema/entity-projection.js';
+import { hydrateAndResolve } from '../schema/kernel-resolve.js';
+import type { ResolveSpec } from '../schema/resolve.js';
 import type { TenantPool } from './tenancy.js';
 import type { AuthContext } from './auth.js';
 import type { PermissionRegistry } from './permissions.js';
@@ -39,6 +42,9 @@ export interface Subscription {
   tenantId: string | null;
   auth: AuthContext;
   lastResult: Record<string, unknown>[];
+  /** Entity type name — enables server-side `resolve` expansion. */
+  entityType?: string;
+  resolve?: ResolveSpec;
 }
 
 export interface WsClient {
@@ -50,7 +56,14 @@ export interface WsClient {
 }
 
 export type RealtimeMessage =
-  | { type: 'subscribe'; id: string; query: string; tenantId?: string }
+  | {
+      type: 'subscribe';
+      id: string;
+      query: string;
+      tenantId?: string;
+      entityType?: string;
+      resolve?: ResolveSpec;
+    }
   | { type: 'unsubscribe'; id: string }
   | { type: 'ping' };
 
@@ -117,7 +130,11 @@ export class SubscriptionManager {
     }
 
     if (msg.type === 'subscribe') {
-      await this._handleSubscribe(client, msg.id, msg.query, msg.tenantId);
+      await this._handleSubscribe(client, msg.id, msg.query, {
+        tenantId: msg.tenantId,
+        entityType: msg.entityType,
+        resolve: msg.resolve,
+      });
       return;
     }
 
@@ -168,9 +185,13 @@ export class SubscriptionManager {
     client: WsClient,
     subId: string,
     queryStr: string,
-    tenantId?: string,
+    opts: {
+      tenantId?: string;
+      entityType?: string;
+      resolve?: ResolveSpec;
+    } = {},
   ): Promise<void> {
-    const tid = tenantId ?? client.tenantId ?? null;
+    const tid = opts.tenantId ?? client.tenantId ?? null;
 
     let parsedQuery;
     try {
@@ -188,7 +209,12 @@ export class SubscriptionManager {
     let result: Record<string, unknown>[];
     try {
       const qr = await kernel.query(parsedQuery);
-      result = hydrateBindings(kernel, qr.bindings as Record<string, unknown>[]);
+      result = await hydrateAndResolve(
+        kernel,
+        qr.bindings as Record<string, unknown>[],
+        opts.entityType,
+        opts.resolve,
+      );
     } catch (err: unknown) {
       this._send(client, {
         type: 'error',
@@ -198,12 +224,18 @@ export class SubscriptionManager {
       return;
     }
 
+    const resolved =
+      Boolean(opts.entityType) &&
+      Boolean(opts.resolve && Object.keys(opts.resolve).length > 0);
+
     const sub: Subscription = {
       id: subId,
       query: queryStr,
       tenantId: tid,
       auth: client.auth,
       lastResult: result,
+      entityType: opts.entityType,
+      resolve: opts.resolve,
     };
     client.subscriptions.set(subId, sub);
 
@@ -213,6 +245,7 @@ export class SubscriptionManager {
       id: subId,
       result,
       diff: { added: result, updated: [], removed: [] },
+      ...(resolved ? { resolved: true } : {}),
     });
   }
 
@@ -223,7 +256,12 @@ export class SubscriptionManager {
     try {
       const parsed = parseSimple(sub.query);
       const qr = await kernel.query(parsed);
-      newResult = hydrateBindings(kernel, qr.bindings as Record<string, unknown>[]);
+      newResult = await hydrateAndResolve(
+        kernel,
+        qr.bindings as Record<string, unknown>[],
+        sub.entityType,
+        sub.resolve,
+      );
     } catch {
       return;
     }
@@ -234,7 +272,16 @@ export class SubscriptionManager {
     }
 
     sub.lastResult = newResult;
-    this._send(client, { type: 'data', id: sub.id, result: newResult, diff });
+    const resolved =
+      Boolean(sub.entityType) &&
+      Boolean(sub.resolve && Object.keys(sub.resolve).length > 0);
+    this._send(client, {
+      type: 'data',
+      id: sub.id,
+      result: newResult,
+      diff,
+      ...(resolved ? { resolved: true } : {}),
+    });
   }
 
   private _send(client: WsClient, payload: Record<string, unknown>): void {
