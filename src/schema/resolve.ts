@@ -18,6 +18,10 @@ import type { EntityData, TrellisDb } from '../client/sdk.js';
 /** Read/query surface used by relation expansion (client or in-process kernel). */
 export type RelationResolveClient = Pick<TrellisDb, 'read' | 'query'>;
 
+/**
+ * Runtime resolve map (loose keys). For static types use
+ * {@link import('./define.js').ResolveSpecFor}.
+ */
 export type ResolveSpec = {
   [key: string]: boolean | ResolveSpec | undefined;
 };

@@ -138,33 +138,64 @@ export type InferType<T> = T extends TrellisType<
       } & { readonly [K in keyof C]: number }
   : never;
 
-type ResolvedRelValue<
-  X extends Relation<AnyType, 'one' | 'many'>,
-  Loaded extends boolean,
-> = X extends Relation<infer S, infer C>
-  ? Loaded extends true
+/** Target entity schema of a relation field. */
+type RelationTarget<R> = R extends Relation<infer S, 'one' | 'many'> ? S : never;
+
+/**
+ * Typed `resolve` spec for {@link InferResolvedType} — mirrors runtime
+ * {@link import('./resolve.js').ResolveSpec} but keyed to declared relations.
+ *
+ *   `{ items: true }` — expand `items` to full entities.
+ *   `{ items: { section: true } }` — expand `items`, then each item's `section`.
+ */
+export type ResolveSpecFor<T extends AnyType> = {
+  [K in keyof T['relations'] & string]?:
+    | true
+    | ResolveSpecFor<RelationTarget<T['relations'][K]>>;
+};
+
+/** Expand one relation key according to a resolve spec entry (`true` or nested). */
+type ApplyResolve<
+  Field extends Relation<AnyType, 'one' | 'many'>,
+  Spec,
+> = Field extends Relation<infer S, infer C>
+  ? [Spec] extends [true]
     ? C extends 'many'
       ? InferType<S>[]
       : InferType<S>
-    : RelValue<X>
+    : Spec extends ResolveSpecFor<S>
+      ? C extends 'many'
+        ? InferResolvedType<S, Spec>[]
+        : InferResolvedType<S, Spec>
+      : RelValue<Field>
   : never;
 
 /**
- * Like {@link InferType}, but relation keys marked `true` in `resolve` are
- * expanded entity shapes instead of `Ref` ids.
+ * Like {@link InferType}, but relation keys in `resolve` are expanded entity
+ * shapes instead of `Ref` ids. Nested objects recurse (TRL-4).
  */
 export type InferResolvedType<
   T extends AnyType,
-  R extends Partial<Record<keyof T['relations'] & string, boolean>>,
+  R extends ResolveSpecFor<T>,
 > = T extends TrellisType<infer Name, infer Z, infer Rel, infer C>
   ? { id: string; type: Name } & z.infer<z.ZodObject<Z>> & {
         [K in keyof Rel]: K extends keyof R
-          ? R[K] extends true
-            ? ResolvedRelValue<Rel[K], true>
-            : RelValue<Rel[K]>
+          ? ApplyResolve<Rel[K], R[K]>
           : RelValue<Rel[K]>;
       } & { readonly [K in keyof C]: number }
   : never;
+
+/**
+ * Infer the entity array shape returned by typed live reads (`useEntities`,
+ * `entitiesStore`) from optional read options.
+ */
+export type InferEntitiesRead<S extends AnyType, O> = O extends {
+  resolve: infer R;
+}
+  ? R extends ResolveSpecFor<S>
+    ? InferResolvedType<S, R>[]
+    : InferType<S>[]
+  : InferType<S>[];
 
 // ---------------------------------------------------------------------------
 // defineType

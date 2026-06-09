@@ -22,7 +22,12 @@ import {
 } from '../client/live.js';
 import type { EntityData, TrellisDb } from '../client/sdk.js';
 import { entityMutations, type EntityMutations } from '../schema/mutations.js';
-import type { AnyType, InferType } from '../schema/define.js';
+import type {
+  AnyType,
+  InferEntitiesRead,
+  InferType,
+  ResolveSpecFor,
+} from '../schema/define.js';
 
 /** Minimal Svelte store contract (a structural subset of `svelte/store`'s `Readable`). */
 export interface Readable<T> {
@@ -35,11 +40,10 @@ export interface TypedRead<T> {
   error: Error | null;
 }
 
-export type TypedReadOptions<S extends AnyType> = LiveEntitiesOptions &
-  Partial<{
-    where: Partial<InferType<S>>;
-    resolve: Partial<Record<keyof S['relations'] & string, boolean>>;
-  }>;
+export type TypedReadOptions<S extends AnyType> = LiveEntitiesOptions & {
+  where?: Partial<InferType<S>>;
+  resolve?: ResolveSpecFor<S>;
+};
 
 function parseReadOptions<S extends AnyType>(
   opts?: Partial<InferType<S>> | TypedReadOptions<S>,
@@ -74,17 +78,20 @@ function liveStore<R>(
 }
 
 /** Live list of a type as a Svelte store. */
-export function entitiesStore<S extends AnyType>(
+export function entitiesStore<
+  S extends AnyType,
+  O extends Partial<InferType<S>> | TypedReadOptions<S> | undefined = undefined,
+>(
   client: TrellisDb,
   schema: S,
-  opts?: Partial<InferType<S>> | TypedReadOptions<S>,
-): Readable<TypedRead<InferType<S>[]>> {
+  opts?: O,
+): Readable<TypedRead<InferEntitiesRead<S, O>>> {
   return liveStore(
     client,
     schema,
     parseReadOptions(opts),
     (v) => ({
-      data: v.data as unknown as InferType<S>[],
+      data: v.data as unknown as InferEntitiesRead<S, O>,
       loading: v.loading,
       error: v.error,
     }),

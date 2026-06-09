@@ -26,7 +26,12 @@ import {
 } from '../client/live.js';
 import type { EntityData } from '../client/sdk.js';
 import { entityMutations, type EntityMutations } from '../schema/mutations.js';
-import type { AnyType, InferType } from '../schema/define.js';
+import type {
+  AnyType,
+  InferEntitiesRead,
+  InferType,
+  ResolveSpecFor,
+} from '../schema/define.js';
 import { useTrellis } from './provider.js';
 import { useSignal } from './realtime.js';
 
@@ -42,12 +47,11 @@ export interface TypedReadResult<T> {
   error: Error | null;
 }
 
-/** `where` shorthand or full read options including `resolve`. */
-export type TypedReadOptions<S extends AnyType> = LiveEntitiesOptions &
-  Partial<{
-    where: Partial<InferType<S>>;
-    resolve: Partial<Record<keyof S['relations'] & string, boolean>>;
-  }>;
+/** `where` shorthand or full read options including nested `resolve`. */
+export type TypedReadOptions<S extends AnyType> = LiveEntitiesOptions & {
+  where?: Partial<InferType<S>>;
+  resolve?: ResolveSpecFor<S>;
+};
 
 function parseReadOptions<S extends AnyType>(
   opts?: Partial<InferType<S>> | TypedReadOptions<S>,
@@ -75,13 +79,16 @@ function useLiveEntities<S extends AnyType>(
 }
 
 /** Live list of a type — filter with `where`, expand relations with `resolve`. */
-export function useEntities<S extends AnyType>(
+export function useEntities<
+  S extends AnyType,
+  O extends Partial<InferType<S>> | TypedReadOptions<S> | undefined = undefined,
+>(
   schema: S,
-  opts?: Partial<InferType<S>> | TypedReadOptions<S>,
-): TypedReadResult<InferType<S>[]> {
+  opts?: O,
+): TypedReadResult<InferEntitiesRead<S, O>> {
   const state = useLiveEntities(schema, opts);
   return {
-    data: state.data as unknown as InferType<S>[],
+    data: state.data as unknown as InferEntitiesRead<S, O>,
     loading: state.loading,
     error: state.error,
   };

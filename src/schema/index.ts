@@ -19,12 +19,14 @@ export type {
   ComputedField,
   ComputedMap,
   DefineTypeOptions,
+  InferEntitiesRead,
   InferType,
   InferResolvedType,
   Ref,
   Relation,
   RelationMap,
   RelTarget,
+  ResolveSpecFor,
   TrellisType,
 } from './define.js';
 
