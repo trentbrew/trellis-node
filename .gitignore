@@ -45,3 +45,13 @@ vscode-extension/node_modules/
 
 .references
 .notes
+notes/
+
+# Playwright MCP snapshots
+.playwright-mcp/
+
+# Examples — deps, build output, local runtime data
+examples/**/node_modules/
+examples/**/dist/
+examples/**/.data/
+examples/graph-nav/.graph-nav-db/
