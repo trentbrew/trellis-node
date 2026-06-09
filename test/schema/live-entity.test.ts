@@ -51,9 +51,9 @@ describe('liveEntity', () => {
     expect(res.signal.peek().data).toMatchObject({ title: 'Hello' });
 
     expect(client.subscribe).toHaveBeenCalledOnce();
-    expect(subs[0]!.eql).toBe('find ?e where type = "Note"');
+    expect(subs[0]!.eql).toContain('FILTER ?e = "note:1"');
 
-    push(['note:1', 'note:2']);
+    push(['note:1']);
     await flush();
     expect(res.signal.peek().data).toMatchObject({ title: 'Hello' });
 
@@ -61,7 +61,7 @@ describe('liveEntity', () => {
       ...TABLE['note:1']!,
       title: 'Updated',
     };
-    push(['note:1', 'note:2']);
+    push(['note:1']);
     await flush();
     expect(res.signal.peek().data?.title).toBe('Updated');
 

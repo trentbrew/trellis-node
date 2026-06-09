@@ -20,7 +20,7 @@ import {
   bindingToEntity,
   isSparseBinding,
 } from '../schema/entity-projection.js';
-import { entitiesQuery, type WhereInput } from '../schema/eql.js';
+import { entitiesQuery, entityQuery, type WhereInput } from '../schema/eql.js';
 import { resolveRelations, type ResolveSpec } from '../schema/resolve.js';
 import type { AnyType } from '../schema/define.js';
 import type { EntityData, Subscription, TrellisDb } from './sdk.js';
@@ -230,8 +230,7 @@ async function pickEntityFromRows(
  * Live single entity by id (TRL-9).
  *
  * Opens with a direct `read(id)` for fast first paint, then keeps the row fresh
- * via the type subscription (same channel as {@link liveEntities}). Suitable for
- * nav-scale sets — not a substitute for a dedicated hot-entity read at large scale.
+ * via an id-scoped subscription ({@link entityQuery}) — not a full-type scan.
  */
 export function liveEntity<T extends EntityData = EntityData>(
   client: TrellisDb,
@@ -302,7 +301,7 @@ export function liveEntity<T extends EntityData = EntityData>(
 
       try {
         sub = client.subscribe<Record<string, unknown>>(
-          entitiesQuery(type),
+          entityQuery(type, entityId),
           (rows, _diff, meta) => {
             const turn = ++token;
             pickEntityFromRows(client, rows, entityId, meta)

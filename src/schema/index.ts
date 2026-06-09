@@ -34,6 +34,7 @@ export type {
 // EQL-S query builders (shared by the typed read adapters)
 export {
   entitiesQuery,
+  entityQuery,
   escapeValue,
   formatEqlLiteral,
   isWhereFilter,

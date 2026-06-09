@@ -109,3 +109,13 @@ export function entitiesQuery(type: string, where?: WhereInput): string {
   }
   return `find ?e where ${conds.join(' and ')}`;
 }
+
+/**
+ * Single-entity live subscription query (TRL-9).
+ * Narrows the type pattern to one entity id — avoids full-type fan-out on the wire.
+ */
+export function entityQuery(type: string, entityId: string): string {
+  const t = formatEqlLiteral(type);
+  const id = formatEqlLiteral(entityId);
+  return `SELECT ?e\nWHERE {\n  [?e "type" ${t}]\n}\nFILTER ?e = ${id}`;
+}

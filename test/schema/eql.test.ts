@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest';
 import { parseSimple } from '../../src/core/query/parser.js';
 import {
   entitiesQuery,
+  entityQuery,
   formatEqlLiteral,
   whereCondition,
 } from '../../src/schema/eql.js';
@@ -63,5 +64,11 @@ describe('entitiesQuery', () => {
     expect(eql).toBe(
       'find ?e where type = "NavItem" and section = "navsection:a" and order <= 5',
     );
+  });
+
+  test('entityQuery filters to one id (TRL-9)', () => {
+    const eql = entityQuery('Note', 'note:abc');
+    expect(eql).toContain('FILTER ?e = "note:abc"');
+    expect(parseSimple(eql).filters).toHaveLength(1);
   });
 });
