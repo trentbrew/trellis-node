@@ -2,6 +2,15 @@
 
 Notable changes by release date and version. See [trellis.computer/changelog](https://trellis.computer/changelog) for the public site copy.
 
+## trellis [3.2.0] — 2026-06-08
+
+- **Typed realtime SDK:** `trellis/schema` — `defineType`, `entityQuery`, `WhereFilter` operators, nested `InferResolvedType`, server `hydrateAndResolve` on subscription push.
+- **Live client:** `liveEntities` / `liveEntity` in `trellis/client` with id-scoped subscriptions (`entityQuery`) instead of full-type scans.
+- **Framework hooks:** `trellis/svelte/typed`, `trellis/vue/typed`, `trellis/react/typed` — typed `useEntities` / `useEntity` adapters.
+- **Studio plugin exports:** `trellis/plugins/plan-approval`, `proactive-watcher`, `idea-garden`, `agent-memory` ship in `dist/` for npm consumers (Trellis Studio / opencode).
+- **Ontology:** idempotent `registerType` — duplicate schema registration returns quietly (409 swallowed client-side).
+- **Realtime:** explorer graph-nav + collections demos; collab presence session lifecycle hardening.
+
 ## trellis [3.1.32] — 2026-05-29
 
 - **Agent Lanes (W1–W4):** `trellis lane` — isolated per-agent op journals under `.trellis/lanes/`, `create` / `enter` / `leave` / `status` / `diff` / `promote` / `drop`.

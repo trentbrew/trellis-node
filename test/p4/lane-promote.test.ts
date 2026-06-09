@@ -74,7 +74,10 @@ describe('Lane promote', () => {
     expect(result.blockingConflicts.some((c) => c.class === 'hard')).toBe(true);
   });
 
-  test('criterion on issue created on integration promotes without soft conflict', async () => {
+  test('criterion added inside a lane routes to integration (no promote needed)', async () => {
+    // Issue lifecycle + acceptance criteria are integration-direct kinds
+    // (ISSUE_INTEGRATION_KINDS): they bypass the lane journal so issue state
+    // is shared across lanes immediately.
     const created = await engine.createIssue('Parallel issue');
     const issueId = created.vcs!.issueId!;
 
@@ -83,9 +86,15 @@ describe('Lane promote', () => {
     await engine.addCriterion(issueId, 'test:bun test');
     await engine.leaveLane();
 
+    // Criterion is visible on integration without any promote.
+    const issue = engine.getIssue(issueId);
+    expect(issue?.criteria.some((c) => c.description === 'test:bun test')).toBe(true);
+
+    // The lane journal stays empty: nothing to replay, no conflicts.
     const plan = await engine.promoteLane(lane.id, { dryRun: true });
-    expect(plan.canPromote).toBe(true);
-    expect(plan.blockingConflicts.filter((c) => c.class === 'soft')).toHaveLength(0);
+    expect(plan.blockingConflicts).toHaveLength(0);
+    expect(plan.opsToReplay).toHaveLength(0);
+    expect(plan.canPromote).toBe(false);
   });
 
   test('same entity different attributes is a soft conflict', async () => {

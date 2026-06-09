@@ -4,6 +4,7 @@ bun.lock
 
 # Build output
 dist/
+trellis-*.tgz
 
 # TrellisVCS local data
 .trellis/

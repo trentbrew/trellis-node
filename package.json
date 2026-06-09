@@ -1,6 +1,6 @@
 {
   "name": "trellis",
-  "version": "3.1.34",
+  "version": "3.2.0",
   "description": "Agentic State Engine — event-sourced causal graph with branching, decision traces, and realtime sync for AI-native applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -170,6 +170,22 @@
     "./persist/factory": {
       "types": "./dist/persist/factory.d.ts",
       "import": "./dist/persist/factory.js"
+    },
+    "./plugins/plan-approval": {
+      "types": "./dist/plugins/plan-approval/index.d.ts",
+      "import": "./dist/plugins/plan-approval/index.js"
+    },
+    "./plugins/proactive-watcher": {
+      "types": "./dist/plugins/proactive-watcher/index.d.ts",
+      "import": "./dist/plugins/proactive-watcher/index.js"
+    },
+    "./plugins/idea-garden": {
+      "types": "./dist/plugins/idea-garden/index.d.ts",
+      "import": "./dist/plugins/idea-garden/index.js"
+    },
+    "./plugins/agent-memory": {
+      "types": "./dist/plugins/agent-memory/index.d.ts",
+      "import": "./dist/plugins/agent-memory/index.js"
     }
   },
   "files": [
@@ -186,7 +202,7 @@
     "cli": "tsx src/cli/index.ts",
     "mcp": "tsx src/mcp/index.ts",
     "mcp:docs": "tsx src/mcp/docs.ts",
-    "build": "esbuild src/index.ts src/core/index.ts src/vcs/index.ts src/sync/index.ts src/realtime/index.ts src/embeddings/index.ts src/links/index.ts src/decisions/index.ts src/server/index.ts src/client/index.ts src/client/sdk.ts src/schema/index.ts src/react/index.ts src/react/realtime.ts src/react/schema-hooks.ts src/vue/index.ts src/vue/schema-hooks.ts src/svelte/index.ts src/svelte/schema-hooks.ts src/db/index.ts src/cli/index.ts src/cms/index.ts src/core/persist/sqljs-backend.ts src/core/persist/factory.ts src/server/node-adapter.ts --bundle --outdir=dist --outbase=src --format=esm --splitting --platform=node --external:@xenova/transformers --external:@huggingface/transformers --external:react --external:vue --external:sql.js --external:ws --external:better-sqlite3 --external:bun:sqlite --external:commander --external:chalk --external:@inquirer/prompts --external:zod && npm run build:realtime-bundle && mkdir -p dist/ui && cp src/ui/client.html dist/ui/client.html && tsc -p tsconfig.build.json --emitDeclarationOnly --noEmit false --noEmitOnError false && npm run build:inspector",
+    "build": "esbuild src/index.ts src/core/index.ts src/vcs/index.ts src/sync/index.ts src/realtime/index.ts src/embeddings/index.ts src/links/index.ts src/decisions/index.ts src/server/index.ts src/client/index.ts src/client/sdk.ts src/schema/index.ts src/react/index.ts src/react/realtime.ts src/react/schema-hooks.ts src/vue/index.ts src/vue/schema-hooks.ts src/svelte/index.ts src/svelte/schema-hooks.ts src/db/index.ts src/cli/index.ts src/cms/index.ts src/core/persist/sqljs-backend.ts src/core/persist/factory.ts src/server/node-adapter.ts src/plugins/plan-approval/index.ts src/plugins/proactive-watcher/index.ts src/plugins/idea-garden/index.ts src/plugins/agent-memory/index.ts --bundle --outdir=dist --outbase=src --format=esm --splitting --platform=node --external:@xenova/transformers --external:@huggingface/transformers --external:react --external:vue --external:sql.js --external:ws --external:better-sqlite3 --external:bun:sqlite --external:commander --external:chalk --external:@inquirer/prompts --external:zod && npm run build:realtime-bundle && mkdir -p dist/ui && cp src/ui/client.html dist/ui/client.html && tsc -p tsconfig.build.json --emitDeclarationOnly --noEmit false --noEmitOnError false && npm run build:inspector",
     "build:realtime-bundle": "esbuild src/realtime/index.ts --bundle --format=esm --platform=browser --outfile=dist/realtime.bundle.js && esbuild src/realtime/relay-persistence.ts --bundle --format=esm --platform=node --outfile=dist/realtime/relay-persistence.js",
     "build:state-demo-bundle": "esbuild demo/state-demo/entry.ts --bundle --format=esm --platform=browser --outfile=dist/state-demo.bundle.js",
     "build:inspector": "vite build --config vite.inspector.config.ts",

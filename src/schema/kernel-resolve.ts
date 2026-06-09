@@ -90,9 +90,9 @@ export function createKernelResolveClient(
   kernel: TrellisKernel,
 ): RelationResolveClient {
   return {
-    read: async (id: string) => {
+    read: async <T extends EntityData = EntityData>(id: string) => {
       const entity = kernel.getEntity(id);
-      return entity ? entityRecordToPlain(entity) : null;
+      return (entity ? entityRecordToPlain(entity) : null) as T | null;
     },
     query: async (q: string) => {
       const parsed = parseSimple(q);
