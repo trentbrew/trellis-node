@@ -5,6 +5,7 @@ import {
   cloneStore,
   materializeIntegrationOps,
   overlayLaneOps,
+  reapplyIntegrationCriterionUpdates,
 } from '../../src/vcs/lane-materialize.js';
 import { EAVStore } from '../../src/core/store/eav-store.js';
 import { createVcsOp } from '../../src/vcs/ops.js';
@@ -34,6 +35,44 @@ describe('lane materialize helpers', () => {
     expect(second.stats.integrationCacheHit).toBe(true);
     expect(second.stats.integrationOpsReplayed).toBe(0);
     expect(second.store).toBe(first.store);
+  });
+
+  test('reapplyIntegrationCriterionUpdates wins over lane pending status', async () => {
+    const integrationOp = await createVcsOp('vcs:criterionUpdate', {
+      agentId: 'agent:test',
+      vcs: {
+        issueId: 'TRL-1',
+        criterionId: 'criterion:TRL-1:ac-1',
+        criterionStatus: 'passed',
+      },
+    });
+    const { store: integration } = materializeIntegrationOps(
+      [integrationOp],
+      null,
+      integrationOp.hash,
+    );
+
+    const laneAdd = await createVcsOp('vcs:criterionAdd', {
+      agentId: 'agent:lane',
+      vcs: {
+        issueId: 'TRL-1',
+        criterionId: 'criterion:TRL-1:ac-1',
+        criterionDescription: 'Gate',
+      },
+    });
+    const { store } = overlayLaneOps(integration, [laneAdd]);
+    const beforeStatuses = store
+      .getFactsByEntity('criterion:TRL-1:ac-1')
+      .filter((f) => f.a === 'status')
+      .map((f) => f.v);
+    expect(beforeStatuses[beforeStatuses.length - 1]).toBe('pending');
+
+    reapplyIntegrationCriterionUpdates(store, [integrationOp]);
+    const statuses = store
+      .getFactsByEntity('criterion:TRL-1:ac-1')
+      .filter((f) => f.a === 'status')
+      .map((f) => f.v);
+    expect(statuses).toEqual(['passed']);
   });
 
   test('overlayLaneOps forks integration state', async () => {

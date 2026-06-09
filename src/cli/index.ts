@@ -52,6 +52,7 @@ import {
   seedContext,
 } from '../scaffold/index.js';
 import { cliVersion, findRepoRoot, resolveRepoRoot } from './repo-path.js';
+import { handleCliError } from './errors.js';
 import { registerLaneCommands } from './lane.js';
 
 export type IdeType =
@@ -1766,7 +1767,7 @@ issueCmd
 
       for (const issue of remoteIssues) {
         const labels =
-          issue.labels.length > 0
+          (issue.labels?.length ?? 0) > 0
             ? chalk.dim(` [${issue.labels.join(',')}]`)
             : '';
         const assignee = issue.assignee
@@ -1775,7 +1776,7 @@ issueCmd
         const parent = issue.parentId ? chalk.dim(` ← ${issue.parentId}`) : '';
         const blocked = issue.isBlocked ? chalk.yellow(' 🔒 blocked') : '';
         const criteria =
-          issue.criteria.length > 0
+          (issue.criteria?.length ?? 0) > 0
             ? chalk.dim(
                 ` (${issue.criteria.filter((c) => c.status === 'passed').length}/${issue.criteria.length} AC)`,
               )
@@ -1793,7 +1794,7 @@ issueCmd
   .description('Show issue details')
   .argument('<id>', 'Issue ID (e.g. TRL-1)')
   .option('-p, --path <path>', 'Repository path', '.')
-  .action((id, opts) => {
+  .action(async (id, opts) => {
     const rootPath = resolveRepoRoot(opts.path);
 
     const engine = new TrellisVcsEngine({ rootPath });
@@ -1801,8 +1802,7 @@ issueCmd
 
     const issue = engine.getIssue(id);
     if (!issue) {
-      console.error(chalk.red(`Issue not found: ${id}`));
-      process.exit(1);
+      throw new Error(`Issue not found: ${id}`);
     }
 
     console.log(chalk.bold(`${issue.id}: ${issue.title ?? '(untitled)'}\n`));
@@ -1815,7 +1815,7 @@ issueCmd
     console.log(
       `  ${chalk.dim('Priority:')}  ${formatPriority(issue.priority)}`,
     );
-    if (issue.labels.length > 0) {
+    if ((issue.labels?.length ?? 0) > 0) {
       console.log(`  ${chalk.dim('Labels:')}    ${issue.labels.join(', ')}`);
     }
     if (issue.assignee) {
@@ -1827,12 +1827,12 @@ issueCmd
     if (issue.branchName) {
       console.log(`  ${chalk.dim('Branch:')}    ${issue.branchName}`);
     }
-    if (issue.blockedBy.length > 0) {
+    if ((issue.blockedBy?.length ?? 0) > 0) {
       console.log(
         `  ${chalk.dim('Blocked by:')} ${issue.blockedBy.map((b) => chalk.yellow(b)).join(', ')}`,
       );
     }
-    if (issue.blocking.length > 0) {
+    if ((issue.blocking?.length ?? 0) > 0) {
       console.log(
         `  ${chalk.dim('Blocking:')}  ${issue.blocking.map((b) => chalk.cyan(b)).join(', ')}`,
       );
@@ -1853,7 +1853,7 @@ issueCmd
       );
     }
 
-    if (issue.criteria.length > 0) {
+    if ((issue.criteria?.length ?? 0) > 0) {
       console.log(`\n  ${chalk.bold('Acceptance Criteria:')}`);
       for (const c of issue.criteria) {
         const desc = c.description ?? c.id;
@@ -1988,6 +1988,12 @@ issueCmd
       updates.parentId = null;
     } else if (opts.parent !== undefined) {
       updates.parentId = opts.parent;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      throw new Error(
+        'No updates specified. Pass at least one of --title, --desc, --status, -P, -l, --assignee, --parent, --clear-parent.',
+      );
     }
 
     await engine.updateIssue(id, updates);
@@ -5422,4 +5428,4 @@ registerLaneCommands(program);
 // Run
 // ---------------------------------------------------------------------------
 
-program.parse();
+program.parseAsync(process.argv).catch(handleCliError);

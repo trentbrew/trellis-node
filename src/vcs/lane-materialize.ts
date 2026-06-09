@@ -96,6 +96,35 @@ export function overlayLaneOps(
 }
 
 /**
+ * After lane overlay, restore integration criterion status (passed/failed).
+ * Lane-local criterionAdd may re-emit status=pending; integration updates win.
+ */
+export function reapplyIntegrationCriterionUpdates(
+  store: EAVStore,
+  integrationOps: VcsOp[],
+): void {
+  const lastByCriterion = new Map<string, VcsOp>();
+  for (const op of integrationOps) {
+    if (op.kind === 'vcs:criterionUpdate' && op.vcs?.criterionId) {
+      lastByCriterion.set(op.vcs.criterionId, op);
+    }
+  }
+
+  for (const op of lastByCriterion.values()) {
+    const ceid = op.vcs!.criterionId!;
+    const statusFacts = store
+      .getFactsByEntity(ceid)
+      .filter((f) => f.a === 'status');
+    if (statusFacts.length > 0) {
+      store.deleteFacts(
+        statusFacts.map((f) => ({ e: f.e, a: f.a, v: f.v })),
+      );
+    }
+    replayOpIntoStore(store, op);
+  }
+}
+
+/**
  * Materialize a child-fork lane entry (ADR 0007).
  * Integration through baseOpHash, then parent journal, then child journal.
  */

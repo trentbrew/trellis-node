@@ -624,4 +624,23 @@ describe('Issue Primitives', () => {
     expect(issues).toHaveLength(2);
     expect(issues.map((issue) => issue.id).sort()).toEqual(['TRL-1', 'TRL-2']);
   });
+
+  test('setCriterionStatus survives lane overlay on reopen', async () => {
+    const engine = await initEngine();
+    engine.setCheckpointThreshold(0);
+
+    const op = await engine.createIssue('Lane AC test');
+    const id = op.vcs!.issueId!;
+    const lane = await engine.createLane();
+    await engine.enterLane(lane.id);
+    await engine.addCriterion(id, 'Manual gate');
+
+    await engine.setCriterionStatus(id, 1, 'passed');
+    expect(engine.getIssue(id)!.criteria[0].status).toBe('passed');
+
+    const reopened = new TrellisVcsEngine({ rootPath: TEST_DIR });
+    reopened.open();
+    expect(reopened.getActiveLaneId()).toBe(lane.id);
+    expect(reopened.getIssue(id)!.criteria[0].status).toBe('passed');
+  });
 });

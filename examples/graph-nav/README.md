@@ -4,6 +4,9 @@ A sidebar where every section and item **is a typed entity in the Trellis graph*
 read live and mutated through the schema-typed SDK. The wedge for the
 "Jazz-competitive DX, on our home turf (semantic graph)" story.
 
+**TRL-35 parity demo** — React, Vue, and Svelte mounts share `schema.ts` and
+`bootstrap.ts`. See [sdk-typed-realtime.md](../../docs/sdk-typed-realtime.md).
+
 Three framework entries (React · Vue · Svelte) share one graph and one WebSocket
 subscription channel — open two tabs on the same entry and edits sync without polling.
 

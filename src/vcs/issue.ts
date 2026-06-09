@@ -331,6 +331,13 @@ export async function createIssue(
   title: string,
   opts?: IssueCreateOptions,
 ): Promise<VcsOp> {
+  if (opts?.parentId) {
+    const parent = getIssue(ctx, opts.parentId);
+    if (!parent) {
+      throw new Error(`Parent issue ${opts.parentId} not found.`);
+    }
+  }
+
   const id = nextIssueId(rootPath, opts?.laneId);
 
   const op = await createVcsOp('vcs:issueCreate', {

@@ -80,6 +80,15 @@ After running `trellis init`, you'll see a progressive disclosure success screen
 
 See the [CLI guide](https://trellis.computer/docs/cli) for complete documentation.
 
+### Typed SDK + realtime (React, Vue, Svelte)
+
+Reference apps and stable entrypoints: [docs/sdk-typed-realtime.md](./docs/sdk-typed-realtime.md).
+
+```bash
+just graph-nav           # typed live nav — examples/graph-nav
+just universal-presence  # presence, chat, text — examples/universal-presence
+```
+
 ---
 
 ## CMS Client SDK

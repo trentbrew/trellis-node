@@ -154,7 +154,7 @@ export interface InitProgress {
   message: string;
 }
 
-/** Issue lifecycle ops land on integration; issueUpdate/criterionAdd stay lane-local. */
+/** Issue lifecycle + acceptance criteria land on integration; issueUpdate stays lane-local. */
 const ISSUE_INTEGRATION_KINDS = new Set<string>([
   'vcs:issueCreate',
   'vcs:issueStart',
@@ -162,6 +162,7 @@ const ISSUE_INTEGRATION_KINDS = new Set<string>([
   'vcs:issueResume',
   'vcs:issueClose',
   'vcs:issueReopen',
+  'vcs:criterionAdd',
   'vcs:criterionUpdate',
   'vcs:issueBlock',
   'vcs:issueUnblock',
@@ -1703,6 +1704,10 @@ export class TrellisVcsEngine {
 
     if (laneOps !== undefined) {
       const overlay = materializeMod.overlayLaneOps(store, laneOps);
+      materializeMod.reapplyIntegrationCriterionUpdates(
+        overlay.store,
+        integrationOps,
+      );
       this.store = overlay.store;
       this.materializationStats = {
         ...stats,

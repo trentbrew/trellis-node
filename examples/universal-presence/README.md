@@ -2,6 +2,10 @@
 
 One realtime SDK, three framework adapters, three demo primitives.
 
+**TRL-35 parity demo** — presence, chat, and text in React, Vue, and Svelte.
+See [sdk-typed-realtime.md](../../docs/sdk-typed-realtime.md) for entrypoints,
+reconnect notes, and automated test map.
+
 | Demo | Primitive | What it exercises |
 |------|-----------|-------------------|
 | **Presence** | `joinPresence` + presence state | Ephemeral cursors, transport selection |
@@ -75,6 +79,12 @@ VITE_PRESENCE_RELAY_URL=ws://localhost:8231/rt npm run dev
 | `resolveMeta` reads presence at receive time | Chat demo | Sender name/color captured from `room.getPresence()` — stale if peer left before message arrives (meta on send is the fix, already used on `send()`) |
 
 ## QA checklist
+
+Automated headless coverage: `test/realtime/adapters.contract.test.ts`,
+`persistent-channel.test.ts`, `text-sync.test.ts`, `presence.test.ts` (see
+[sdk-typed-realtime.md](../../docs/sdk-typed-realtime.md)).
+
+Manual (before closing TRL-35):
 
 - [ ] Presence: three framework tabs, cursors sync (same browser)
 - [ ] Chat: send from React, appears in Vue + Svelte; refresh tab, history repaints from localStorage
