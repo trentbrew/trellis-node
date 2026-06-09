@@ -7,8 +7,8 @@
 
 	let { client, section }: { client: TrellisDb; section: NavSectionLoaded } = $props();
 
-	const itemMut = mutations(client, NavItem);
-	const sectionMut = mutations(client, NavSection);
+	const itemMut = $derived.by(() => mutations(client, NavItem));
+	const sectionMut = $derived.by(() => mutations(client, NavSection));
 
 	const items = $derived(section.items ?? []);
 

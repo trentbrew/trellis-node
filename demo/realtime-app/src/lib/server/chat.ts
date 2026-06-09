@@ -1,5 +1,11 @@
 import type { EntityData } from 'trellis/client';
-import { MESSAGES_QUERY, fromMessageRow, sortMessages, type ChatMessage } from '$lib/schemas/chat';
+import {
+	MESSAGES_QUERY,
+	fromMessageRow,
+	mergeChatMessage,
+	sortMessages,
+	type ChatMessage
+} from '$lib/schemas/chat';
 import { createEntityCollection } from '$lib/trellis/collection';
 
 function fromEntity(entity: EntityData): ChatMessage {
@@ -18,6 +24,7 @@ const messages = createEntityCollection<ChatMessage>({
 	eqlQuery: MESSAGES_QUERY,
 	mapEntity: fromEntity,
 	mapBinding: (row) => fromMessageRow(row),
+	mergeEntity: mergeChatMessage,
 	sort: sortMessages
 });
 

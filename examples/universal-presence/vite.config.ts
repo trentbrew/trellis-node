@@ -6,7 +6,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 // One Vite project hosting nine framework entries (3 demos × 3 frameworks).
 export default defineConfig({
   plugins: [react(), svelte()],
-  server: { port: 4100 },
+  server: { port: Number(process.env.PORT ?? 4100) },
   build: {
     rollupOptions: {
       input: {

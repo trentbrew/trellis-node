@@ -13,7 +13,7 @@
 import { startServer, TenantPool } from 'trellis/server';
 import { defaultLocalConfig } from 'trellis/client';
 
-const port = Number(process.env.PORT ?? 8230);
+const port = Number(process.env.TRELLIS_PORT ?? 8230);
 const dbPath = process.env.TRELLIS_DB ?? './.graph-nav-db';
 
 const config = defaultLocalConfig(dbPath);

@@ -22,6 +22,10 @@ run port="4000" trellis_port="3920":
     echo "⚠ No trellis repo at $ROOT — initializing…"
     bun run src/cli/index.ts init --path "$ROOT" --no-interactive
   fi
+  just demo-ensure-build
+  just realtime-evict "{{port}}"
+  just realtime-evict "{{trellis_port}}"
+  just realtime-evict "8231"
   echo "⚡ Starting live graph explorer on http://localhost:{{port}}"
   (sleep 2 && open "http://localhost:{{port}}") &
   bun run src/cli/index.ts ui --path "$ROOT" --port "{{port}}" --trellis-port "{{trellis_port}}"
@@ -472,8 +476,9 @@ demos:
   @echo "Trellis demos (run from repo root):"
   @echo ""
   @echo "  Realtime primitives   just realtime-demo           → :8231/demo/realtime/"
-  @echo "  SvelteKit explorer    just realtime-app              → :4000  (trellis :3920)"
-  @echo "  Universal presence    just universal-presence        → :4100  (react / vue / svelte)"
+  @echo "  SvelteKit explorer    just realtime-app              → :4000  (trellis :3920, relay :8231)"
+  @echo "  Universal presence    just universal-presence        → :4100  (relay :8231, cross-browser)"
+  @echo "  Graph nav (typed SDK) just graph-nav                   → :4200  (trellis :8230)"
   @echo "  State + causal DAG    just state-demo                → :8240/demo/state-demo/"
   @echo "  Query playground      just query-demo                → :8241/demo/query/"
   @echo "  Chat + graph          just chat-graph-demo           → :8243/demo/chat-graph/"
@@ -593,16 +598,20 @@ realtime-app port="4000" trellis_port="3920" open="1":
   just demo-ensure-build
   just realtime-evict "{{port}}"
   just realtime-evict "{{trellis_port}}"
+  just realtime-evict "8231"
 
   if [ ! -d "${app}/node_modules" ]; then
     echo "Installing realtime-app deps…"
     (cd "${app}" && pnpm install)
+  else
+    node "${app}/scripts/ensure-trellis-build.mjs"
   fi
 
   echo ""
   echo "⚡ Realtime explorer → ${url}"
   echo "   Trellis inspector → http://localhost:{{trellis_port}}"
-  echo "   Presence (BroadcastChannel): ${url}/presence"
+  echo "   Presence (relay, cross-browser): ${url}/presence"
+  echo "   Relay → ws://localhost:8231/rt"
   echo ""
 
   if [ "{{open}}" = "1" ]; then
@@ -636,8 +645,8 @@ realtime-app-wc port="4500" open="1":
 
   cd "${app}" && WC_HOST_PORT="{{port}}" exec pnpm wc:host
 
-# React / Vue / Svelte presence tabs on one BroadcastChannel room
-universal-presence port="4100" open="1":
+# React / Vue / Svelte presence + chat + text (relay-backed cross-browser sync)
+universal-presence port="4100" relay_port="8231" open="1":
   #!/usr/bin/env bash
   set -euo pipefail
   dir="examples/universal-presence"
@@ -645,10 +654,13 @@ universal-presence port="4100" open="1":
 
   just demo-ensure-build
   just realtime-evict "{{port}}"
+  just realtime-evict "{{relay_port}}"
 
   if [ ! -d "${dir}/node_modules" ]; then
     echo "Installing universal-presence deps…"
     npm install --prefix "${dir}"
+  else
+    node "${dir}/../../scripts/ensure-linked-trellis.mjs" "${dir}"
   fi
 
   echo ""
@@ -656,15 +668,53 @@ universal-presence port="4100" open="1":
   echo "   React   → ${base}/react/"
   echo "   Vue     → ${base}/vue/"
   echo "   Svelte  → ${base}/svelte/"
-  echo "   Cross-tab BroadcastChannel — open two+ tabs to see cursors sync."
-  echo "   Cross-device: VITE_PRESENCE_RELAY_URL=wss://… just universal-presence"
+  echo "   Chat    → ${base}/chat/react/  (etc.)"
+  echo "   Text    → ${base}/text/react/  (etc.)"
+  echo "   Relay   → ws://localhost:{{relay_port}}/rt  (Chrome ↔ Safari, cross-device)"
   echo ""
 
   if [ "{{open}}" = "1" ]; then
     (sleep 0.8 && open "${base}/react/" && open "${base}/vue/" && open "${base}/svelte/") &
   fi
 
-  cd "${dir}" && exec npm run dev -- --port "{{port}}"
+  cd "${dir}" && PORT="{{port}}" RELAY_PORT="{{relay_port}}" exec npm run dev:all
+
+# Typed SDK graph nav — React / Vue / Svelte share one Trellis entity graph
+graph-nav port="4200" trellis_port="8230" open="1":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  dir="examples/graph-nav"
+  base="http://localhost:{{port}}"
+
+  just demo-ensure-build
+  just realtime-evict "{{port}}"
+  just realtime-evict "{{trellis_port}}"
+
+  if [ ! -d "${dir}/node_modules" ]; then
+    echo "Installing graph-nav deps…"
+    (cd "${dir}" && pnpm install)
+  else
+    node "${dir}/../../scripts/ensure-linked-trellis.mjs" "${dir}"
+  fi
+
+  echo ""
+  echo "⚡ Graph nav → ${base}/"
+  echo "   React   → ${base}/react/"
+  echo "   Vue     → ${base}/vue/"
+  echo "   Svelte  → ${base}/svelte/"
+  echo "   Trellis → http://localhost:{{trellis_port}}  (/realtime WS — cross-browser by default)"
+  echo ""
+
+  if [ "{{open}}" = "1" ]; then
+    (sleep 0.8 && open "${base}/react/" && open "${base}/vue/") &
+  fi
+
+  cd "${dir}" && PORT="{{port}}" TRELLIS_PORT="{{trellis_port}}" exec pnpm dev:all
+
+# Stop graph-nav stack (Vite + Trellis entity server)
+graph-nav-stop port="4200" trellis_port="8230":
+  just realtime-evict "{{port}}"
+  just realtime-evict "{{trellis_port}}"
 
 # Todo lists + merged VcsOp DAG (browser bundle)
 state-demo port="8240" open="1":
@@ -730,10 +780,11 @@ chat-graph-demo port="8243" open="1":
 
   exec node demo/realtime/serve.mjs "{{port}}"
 
-# Stop explorer stack (Vite + Trellis sidecar)
-realtime-app-stop port="4000" trellis_port="3920":
+# Stop explorer stack (Vite + Trellis sidecar + presence relay)
+realtime-app-stop port="4000" trellis_port="3920" relay_port="8231":
   just realtime-evict "{{port}}"
   just realtime-evict "{{trellis_port}}"
+  just realtime-evict "{{relay_port}}"
 
 # ---------------------------------------------------------------------------
 # Sandbox — test trellis as a fresh user

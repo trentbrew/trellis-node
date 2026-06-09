@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import { command, query } from '$app/server';
 import { RoomInput, SendMessageInput } from '$lib/schemas/chat';
 import { createMessage, listMessages, subscribeMessages } from '$lib/server/chat';
-import { assertTrellisConfigured, reconnectLiveQuery, runLiveQueryStream } from '$lib/trellis';
+import { assertTrellisConfigured, runLiveQueryStream } from '$lib/trellis';
 
 export const getMessages = query.live(RoomInput, async function* ({ room }) {
 	assertTrellisConfigured();
@@ -20,6 +20,5 @@ export const getMessages = query.live(RoomInput, async function* ({ room }) {
 export const sendMessage = command(SendMessageInput, async ({ room, author, color, text }) => {
 	assertTrellisConfigured();
 	await createMessage({ room, author, color, text });
-	await reconnectLiveQuery(getMessages({ room }));
 	return { ok: true };
 });

@@ -5,8 +5,10 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev --port 4000",
+		"dev:client": "VITE_PRESENCE_RELAY_URL=ws://localhost:8231/rt vite dev --port 4000",
 		"dev:trellis": "node scripts/trellis-init.mjs && node scripts/trellis-serve.mjs",
-		"dev:all": "concurrently -k -n trellis,vite -c cyan,green \"pnpm dev:trellis\" \"pnpm dev\"",
+		"dev:relay": "node ../../scripts/demo-relay.mjs",
+		"dev:all": "concurrently -k -n trellis,relay,vite -c cyan,magenta,green \"pnpm dev:trellis\" \"pnpm dev:relay\" \"pnpm dev:client\"",
 		"trellis:init": "node scripts/ensure-trellis-build.mjs && node scripts/trellis-init.mjs",
 		"trellis:seed": "node scripts/trellis-seed.mjs",
 		"trellis:dedupe": "node scripts/trellis-dedupe.mjs",

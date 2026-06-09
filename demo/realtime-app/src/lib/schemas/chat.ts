@@ -32,16 +32,36 @@ WHERE {
 
 export function fromMessageRow(row: Record<string, unknown>): ChatMessage {
 	const id = String(row['?e'] ?? row.e ?? row.id ?? '');
+	const createdAtRaw = row.createdAt;
 	const createdAt =
-		typeof row.createdAt === 'number' ? row.createdAt : Number(row.createdAt ?? 0) || 0;
+		typeof createdAtRaw === 'number'
+			? createdAtRaw
+			: createdAtRaw != null
+				? Number(createdAtRaw) || 0
+				: 0;
 	return {
 		id,
 		room: row.room != null ? String(row.room) : 'lobby',
-		author: row.author != null ? String(row.author) : 'Guest',
+		author: row.author != null && String(row.author) !== '' ? String(row.author) : 'Guest',
 		color: row.color != null ? String(row.color) : '#8d8d8d',
 		text: row.text != null ? String(row.text) : '',
 		createdAt
 	};
+}
+
+/** Preserve hydrated fields when a sparse diff patch would clobber them. */
+export function mergeChatMessage(existing: ChatMessage, patch: Partial<ChatMessage>): ChatMessage {
+	const merged = { ...existing, ...patch };
+	if (patch.author === 'Guest' && existing.author !== 'Guest') {
+		merged.author = existing.author;
+	}
+	if ((!patch.createdAt || patch.createdAt === 0) && existing.createdAt > 0) {
+		merged.createdAt = existing.createdAt;
+	}
+	if (patch.color === '#8d8d8d' && existing.color !== '#8d8d8d') {
+		merged.color = existing.color;
+	}
+	return merged;
 }
 
 export function sortMessages(messages: ChatMessage[]): ChatMessage[] {

@@ -306,7 +306,17 @@ export class TrellisDb {
     const pool = await this._getPool();
     const tenantId = (this.opts as TrellisDbLocalOptions).tenantId ?? null;
     const kernel = pool.get(tenantId);
-    kernel.createOntology(def);
+    const exists = kernel
+      .listOntologies()
+      .some((ont) => ont['@id'] === def['@id']);
+    if (exists) return;
+    try {
+      kernel.createOntology(def);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('already exists')) return;
+      throw err;
+    }
   }
 
   // -------------------------------------------------------------------------

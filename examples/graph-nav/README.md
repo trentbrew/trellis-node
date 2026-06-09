@@ -24,18 +24,22 @@ subscription channel — open two tabs on the same entry and edits sync without 
 
 ## Run
 
-Two processes — Trellis entity server, then Vite:
+From **trellis-node root** (recommended):
+
+```bash
+just graph-nav
+```
+
+Or manually — Trellis entity server + Vite:
 
 ```bash
 cd examples/graph-nav
 pnpm install
-
-# terminal 1 — REST + /realtime WS
-pnpm server          # → http://localhost:8230
-
-# terminal 2 — proxies API to :8230
-pnpm dev             # → http://localhost:4200
+pnpm dev:all         # trellis :8230 + vite :4200
 ```
+
+Cross-browser sync uses the Trellis `/realtime` WebSocket (not the presence
+relay) — any browser hitting the same Vite origin shares one graph.
 
 - Hub: <http://localhost:4200/>
 - React: <http://localhost:4200/react/>

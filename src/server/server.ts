@@ -33,7 +33,10 @@ import { fileURLToPath } from 'url';
 const __moduleDir =
   (import.meta as any).dir ?? dirname(fileURLToPath(import.meta.url));
 import { parseSimple } from '../core/query/index.js';
-import { entityRecordToPlain } from '../schema/entity-projection.js';
+import {
+  entityRecordToPlain,
+  hydrateBindings,
+} from '../schema/entity-projection.js';
 import { jsonEntityFacts } from '../core/store/eav-store.js';
 import type { TrellisDbConfig } from '../client/config.js';
 import type { TenantPool } from './tenancy.js';
@@ -472,9 +475,13 @@ async function handleQuery(
 
   const kernel = ctx.pool.get(tenantId);
   const result = await kernel.query(parsed);
+  const bindings = hydrateBindings(
+    kernel,
+    result.bindings as Record<string, unknown>[],
+  );
 
   return json({
-    bindings: result.bindings,
+    bindings,
     executionTime: result.executionTime,
   });
 }
@@ -494,10 +501,21 @@ async function handleCreateOntology(
   }
 
   const kernel = ctx.pool.get(tenantId);
+  const exists = kernel
+    .listOntologies()
+    .some((ont) => ont['@id'] === schema['@id']);
+  if (exists) {
+    return json({ id: schema['@id'], registered: false, existed: true }, 200);
+  }
+
   try {
     kernel.createOntology(schema);
   } catch (err) {
-    return json({ error: 'Could not register schema', message: String(err) }, 409);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('already exists')) {
+      return json({ id: schema['@id'], registered: false, existed: true }, 200);
+    }
+    return json({ error: 'Could not register schema', message: msg }, 409);
   }
 
   return json({ id: schema['@id'], registered: true }, 201);

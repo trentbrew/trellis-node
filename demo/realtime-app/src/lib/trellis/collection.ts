@@ -4,6 +4,7 @@ import {
 	applyBindingDiff,
 	bindingEntityId,
 	hasSubscriptionChanges,
+	isHydratedEntityRow,
 	type SubscriptionDiff
 } from './diff';
 
@@ -46,15 +47,16 @@ export function createEntityCollection<T extends { id: string }>({
 	sort,
 	listLimit = 500
 }: EntityCollectionOptions<T>): EntityCollection<T> {
-	const list = async (): Promise<T[]> => {
-		const { bindings } = await getTrellis().query(eqlQuery);
-		const items = bindings.map((row) => {
-			const patch = bindingMapper(row as Record<string, unknown>);
-			const id = patch.id ?? bindingEntityId(row as Record<string, unknown>);
+	const rowsToItems = (rows: Record<string, unknown>[]): T[] => {
+		const items = rows.map((row) => {
+			const patch = bindingMapper(row);
+			const id = (patch as { id?: string }).id ?? bindingEntityId(row);
 			return { id, ...patch } as T;
 		});
 		return sort ? sort(items) : items;
 	};
+
+	const list = async (): Promise<T[]> => rowsToItems((await getTrellis().query(eqlQuery)).bindings);
 
 	const bindingMapper =
 		mapBinding ??
@@ -93,6 +95,7 @@ export function createEntityCollection<T extends { id: string }>({
 				const hydrated = await Promise.all(
 					items.map(async (item) => {
 						const record = item as Record<string, unknown>;
+						if (isHydratedEntityRow(record)) return item;
 						if (record.title != null && record.slug != null) return item;
 						const full = await getTrellis().read(item.id);
 						return full ? mapEntity(full) : item;
@@ -101,14 +104,20 @@ export function createEntityCollection<T extends { id: string }>({
 				emitSorted(hydrated);
 			};
 
-			return getTrellis().subscribe(eqlQuery, (_result, diff) => {
+			return getTrellis().subscribe(eqlQuery, (result, diff) => {
+				// WS pushes a full hydrated snapshot on every update — prefer it over
+				// diff-patching a cache that may have been bootstrapped from sparse rows.
+				if (Array.isArray(result)) {
+					emitSorted(rowsToItems(result as Record<string, unknown>[]));
+					return;
+				}
+
 				if (!hasSubscriptionChanges(diff as SubscriptionDiff)) return;
 
 				if (cache === null) {
 					if (!refreshPromise) {
 						refreshPromise = list().then((items) => {
-							cache = items;
-							onUpdate(items);
+							emitSorted(items);
 						});
 					}
 					return;

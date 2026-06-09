@@ -6,6 +6,7 @@ import { readConfig } from 'trellis/client';
 import { TenantPool, startServerCrossRuntime } from 'trellis/server';
 import { attachStandardMiddleware } from 'trellis/core';
 import { seedFrameworksKernel, seedTagsKernel } from './seed-kernel.mjs';
+import { seedNavKernel } from './seed-nav-kernel.mjs';
 
 const port = Number(process.env.TRELLIS_PORT ?? 3920);
 const config = readConfig('.');
@@ -94,6 +95,14 @@ if (seeded > 0) {
 const tagsSeeded = await seedTagsKernel(kernel);
 if (tagsSeeded > 0) {
 	console.log(`✓ Seeded ${tagsSeeded} tag(s)`);
+}
+
+const navSeed = await seedNavKernel(kernel);
+if (navSeed.deduped > 0) {
+	console.log(`✓ Deduped ${navSeed.deduped} duplicate nav item(s)`);
+}
+if (navSeed.created > 0) {
+	console.log(`✓ Seeded ${navSeed.created} nav item(s)`);
 }
 
 await startServerCrossRuntime({ port, config, pool });

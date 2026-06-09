@@ -55,6 +55,10 @@ export async function launchRealtimeExplorer(
   if (!existsSync(path.join(appDir, 'node_modules'))) {
     console.log('Installing explorer dependencies (pnpm)…');
     await runCmd(which('pnpm'), ['install'], { cwd: appDir });
+  } else {
+    await runCmd(which('node'), ['scripts/ensure-trellis-build.mjs'], {
+      cwd: appDir,
+    });
   }
 
   const env = {

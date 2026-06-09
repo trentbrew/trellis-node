@@ -21,9 +21,17 @@ Svelte →  trellis/svelte          ┘
 
 ## Run
 
+From **trellis-node root** (recommended — starts relay + Vite):
+
+```sh
+just universal-presence
+```
+
+Or manually:
+
 ```sh
 npm install
-npm run dev
+npm run dev:all    # relay (:8231) + Vite (:4100), cross-browser by default
 ```
 
 Landing page: http://localhost:4100/
@@ -38,13 +46,20 @@ Landing page: http://localhost:4100/
 
 ## Cross-browser (relay)
 
-BroadcastChannel only bridges tabs in **one browser**. For Chrome ↔ Safari or cross-device:
+`dev:all` / `just universal-presence` start the relay automatically and set
+`VITE_PRESENCE_RELAY_URL=ws://localhost:8231/rt`. Open Chrome and Safari on the
+same demo URL — cursors, chat, and text sync across browsers.
+
+BroadcastChannel-only mode (cross-tab, one browser):
 
 ```sh
-# terminal 1
-npm run relay
+npm run dev
+```
 
-# terminal 2
+Manual relay split (two terminals):
+
+```sh
+npm run relay
 VITE_PRESENCE_RELAY_URL=ws://localhost:8231/rt npm run dev
 ```
 

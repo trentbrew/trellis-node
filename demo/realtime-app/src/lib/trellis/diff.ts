@@ -8,6 +8,12 @@ export function bindingEntityId(row: Record<string, unknown>): string {
 	return String(row['?e'] ?? row.e ?? row.id ?? '');
 }
 
+/** Server-hydrated entity row (HTTP /query or WS `result`). */
+export function isHydratedEntityRow(row: Record<string, unknown>): boolean {
+	const id = bindingEntityId(row);
+	return Boolean(id) && typeof row.type === 'string' && row.type.length > 0;
+}
+
 export function hasSubscriptionChanges(diff: SubscriptionDiff): boolean {
 	return diff.added.length > 0 || diff.updated.length > 0 || diff.removed.length > 0;
 }

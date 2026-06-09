@@ -3,9 +3,14 @@
 	import type { Attachment } from 'svelte/attachments';
 	import { page } from '$app/state';
 	import SendAlt from 'carbon-icons-svelte/lib/SendAlt.svelte';
+	import { createRoom } from 'trellis/svelte';
+	import { joinPresence } from 'trellis/realtime';
+	import { createTypingTracker, formatTyping, type TypingPeer } from '$lib/chat/typing';
 	import { getMessages, sendMessage } from '../chat.remote';
 	import { identity } from '$lib/presence/identity.svelte';
 	import LiveIndicator from '$lib/ui/LiveIndicator.svelte';
+
+	const RELAY_URL = import.meta.env.VITE_PRESENCE_RELAY_URL as string | undefined;
 
 	const room = $derived(page.url.searchParams.get('room')?.trim() || 'lobby');
 	const messages = $derived(getMessages({ room }));
@@ -13,6 +18,8 @@
 	let draft = $state('');
 	let sending = $state(false);
 	let scroller = $state<HTMLElement | null>(null);
+	let typing = $state<TypingPeer[]>([]);
+	let typingTracker: ReturnType<typeof createTypingTracker> | null = null;
 
 	const captureScroller: Attachment<HTMLElement> = (node) => {
 		scroller = node;
@@ -25,15 +32,51 @@
 		if (scroller) scroller.scrollTop = scroller.scrollHeight;
 	}
 
+	$effect(() => {
+		const roomKey = room;
+		const { peerId, name, color } = identity;
+
+		const handle = createRoom(() =>
+			joinPresence({
+				peerId,
+				room: roomKey,
+				initialPresence: { name, color },
+				relayUrl: RELAY_URL
+			})
+		);
+
+		const tracker = createTypingTracker(handle.room, { peerId, name, color });
+		typingTracker = tracker;
+		const unsub = tracker.subscribe((peers) => {
+			typing = peers;
+		});
+
+		return () => {
+			unsub();
+			tracker.dispose();
+			handle.destroy();
+			typingTracker = null;
+			typing = [];
+		};
+	});
+
+	$effect(() => {
+		const stream = messages;
+		void (async () => {
+			await stream;
+			await scrollToBottom();
+		})();
+	});
+
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		const text = draft.trim();
 		if (!text || sending) return;
 		sending = true;
 		draft = '';
+		typingTracker?.stop();
 		try {
 			await sendMessage({ room, author: identity.name, color: identity.color, text });
-			await scrollToBottom();
 		} finally {
 			sending = false;
 		}
@@ -54,7 +97,7 @@
 
 	<ul
 		{@attach captureScroller}
-		class="bg-carbon-panel flex-1 space-y-3 overflow-y-auto border border-carbon-border p-4"
+		class="bg-carbon-panel min-h-0 flex-1 space-y-3 overflow-y-auto border border-carbon-border p-4"
 		data-testid="chat-log"
 	>
 		{#each await messages as message (message.id)}
@@ -87,6 +130,14 @@
 		{/each}
 	</ul>
 
+	<p
+		class="min-h-5 text-sm text-carbon-text-helper"
+		data-testid="typing-indicator"
+		aria-live="polite"
+	>
+		{formatTyping(typing)}
+	</p>
+
 	<form class="flex gap-2" onsubmit={submit}>
 		<label class="sr-only" for="chat-input">Message</label>
 		<input
@@ -96,6 +147,10 @@
 			placeholder="Message {room}…"
 			autocomplete="off"
 			maxlength="2000"
+			oninput={() => {
+				if (draft.trim()) typingTracker?.ping();
+				else typingTracker?.stop();
+			}}
 		/>
 		<button type="submit" class="carbon-btn-primary" disabled={sending || !draft.trim()}>
 			<SendAlt size={16} />

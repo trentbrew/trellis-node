@@ -54,8 +54,11 @@
     },
     "./realtime": {
       "types": "./dist/realtime/index.d.ts",
+      "svelte": "./dist/realtime/index.js",
+      "browser": "./dist/realtime/index.js",
       "bun": "./dist/realtime/index.js",
-      "import": "./dist/realtime/index.js"
+      "import": "./dist/realtime/index.js",
+      "default": "./dist/realtime/index.js"
     },
     "./ai": {
       "types": "./dist/embeddings/index.d.ts",
@@ -89,40 +92,67 @@
     },
     "./client/sdk": {
       "types": "./dist/client/sdk.d.ts",
-      "import": "./dist/client/sdk.js"
+      "svelte": "./dist/client/sdk.js",
+      "browser": "./dist/client/sdk.js",
+      "import": "./dist/client/sdk.js",
+      "default": "./dist/client/sdk.js"
     },
     "./schema": {
       "types": "./dist/schema/index.d.ts",
+      "svelte": "./dist/schema/index.js",
+      "browser": "./dist/schema/index.js",
       "bun": "./dist/schema/index.js",
-      "import": "./dist/schema/index.js"
+      "import": "./dist/schema/index.js",
+      "default": "./dist/schema/index.js"
     },
     "./react": {
       "types": "./dist/react/index.d.ts",
-      "import": "./dist/react/index.js"
+      "svelte": "./dist/react/index.js",
+      "browser": "./dist/react/index.js",
+      "import": "./dist/react/index.js",
+      "default": "./dist/react/index.js"
     },
     "./react/realtime": {
       "types": "./dist/react/realtime.d.ts",
-      "import": "./dist/react/realtime.js"
+      "svelte": "./dist/react/realtime.js",
+      "browser": "./dist/react/realtime.js",
+      "import": "./dist/react/realtime.js",
+      "default": "./dist/react/realtime.js"
     },
     "./react/typed": {
       "types": "./dist/react/schema-hooks.d.ts",
-      "import": "./dist/react/schema-hooks.js"
+      "svelte": "./dist/react/schema-hooks.js",
+      "browser": "./dist/react/schema-hooks.js",
+      "import": "./dist/react/schema-hooks.js",
+      "default": "./dist/react/schema-hooks.js"
     },
     "./vue": {
       "types": "./dist/vue/index.d.ts",
-      "import": "./dist/vue/index.js"
+      "svelte": "./dist/vue/index.js",
+      "browser": "./dist/vue/index.js",
+      "import": "./dist/vue/index.js",
+      "default": "./dist/vue/index.js"
     },
     "./vue/typed": {
       "types": "./dist/vue/schema-hooks.d.ts",
-      "import": "./dist/vue/schema-hooks.js"
+      "svelte": "./dist/vue/schema-hooks.js",
+      "browser": "./dist/vue/schema-hooks.js",
+      "import": "./dist/vue/schema-hooks.js",
+      "default": "./dist/vue/schema-hooks.js"
     },
     "./svelte": {
       "types": "./dist/svelte/index.d.ts",
-      "import": "./dist/svelte/index.js"
+      "svelte": "./dist/svelte/index.js",
+      "browser": "./dist/svelte/index.js",
+      "import": "./dist/svelte/index.js",
+      "default": "./dist/svelte/index.js"
     },
     "./svelte/typed": {
       "types": "./dist/svelte/schema-hooks.d.ts",
-      "import": "./dist/svelte/schema-hooks.js"
+      "svelte": "./dist/svelte/schema-hooks.js",
+      "browser": "./dist/svelte/schema-hooks.js",
+      "import": "./dist/svelte/schema-hooks.js",
+      "default": "./dist/svelte/schema-hooks.js"
     },
     "./db": {
       "types": "./dist/db/index.d.ts",

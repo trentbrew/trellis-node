@@ -16,12 +16,17 @@ just run
 trellis ui
 ```
 
+`dev:all` starts the Trellis sidecar, a presence relay (`ws://localhost:8231/rt`),
+and Vite — so `/presence` syncs across browsers, not just cross-tab.
+
 First time in this folder:
 
 ```bash
-pnpm install
+pnpm install   # preinstall runs ensure-trellis-build (dist + package.json sync)
 pnpm trellis:init
 ```
+
+From **trellis-node root**, `just run` / `trellis ui` also run `demo-ensure-build`, evict stale ports, and refresh the linked `trellis` package when `node_modules` already exists.
 
 ## Sync from sandbox
 
