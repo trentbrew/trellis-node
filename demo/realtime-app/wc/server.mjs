@@ -13,7 +13,8 @@ import { sendAppPack } from '../scripts/wc-pack.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.join(__dirname, '..');
-const trellisRoot = path.join(appRoot, '../../../TRELLIS/trellis-node');
+/** trellis-node repo root: demo/realtime-app → ../.. */
+const trellisRoot = path.resolve(appRoot, '../..');
 const trellisDist = path.join(trellisRoot, 'dist');
 const trellisBin = path.join(trellisRoot, 'bin/trellis.mjs');
 
@@ -103,5 +104,5 @@ const server = http.createServer(async (req, res) => {
 const PORT = Number(process.env.WC_HOST_PORT ?? 4500);
 server.listen(PORT, '127.0.0.1', () => {
 	console.log(`\n  WebContainer host → http://localhost:${PORT}`);
-	console.log('  Requires trellis-node dist (../../../TRELLIS/trellis-node/dist)\n');
+	console.log(`  Requires trellis-node dist (${path.join(trellisRoot, 'dist')})\n`);
 });

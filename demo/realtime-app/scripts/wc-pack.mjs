@@ -3,7 +3,7 @@
  * Pack realtime-app source files for WebContainer bootstrap (excludes heavy dirs).
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -39,7 +39,7 @@ function packDir(dir, base = appRoot) {
 
 /** @param {import('node:http').ServerResponse} res */
 export function sendAppPack(res) {
-	const vendorPkg = join(appRoot, '../../../TRELLIS/trellis-node/package.json');
+	const vendorPkg = resolve(appRoot, '../../package.json');
 	const trellisVersion = existsSync(vendorPkg)
 		? JSON.parse(readFileSync(vendorPkg, 'utf8')).version
 		: '0.0.0';
