@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onDestroy, onMount } from 'svelte';
@@ -12,6 +13,7 @@
 		CollectionMetaType,
 		CollectionRecordType,
 		sortRecords,
+		validateRecordFields,
 		type CollectionMeta,
 		type CollectionRecord
 	} from '$lib/schemas/collection';
@@ -19,6 +21,7 @@
 	import LiveIndicator from '$lib/ui/LiveIndicator.svelte';
 
 	const client = new TrellisDb({ url: trellisClientUrl() });
+	const metaMut = mutations(client, CollectionMetaType);
 	const recordMut = mutations(client, CollectionRecordType);
 
 	const slug = $derived(page.params.slug ?? '');
@@ -47,7 +50,10 @@
 	);
 
 	let newTitle = $state('');
+	let newBody = $state('');
 	let creating = $state(false);
+	let createError = $state<string | null>(null);
+	let fieldErrors = $state<Record<string, string>>({});
 
 	onMount(() => {
 		bootstrapExplorerSchemas(client)
@@ -78,20 +84,36 @@
 		});
 	});
 
+	function clearFieldError(id: string) {
+		if (!(id in fieldErrors)) return;
+		const next = { ...fieldErrors };
+		delete next[id];
+		fieldErrors = next;
+	}
+
 	async function addRecord(event: SubmitEvent) {
 		event.preventDefault();
 		if (!collection) return;
+		createError = null;
 		const title = newTitle.trim();
-		if (!title || creating) return;
+		const body = newBody.trim();
+		const check = validateRecordFields({ title, body: body || undefined });
+		if (!check.ok) {
+			createError = check.message;
+			return;
+		}
+		if (creating) return;
 		creating = true;
 		try {
 			await recordMut.create({
 				collectionId: collection.id,
 				title,
+				body: body || undefined,
 				sortOrder: rows.length,
 				laneId: MAIN_LANE
 			});
 			newTitle = '';
+			newBody = '';
 		} finally {
 			creating = false;
 		}
@@ -104,8 +126,51 @@
 
 	async function updateTitle(record: CollectionRecord, title: string) {
 		const trimmed = title.trim();
-		if (!trimmed || trimmed === record.title) return;
+		const check = validateRecordFields({ title: trimmed, body: record.body });
+		if (!check.ok) {
+			fieldErrors = { ...fieldErrors, [`${record.id}:title`]: check.message };
+			return;
+		}
+		clearFieldError(`${record.id}:title`);
+		if (trimmed === record.title) return;
 		await recordMut.update(record.id, { title: trimmed });
+	}
+
+	async function updateBody(record: CollectionRecord, body: string) {
+		const trimmed = body.trim();
+		const check = validateRecordFields({ title: record.title, body: trimmed || undefined });
+		if (!check.ok) {
+			fieldErrors = { ...fieldErrors, [`${record.id}:body`]: check.message };
+			return;
+		}
+		clearFieldError(`${record.id}:body`);
+		const nextBody = trimmed || undefined;
+		if (nextBody === (record.body ?? undefined)) return;
+		await recordMut.update(record.id, { body: nextBody });
+	}
+
+	async function updateMetaTitle(title: string) {
+		if (!collection) return;
+		const trimmed = title.trim();
+		if (!trimmed || trimmed === collection.title) return;
+		await metaMut.update(collection.id, { title: trimmed });
+	}
+
+	async function updateMetaDescription(description: string) {
+		if (!collection) return;
+		const trimmed = description.trim();
+		if (trimmed === (collection.description ?? '')) return;
+		await metaMut.update(collection.id, { description: trimmed || undefined });
+	}
+
+	async function removeCollection() {
+		if (!collection) return;
+		if (!confirm(`Delete “${collection.title}” and all ${rows.length} record(s)?`)) return;
+		for (const row of rows) {
+			await recordMut.remove(row.id);
+		}
+		await metaMut.remove(collection.id);
+		await goto(resolve('/'));
 	}
 </script>
 
@@ -119,11 +184,31 @@
 			{#if collection}
 				<div class="flex items-center gap-2">
 					<span class="text-2xl" aria-hidden="true">{collection.icon ?? '📁'}</span>
-					<h1 class="carbon-section-title">{collection.title}</h1>
+					<input
+						class="carbon-text-input carbon-section-title flex-1 border-0 bg-transparent p-0"
+						value={collection.title}
+						aria-label="Collection title"
+						data-testid="collection-meta-title"
+						onchange={(e) => updateMetaTitle(e.currentTarget.value)}
+					/>
 				</div>
-				{#if collection.description}
-					<p class="text-sm text-carbon-text-secondary">{collection.description}</p>
-				{/if}
+				<textarea
+					class="carbon-text-input min-h-[4rem] w-full resize-y text-sm text-carbon-text-secondary"
+					value={collection.description ?? ''}
+					placeholder="Description…"
+					aria-label="Collection description"
+					data-testid="collection-meta-description"
+					onchange={(e) => updateMetaDescription(e.currentTarget.value)}
+				></textarea>
+				<button
+					type="button"
+					class="carbon-btn-danger text-sm"
+					data-testid="delete-collection"
+					onclick={removeCollection}
+				>
+					<TrashCan size={16} />
+					Delete collection
+				</button>
 			{:else if !metaList.loading}
 				<h1 class="carbon-section-title">Collection not found</h1>
 			{/if}
@@ -132,18 +217,30 @@
 	</header>
 
 	{#if collection}
-		<form class="flex gap-2" onsubmit={addRecord}>
-			<input
-				bind:value={newTitle}
-				class="carbon-text-input flex-1"
-				placeholder="Add a record…"
-				aria-label="New record title"
-				data-testid="new-record-input"
-			/>
-			<button type="submit" class="carbon-btn-primary" disabled={creating || !newTitle.trim()}>
-				<Add size={16} />
-				Add
-			</button>
+		<form class="space-y-2 rounded border border-carbon-border p-4" onsubmit={addRecord}>
+			<div class="flex gap-2">
+				<input
+					bind:value={newTitle}
+					class="carbon-text-input flex-1"
+					placeholder="Title…"
+					aria-label="New record title"
+					data-testid="new-record-input"
+				/>
+				<button type="submit" class="carbon-btn-primary" disabled={creating || !newTitle.trim()}>
+					<Add size={16} />
+					Add
+				</button>
+			</div>
+			<textarea
+				bind:value={newBody}
+				class="carbon-text-input min-h-[5rem] w-full resize-y text-sm"
+				placeholder="Body (optional)…"
+				aria-label="New record body"
+				data-testid="new-record-body"
+			></textarea>
+			{#if createError}
+				<p class="text-sm text-carbon-support-error" data-testid="create-record-error">{createError}</p>
+			{/if}
 		</form>
 
 		{#if records.loading}
@@ -153,21 +250,43 @@
 		{:else}
 			<ul class="divide-y divide-carbon-border border border-carbon-border" data-testid="record-list">
 				{#each rows as record (record.id)}
-					<li class="flex items-start gap-2 p-3" data-testid="record-row" data-record-id={record.id}>
-						<input
-							class="carbon-text-input flex-1"
-							value={record.title}
-							aria-label="Record title"
-							onchange={(e) => updateTitle(record, e.currentTarget.value)}
-						/>
-						<button
-							type="button"
-							class="carbon-btn-ghost p-2"
-							aria-label="Delete record"
-							onclick={() => removeRecord(record.id)}
-						>
-							<TrashCan size={16} />
-						</button>
+					<li
+						class="space-y-2 p-3"
+						data-testid="record-row"
+						data-record-id={record.id}
+						data-record-title={record.title}
+						data-record-body={record.body ?? ''}
+					>
+						<div class="flex items-start gap-2">
+							<input
+								class="carbon-text-input flex-1 font-medium"
+								value={record.title}
+								aria-label="Record title"
+								onchange={(e) => updateTitle(record, e.currentTarget.value)}
+							/>
+							<button
+								type="button"
+								class="carbon-btn-ghost p-2"
+								aria-label="Delete record"
+								onclick={() => removeRecord(record.id)}
+							>
+								<TrashCan size={16} />
+							</button>
+						</div>
+						{#if fieldErrors[`${record.id}:title`]}
+							<p class="text-xs text-carbon-support-error">{fieldErrors[`${record.id}:title`]}</p>
+						{/if}
+						<textarea
+							class="carbon-text-input min-h-[4rem] w-full resize-y text-sm text-carbon-text-secondary"
+							value={record.body ?? ''}
+							placeholder="Body…"
+							aria-label="Record body"
+							data-testid="record-body"
+							onchange={(e) => updateBody(record, e.currentTarget.value)}
+						></textarea>
+						{#if fieldErrors[`${record.id}:body`]}
+							<p class="text-xs text-carbon-support-error">{fieldErrors[`${record.id}:body`]}</p>
+						{/if}
 					</li>
 				{/each}
 			</ul>

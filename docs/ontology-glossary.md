@@ -58,8 +58,10 @@ Names that must not be mistaken for kernel primitives.
 
 | Term | What it is |
 |------|------------|
-| **MyCustomEntity** | Example user Type (`subClassOf: core:Record`). Arbitrary demo rows (svelte, react, …). |
-| **MyCustomEntityTag** | Join entity for tag assignments in the explorer demo. |
+| **CollectionMeta** | User-defined table header (name, slug, icon, color, description). `subClassOf: core:Record`. |
+| **CollectionRecord** | Row in a collection; scoped by `collectionId`. Fractal wedge + platform status read this type. |
+| **MyCustomEntity** | *(removed)* — superseded by **CollectionRecord**. |
+| **MyCustomEntityTag** | *(removed)* — tag join demo retired with collections v1. |
 | **Thing** (fractal UI) | Representation contract: same graph identity, many shells at different **vantages**. Not a graph `type` string. |
 | **Lane** | Version / draft axis (`main` vs `agent:…`), VCS journal overlay — not an ontology tier. |
 

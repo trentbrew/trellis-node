@@ -1,3 +1,7 @@
+/**
+ * Server-side entity collection bridge (fractal remotes, lane journals).
+ * Browser routes use `trellis/svelte/typed` (`entitiesStore` + `mutations`) instead.
+ */
 import type { EntityData, Subscription } from 'trellis/client';
 import { getTrellis } from './client';
 import {

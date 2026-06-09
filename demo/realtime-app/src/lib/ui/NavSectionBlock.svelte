@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { mutations } from 'trellis/svelte/typed';
-	import { byOrder } from '$lib/trellis/bootstrap-nav';
+	import { byOrder } from '$lib/trellis/bootstrap-schemas';
 	import { NavItem, NavSection, type NavSectionLoaded } from '$lib/schemas/nav';
 	import type { TrellisDb } from 'trellis/client/sdk';
 

@@ -2,7 +2,22 @@
 
 This SvelteKit app is the **default** surface for `trellis ui` and `just run`.
 
-It demonstrates:
+Integration harness for typed SDK + realtime — not shipping Studio. See ADR 0011
+for L1/L2/L3 band model; collections and fractal wedges live here until shell
+contracts stabilize.
+
+## Typed SDK path (browser)
+
+1. **Schemas** — `src/lib/schemas/*.ts` (`defineType` + Zod shapes)
+2. **Bootstrap** — `bootstrapExplorerSchemas()` registers types idempotently on mount
+3. **Reads** — `entitiesStore(client, SomeType, { where })` from `trellis/svelte/typed`
+4. **Writes** — `mutations(client, SomeType)` → `create` / `update` / `remove`
+
+Collections (`/` + `/collections/[slug]`) are the reference typed CRUD surface.
+Fractal + platform remotes use **server** `createEntityCollection` in
+`src/lib/trellis/collection.ts` for lane materialization only.
+
+## What it demonstrates
 
 - **Graph sidecar** — `query.live`, ontology, entity CRUD (`:3920` + inspector)
 - **Realtime primitives** — presence, chat, collaborative editor

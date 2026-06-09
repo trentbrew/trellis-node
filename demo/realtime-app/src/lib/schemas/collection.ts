@@ -137,6 +137,22 @@ export function recordIdPrefix(): string {
 	return 'collectionRecord:';
 }
 
+/** Client-side validation for collection record title + body (L2 forms). */
+const recordFieldsSchema = CollectionRecordType.zod.pick({ title: true, body: true });
+
+export function validateRecordFields(input: {
+	title: string;
+	body?: string;
+}): { ok: true } | { ok: false; message: string } {
+	const parsed = recordFieldsSchema.safeParse({
+		title: input.title.trim(),
+		body: input.body?.trim() ? input.body.trim() : undefined
+	});
+	if (parsed.success) return { ok: true };
+	const issue = parsed.error.issues[0];
+	return { ok: false, message: issue?.message ?? 'Invalid record' };
+}
+
 export function metaIdPrefix(): string {
 	return 'collectionMeta:';
 }

@@ -21,6 +21,24 @@ const SEED_COLLECTIONS = [
 		color: '#0f62fe',
 		description: 'Rough concepts and sparks worth revisiting',
 		sortOrder: 0
+	},
+	{
+		id: 'collectionMeta:reading-list',
+		title: 'Reading list',
+		slug: 'reading-list',
+		icon: '📚',
+		color: '#8a3ffc',
+		description: 'Articles, papers, and threads to read',
+		sortOrder: 1
+	},
+	{
+		id: 'collectionMeta:ship-log',
+		title: 'Ship log',
+		slug: 'ship-log',
+		icon: '🚀',
+		color: '#198038',
+		description: 'Milestones and demo wedges shipped',
+		sortOrder: 2
 	}
 ];
 
