@@ -10,7 +10,7 @@ const DEMO_ROUTES = [
 	{ label: 'Fractal', href: '/fractal', order: 1 },
 	{ label: 'Cursors', href: '/presence', order: 2 },
 	{ label: 'Chat', href: '/chat', order: 3 },
-	{ label: 'Editor', href: '/editor', order: 4 }
+	{ label: 'Collab text', href: '/collab', order: 4 }
 ];
 
 const NAV_ITEM_ONTOLOGY = {
@@ -98,7 +98,27 @@ export async function seedNavKernel(kernel) {
 	registerNavOntologies(kernel);
 	const deduped = await dedupeNavItemsKernel(kernel);
 
-	const items = kernel.listEntities('NavItem');
+	let items = kernel.listEntities('NavItem');
+	for (const entity of items) {
+		const href = String(factValue(entity, 'href') ?? '');
+		if (href === '/') {
+			const label = String(factValue(entity, 'label') ?? '');
+			if (label !== 'Collections') {
+				await kernel.updateEntity(entity.id, { label: 'Collections' });
+			}
+		}
+		if (href === '/editor') {
+			await kernel.deleteEntity(entity.id);
+		}
+		if (href === '/collab') {
+			const label = String(factValue(entity, 'label') ?? '');
+			if (label !== 'Collab text') {
+				await kernel.updateEntity(entity.id, { label: 'Collab text' });
+			}
+		}
+	}
+
+	items = kernel.listEntities('NavItem');
 	const hrefs = new Set(
 		items
 			.map((entity) => String(factValue(entity, 'href') ?? ''))
@@ -123,16 +143,6 @@ export async function seedNavKernel(kernel) {
 		const explore =
 			sections.find((s) => factValue(s, 'label') === 'Explore') ?? sections[0];
 		sectionId = explore.id;
-	}
-
-	for (const entity of items) {
-		const href = String(factValue(entity, 'href') ?? '');
-		if (href === '/') {
-			const label = String(factValue(entity, 'label') ?? '');
-			if (label !== 'Collections') {
-				await kernel.updateEntity(entity.id, { label: 'Collections' });
-			}
-		}
 	}
 
 	let created = 0;

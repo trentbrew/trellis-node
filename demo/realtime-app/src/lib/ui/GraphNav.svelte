@@ -22,7 +22,7 @@
 		{ href: '/fractal', label: 'Fractal' },
 		{ href: '/presence', label: 'Cursors' },
 		{ href: '/chat', label: 'Chat' },
-		{ href: '/editor', label: 'Editor' }
+		{ href: '/collab', label: 'Collab text' }
 	];
 
 	onMount(() => {

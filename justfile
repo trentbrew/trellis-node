@@ -488,7 +488,7 @@ demos:
   @echo "  Realtime unit tests   just realtime-test"
   @echo "  Stop a static demo    just realtime-stop [port]"
 
-# Ensure dist/ exists (linked demos import trellis from file:../..)
+# Ensure dist/ exists and pnpm-linked copies match (demos import trellis from file:../..)
 demo-ensure-build:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -496,6 +496,7 @@ demo-ensure-build:
     echo "Building trellis package…"
     just build
   fi
+  node scripts/ensure-linked-trellis.mjs demo/realtime-app
 
 # Build the browser bundle for demo/realtime/index.html
 realtime-bundle:

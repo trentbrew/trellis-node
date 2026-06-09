@@ -17,13 +17,30 @@ const trellisRoot = join(__dirname, '..');
 const sourceDist = join(trellisRoot, 'dist');
 const distEntry = join(sourceDist, 'client/index.js');
 
-/** @param {string} distDir */
-function distMatchesSource(distDir) {
-	const indexPath = join(distDir, 'client/index.js');
-	if (!existsSync(indexPath) || !existsSync(distEntry)) {
-		return false;
+/** @param {string} dir */
+function listDistFiles(dir) {
+	if (!existsSync(dir)) return '';
+	const out = [];
+	/** @param {string} base @param {string} rel */
+	function walk(base, rel) {
+		for (const ent of readdirSync(join(base, rel), { withFileTypes: true })) {
+			const path = rel ? `${rel}/${ent.name}` : ent.name;
+			if (ent.isDirectory()) walk(base, path);
+			else out.push(path);
+		}
 	}
-	return readFileSync(indexPath).equals(readFileSync(distEntry));
+	walk(dir, '');
+	return out.sort().join('\n');
+}
+
+/** Entry index alone is not enough — esbuild chunk hashes drift while index stays copied. */
+function distMatchesSource(distDir) {
+	if (distDir === sourceDist) return true;
+	if (!existsSync(distEntry)) return false;
+	const indexPath = join(distDir, 'client/index.js');
+	if (!existsSync(indexPath)) return false;
+	if (!readFileSync(indexPath).equals(readFileSync(distEntry))) return false;
+	return listDistFiles(distDir) === listDistFiles(sourceDist);
 }
 
 function buildTrellis() {
@@ -37,13 +54,13 @@ function buildTrellis() {
 	}
 }
 
-/** @returns {string[]} */
-function linkedTrellisPackageDirs() {
+/** @param {string} root @returns {string[]} */
+function linkedTrellisPackageDirs(root) {
 	const dirs = [];
-	const direct = join(appRoot, 'node_modules/trellis');
+	const direct = join(root, 'node_modules/trellis');
 	if (existsSync(join(direct, 'package.json'))) dirs.push(direct);
 
-	const pnpmRoot = join(appRoot, 'node_modules/.pnpm');
+	const pnpmRoot = join(root, 'node_modules/.pnpm');
 	if (!existsSync(pnpmRoot)) return dirs;
 
 	for (const entry of readdirSync(pnpmRoot)) {
@@ -54,12 +71,12 @@ function linkedTrellisPackageDirs() {
 	return dirs;
 }
 
-function syncLinkedPackageJson() {
+function syncLinkedPackageJsonFor(appDir) {
 	const sourcePkg = join(trellisRoot, 'package.json');
 	if (!existsSync(sourcePkg)) return;
 	const source = readFileSync(sourcePkg);
 
-	for (const pkgDir of linkedTrellisPackageDirs()) {
+	for (const pkgDir of linkedTrellisPackageDirs(appDir)) {
 		const target = join(pkgDir, 'package.json');
 		if (!existsSync(target)) continue;
 		if (readFileSync(target).equals(source)) continue;
@@ -68,14 +85,25 @@ function syncLinkedPackageJson() {
 	}
 }
 
-function syncLinkedDist() {
-	for (const pkgDir of linkedTrellisPackageDirs()) {
+function syncLinkedPackageJson() {
+	syncLinkedPackageJsonFor(appRoot);
+	if (appRoot !== trellisRoot) syncLinkedPackageJsonFor(trellisRoot);
+}
+
+function syncLinkedDistFor(appDir) {
+	for (const pkgDir of linkedTrellisPackageDirs(appDir)) {
 		const target = join(pkgDir, 'dist');
-		if (target === sourceDist || distMatchesSource(target)) continue;
+		if (distMatchesSource(target)) continue;
 		console.log(`Syncing trellis dist → ${target}`);
 		rmSync(target, { recursive: true, force: true });
 		cpSync(sourceDist, target, { recursive: true });
 	}
+}
+
+function syncLinkedDist() {
+	syncLinkedDistFor(appRoot);
+	// Monorepo demos may resolve trellis via the repo-root pnpm store.
+	if (appRoot !== trellisRoot) syncLinkedDistFor(trellisRoot);
 }
 
 if (!existsSync(distEntry)) {
