@@ -1,67 +1,108 @@
 #!/usr/bin/env node
 /**
- * Idempotent framework seed via kernel (runs inside trellis-serve before HTTP starts).
+ * Idempotent Collections seed via kernel (runs inside trellis-serve before HTTP starts).
  */
 import { randomUUID } from 'node:crypto';
 
-const SEED_TITLES = ['svelte', 'sveltekit', 'solid', 'react', 'vue'];
-const SEED_TAGS = ['meta', 'ui', 'ssr'];
+const META_TYPE = 'CollectionMeta';
+const RECORD_TYPE = 'CollectionRecord';
+const META_PREFIX = 'collectionMeta:';
+const RECORD_PREFIX = 'collectionRecord:';
 
-function slugify(title) {
-	return title
-		.toLowerCase()
-		.trim()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-|-$/g, '');
-}
+const SEED_COLLECTIONS = [
+	{
+		id: `${META_PREFIX}ideas`,
+		title: 'Ideas',
+		slug: 'ideas',
+		icon: '💡',
+		color: '#0f62fe',
+		description: 'Rough concepts and sparks worth revisiting',
+		sortOrder: 0,
+		records: [
+			{ title: 'Fractal shell contract', body: 'One kernel, many vantages — representation vs version.' },
+			{ title: 'Collections before fractals', body: 'Ship the record type users will actually manage.' }
+		]
+	},
+	{
+		id: `${META_PREFIX}reading-list`,
+		title: 'Reading list',
+		slug: 'reading-list',
+		icon: '📚',
+		color: '#8a3ffc',
+		description: 'Articles, papers, and threads to read',
+		sortOrder: 1,
+		records: [
+			{ title: 'Local-first software', body: 'Martin Kleppmann — sync without owning user state.' },
+			{ title: 'Semantic web revisited', body: 'What stuck from RDF-era lessons for graph kernels.' }
+		]
+	},
+	{
+		id: `${META_PREFIX}ship-log`,
+		title: 'Ship log',
+		slug: 'ship-log',
+		icon: '🚀',
+		color: '#198038',
+		description: 'Milestones and demo wedges shipped',
+		sortOrder: 2,
+		records: [{ title: 'Typed SDK explorer', body: 'Graph nav + chat on entitiesStore + mutations.' }]
+	}
+];
 
 function factValue(entity, attribute) {
 	return entity.facts.find((fact) => fact.a === attribute)?.v;
 }
 
-export async function seedFrameworksKernel(kernel) {
-	const existing = kernel.listEntities('framework');
-	const mainSlugs = new Set(
-		existing
-			.filter((entity) => {
-				const lane = factValue(entity, 'laneId');
-				return lane == null || lane === '' || lane === 'main';
-			})
-			.map((entity) =>
-				String(factValue(entity, 'slug') ?? slugify(String(factValue(entity, 'title') ?? '')))
-			)
+export async function seedCollectionsKernel(kernel) {
+	const existingMeta = kernel.listEntities(META_TYPE);
+	const slugs = new Set(
+		existingMeta.map((entity) => String(factValue(entity, 'slug') ?? '')).filter(Boolean)
 	);
 
-	let created = 0;
-	for (let i = 0; i < SEED_TITLES.length; i++) {
-		const title = SEED_TITLES[i];
-		const slug = slugify(title);
-		if (mainSlugs.has(slug)) continue;
+	let metaCreated = 0;
+	let recordsCreated = 0;
 
-		await kernel.createEntity(`framework:${randomUUID()}`, 'framework', {
-			title,
-			slug,
-			sortOrder: i,
-			laneId: 'main'
-		});
-		created++;
+	for (const collection of SEED_COLLECTIONS) {
+		if (!slugs.has(collection.slug)) {
+			await kernel.createEntity(collection.id, META_TYPE, {
+				title: collection.title,
+				slug: collection.slug,
+				icon: collection.icon,
+				color: collection.color,
+				description: collection.description,
+				sortOrder: collection.sortOrder
+			});
+			metaCreated++;
+			slugs.add(collection.slug);
+		}
+
+		const existingRecords = kernel.listEntities(RECORD_TYPE);
+		const titlesForCollection = new Set(
+			existingRecords
+				.filter((entity) => factValue(entity, 'collectionId') === collection.id)
+				.map((entity) => String(factValue(entity, 'title') ?? ''))
+		);
+
+		for (let i = 0; i < collection.records.length; i++) {
+			const row = collection.records[i];
+			if (titlesForCollection.has(row.title)) continue;
+			await kernel.createEntity(`${RECORD_PREFIX}${randomUUID()}`, RECORD_TYPE, {
+				collectionId: collection.id,
+				title: row.title,
+				body: row.body,
+				sortOrder: i,
+				laneId: 'main'
+			});
+			recordsCreated++;
+		}
 	}
 
-	return created;
+	return { metaCreated, recordsCreated };
 }
 
-export async function seedTagsKernel(kernel) {
-	const existing = kernel.listEntities('tag');
-	const names = new Set(
-		existing.map((entity) => String(factValue(entity, 'name') ?? '')).filter(Boolean)
-	);
+/** @deprecated Use seedCollectionsKernel */
+export const seedCustomEntitiesKernel = seedCollectionsKernel;
 
-	let created = 0;
-	for (const name of SEED_TAGS) {
-		if (names.has(name)) continue;
-		await kernel.createEntity(`tag:${randomUUID()}`, 'tag', { name });
-		created++;
-	}
-
-	return created;
+/** @deprecated Tags removed from collections demo */
+export async function seedTagsKernel() {
+	return 0;
 }

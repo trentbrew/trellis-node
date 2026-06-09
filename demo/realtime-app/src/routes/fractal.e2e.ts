@@ -1,19 +1,23 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 
 const TRELLIS = process.env.TRELLIS_URL ?? 'http://localhost:3920';
+const DEFAULT_COLLECTION_ID = 'collectionMeta:ideas';
 
-async function createFramework(request: APIRequestContext, title: string, laneId = 'main') {
-	const created = await createFrameworkId(request, title, laneId);
+async function createRecord(request: APIRequestContext, title: string, laneId = 'main') {
+	const created = await createRecordId(request, title, laneId);
 	expect(created).toBeTruthy();
 }
 
-async function createFrameworkId(
+async function createRecordId(
 	request: APIRequestContext,
 	title: string,
 	laneId = 'main'
 ): Promise<string> {
 	const create = await request.post(`${TRELLIS}/entities`, {
-		data: { type: 'framework', attributes: { title, slug: title, laneId } }
+		data: {
+			type: 'CollectionRecord',
+			attributes: { title, collectionId: DEFAULT_COLLECTION_ID, laneId }
+		}
 	});
 	expect(create.ok()).toBeTruthy();
 	return (await create.json()).id as string;
@@ -33,19 +37,16 @@ test.describe('fractal wedge', () => {
 	}) => {
 		const title = `fractal-${Date.now()}`;
 		const edited = `${title}-edited`;
-		await createFramework(request, title);
+		await createRecord(request, title);
 
 		await gotoFractal(page);
 		await page.locator('select').selectOption({ label: title });
 
-		// Spectrum (2,5,8) + focus (8) = four shells, all showing the same kernel.
 		await expect(page.locator('[data-shell="node"]')).toHaveCount(1);
 		await expect(page.locator('[data-shell="row"]')).toHaveCount(1);
 		await expect(page.locator('[data-shell="card"]')).toHaveCount(2);
 		await expect(page.locator('[data-shell="row"] .name')).toHaveText(title);
 
-		// Edit the focus card; every other shell is a different subscriber to the
-		// same (id, lane) kernel, so they must update without a reload.
 		await page.locator('.edit-input').fill(edited);
 		await page.locator('.edit button', { hasText: 'Save' }).click();
 
@@ -58,14 +59,12 @@ test.describe('fractal wedge', () => {
 		request
 	}) => {
 		const title = `fractal-lane-${Date.now()}`;
-		await createFramework(request, title); // main only
+		await createRecord(request, title);
 
 		await gotoFractal(page);
 		await page.locator('select').selectOption({ label: title });
 		await expect(page.locator('[data-shell="row"] .name')).toHaveText(title);
 
-		// Switch to a lane where this id does not exist: representation persists,
-		// the kernel resolves to absent.
 		await page.getByRole('button', { name: 'agent:demo', exact: true }).click();
 		await expect(page.locator('.missing').first()).toContainText('not present in agent:demo', {
 			timeout: 5000
@@ -78,8 +77,8 @@ test.describe('fractal wedge', () => {
 	}) => {
 		const aTitle = `ct-main-${Date.now()}`;
 		const bTitle = `ct-demo-${Date.now()}`;
-		const aId = await createFrameworkId(request, aTitle, 'main');
-		const bId = await createFrameworkId(request, bTitle, 'agent:demo');
+		const aId = await createRecordId(request, aTitle, 'main');
+		const bId = await createRecordId(request, bTitle, 'agent:demo');
 
 		await page.goto(`/fractal?ctA=${encodeURIComponent(aId)}&ctB=${encodeURIComponent(bId)}`);
 		await expect(page.getByTestId('fractal-app')).toHaveAttribute('data-hydrated', 'true', {
@@ -89,7 +88,6 @@ test.describe('fractal wedge', () => {
 		const shellA = page.locator(`.thing[data-thing-id="${aId}"]`);
 		const shellB = page.locator(`.thing[data-thing-id="${bId}"]`);
 
-		// A: main @ vantage 2 (node). B: agent:demo @ vantage 13 (card). Mixed on both axes.
 		await expect(shellA).toHaveAttribute('data-shell', 'node');
 		await expect(shellA).toHaveAttribute('data-lane', 'main');
 		await expect(shellA.locator('.name')).toHaveText(aTitle);
@@ -97,8 +95,6 @@ test.describe('fractal wedge', () => {
 		await expect(shellB).toHaveAttribute('data-lane', 'agent:demo');
 		await expect(shellB.locator('.name')).toHaveText(bTitle);
 
-		// Edit B (agent:demo, vantage 13). Measure: B updates; A (main, vantage 2) is
-		// untouched in value AND representation — no lane/vantage cross-leak.
 		const bEdited = `${bTitle}-edited`;
 		await shellB.locator('.edit-input').fill(bEdited);
 		await shellB.locator('.edit button', { hasText: 'Save' }).click();

@@ -1,3 +1,10 @@
+---
+title: The Five Pillars of TrellisVCS
+description: The causal stream, semantic patching, narrative milestones, governance subgraph, and idea garden.
+created: 2026-05-30
+updated: 2026-05-30
+---
+
 # The Five Pillars of TrellisVCS
 
 ## 1. The Causal Stream

@@ -1,3 +1,10 @@
+---
+title: Trellis Agent Skills
+description: Reusable AI agent skills and behaviors for interacting with the Trellis knowledge graph and VCS engine.
+created: 2026-05-30
+updated: 2026-05-30
+---
+
 # Trellis Agent Skills
 
 Reusable AI agent skills and behaviors for interacting with **Trellis** — the local-first Agentic State Engine.

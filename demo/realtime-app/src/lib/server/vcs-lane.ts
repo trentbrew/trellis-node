@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { QueryEngine, parseSimple } from 'trellis/core';
 import { TrellisVcsEngine } from 'trellis';
@@ -14,24 +14,13 @@ import {
 	type VcsOpKind
 } from 'trellis/vcs';
 import {
-	FRAMEWORKS_QUERY,
-	fromGraphRow,
-	slugify,
-	sortFrameworks,
-	type Framework
-} from '$lib/schemas/framework';
-import {
-	groupTagsByFramework,
-	TAG_ASSIGNMENTS_QUERY,
-	TAG_ASSIGNMENT_TYPE,
-	type FrameworkTag
-} from '$lib/schemas/tagged';
+	COLLECTION_RECORDS_QUERY,
+	fromRecordRow,
+	recordIdPrefix,
+	sortRecords,
+	type CollectionRecord
+} from '$lib/schemas/collection';
 import { entityLaneId, filterByLane, isAgentLane, MAIN_LANE, type LaneId } from '$lib/trellis/lane';
-
-export type MaterializedFramework = Framework & {
-	tags: FrameworkTag[];
-	tagCount: number;
-};
 
 const PROJECT_ROOT = resolve('.');
 const TRELLIS_DIR = resolve(PROJECT_ROOT, '.trellis');
@@ -66,8 +55,8 @@ export function listMappedAppLanes(): LaneId[] {
 	return Object.keys(readLaneMap()) as LaneId[];
 }
 
-export function createDraftFrameworkId(): string {
-	return `framework:${randomUUID()}`;
+export function createDraftRecordId(): string {
+	return `${recordIdPrefix()}${randomUUID()}`;
 }
 
 export function laneJournalOpsPath(vcsLaneId: string): string {
@@ -134,67 +123,40 @@ async function appendLaneOp(
 	updateLaneHead(TRELLIS_DIR, vcsLaneId, op.hash);
 }
 
-export async function journalFrameworkCreate(
+export async function journalRecordCreate(
 	appLaneId: LaneId,
-	entityId: string,
+	recordId: string,
 	attributes: Record<string, unknown>
 ): Promise<void> {
 	const vcsLaneId = await ensureVcsLane(appLaneId);
 	if (!vcsLaneId) return;
 
 	const facts = [
-		{ e: entityId, a: 'type', v: 'framework' },
-		...Object.entries(attributes).map(([a, v]) => ({ e: entityId, a, v }))
+		{ e: recordId, a: 'type', v: 'CollectionRecord' },
+		...Object.entries(attributes).map(([a, v]) => ({ e: recordId, a, v }))
 	];
 
 	await appendLaneOp(vcsLaneId, 'vcs:storeAssert', { facts, laneId: vcsLaneId } as VcsOp['vcs']);
 }
 
-export async function journalFrameworkUpdate(
+export async function journalRecordUpdate(
 	appLaneId: LaneId,
-	entityId: string,
+	recordId: string,
 	attributes: Record<string, unknown>
 ): Promise<void> {
 	const vcsLaneId = resolveVcsLaneId(appLaneId);
 	if (!vcsLaneId) return;
 
-	const facts = Object.entries(attributes).map(([a, v]) => ({ e: entityId, a, v }));
+	const facts = Object.entries(attributes).map(([a, v]) => ({ e: recordId, a, v }));
 	await appendLaneOp(vcsLaneId, 'vcs:storeAssert', { facts, laneId: vcsLaneId } as VcsOp['vcs']);
 }
 
-export async function journalTagLink(
-	appLaneId: LaneId,
-	frameworkId: string,
-	tagId: string,
-	op: 'add' | 'remove'
-): Promise<void> {
-	const vcsLaneId = resolveVcsLaneId(appLaneId) ?? (await ensureVcsLane(appLaneId));
-	if (!vcsLaneId) return;
-
-	const assignmentId = tagAssignmentJournalId(frameworkId, tagId);
-	const facts = [
-		{ e: assignmentId, a: 'type', v: TAG_ASSIGNMENT_TYPE },
-		{ e: assignmentId, a: 'frameworkId', v: frameworkId },
-		{ e: assignmentId, a: 'tagId', v: tagId }
-	];
-
-	await appendLaneOp(vcsLaneId, op === 'add' ? 'vcs:storeAssert' : 'vcs:storeRetract', {
-		facts,
-		laneId: vcsLaneId
-	});
-}
-
-function tagAssignmentJournalId(frameworkId: string, tagId: string): string {
-	const hash = createHash('sha256').update(`${frameworkId}\0${tagId}`).digest('hex').slice(0, 32);
-	return `framework-tag:${hash}`;
-}
-
-export async function journalFrameworkDelete(appLaneId: LaneId, entityId: string): Promise<void> {
+export async function journalRecordDelete(appLaneId: LaneId, recordId: string): Promise<void> {
 	const vcsLaneId = resolveVcsLaneId(appLaneId);
 	if (!vcsLaneId) return;
 
 	await appendLaneOp(vcsLaneId, 'vcs:storeRetract', {
-		facts: [{ e: entityId, a: 'type', v: 'framework' }],
+		facts: [{ e: recordId, a: 'type', v: 'CollectionRecord' }],
 		laneId: vcsLaneId
 	});
 }
@@ -248,14 +210,7 @@ export async function getVcsLaneStatus(appLaneId: LaneId): Promise<VcsLaneStatus
 	};
 }
 
-/** Materialized lane overlay — integration replay + lane journal via TrellisVcsEngine. */
-export async function materializeLaneFrameworks(appLaneId: LaneId): Promise<Framework[]> {
-	const view = await materializeLaneView(appLaneId);
-	return view.map(({ tags: _tags, ...framework }) => framework);
-}
-
-/** Frameworks + tag assignment entities from the materialized lane store. */
-export async function materializeLaneView(appLaneId: LaneId): Promise<MaterializedFramework[]> {
+export async function materializeLaneView(appLaneId: LaneId): Promise<CollectionRecord[]> {
 	const vcsLaneId = resolveVcsLaneId(appLaneId);
 	if (!vcsLaneId) return [];
 
@@ -265,20 +220,11 @@ export async function materializeLaneView(appLaneId: LaneId): Promise<Materializ
 	try {
 		const store = vcs.getStore();
 		const queryEngine = new QueryEngine(store);
-
-		const frameworkResult = queryEngine.execute(parseSimple(FRAMEWORKS_QUERY));
-		const items = sortFrameworks(
-			frameworkResult.bindings.map((row) => fromGraphRow(row)).filter((item) => item.id)
+		const result = queryEngine.execute(parseSimple(COLLECTION_RECORDS_QUERY));
+		const items = sortRecords(
+			result.bindings.map((row) => fromRecordRow(row)).filter((item) => item.id)
 		);
-		const filtered = filterByLane(items, appLaneId);
-
-		const tagResult = queryEngine.execute(parseSimple(TAG_ASSIGNMENTS_QUERY));
-		const tagMap = groupTagsByFramework(tagResult.bindings);
-
-		return filtered.map((item) => {
-			const tags = tagMap.get(item.id) ?? [];
-			return { ...item, tags, tagCount: tags.length };
-		});
+		return filterByLane(items, appLaneId);
 	} finally {
 		await vcs.leaveLane();
 	}
@@ -289,7 +235,7 @@ export type LaneJournalSubscription = { unsubscribe(): void };
 /** Watch lane journal file + poll head hash for `query.live` on agent lanes. */
 export function subscribeLaneJournal(
 	appLaneId: LaneId,
-	onUpdate: (frameworks: MaterializedFramework[]) => void
+	onUpdate: (items: CollectionRecord[]) => void
 ): LaneJournalSubscription {
 	let watcher: FSWatcher | null = null;
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -298,8 +244,7 @@ export function subscribeLaneJournal(
 
 	const emit = async () => {
 		if (closed) return;
-		const items = await materializeLaneView(appLaneId);
-		onUpdate(items);
+		onUpdate(await materializeLaneView(appLaneId));
 	};
 
 	const attach = () => {
@@ -344,12 +289,13 @@ export function subscribeLaneJournal(
 	};
 }
 
-export function frameworkJournalAttributes(framework: Framework): Record<string, unknown> {
+export function recordJournalAttributes(record: CollectionRecord): Record<string, unknown> {
 	return {
-		title: framework.title,
-		slug: framework.slug ?? slugify(framework.title),
-		sortOrder: framework.sortOrder,
-		laneId: entityLaneId(framework)
+		collectionId: record.collectionId,
+		title: record.title,
+		body: record.body,
+		sortOrder: record.sortOrder,
+		laneId: entityLaneId(record)
 	};
 }
 

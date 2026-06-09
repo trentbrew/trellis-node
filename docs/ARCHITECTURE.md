@@ -1,3 +1,10 @@
+---
+title: Trellis Architecture
+description: How Trellis is organized around a local-first runtime core with optional compatibility adapters.
+created: 2026-05-30
+updated: 2026-05-30
+---
+
 # Trellis Architecture
 
 Trellis is organized around a local-first runtime core with optional compatibility adapters.

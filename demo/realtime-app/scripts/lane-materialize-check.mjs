@@ -30,16 +30,16 @@ if (!vcsLaneId) {
 	process.exit(1);
 }
 
-const FRAMEWORKS_QUERY = `SELECT ?e ?title ?laneId
+const RECORDS_QUERY = `SELECT ?e ?title ?laneId
 WHERE {
-  [?e "type" "framework"]
+  [?e "type" "CollectionRecord"]
   [?e "title" ?title]
 }`;
 
-function listMaterializedFrameworks(vcs, lane) {
+function listMaterializedRecords(vcs, lane) {
 	return vcs.enterLane(vcsLaneId).then(() => {
 		const engine = new QueryEngine(vcs.getStore());
-		const parsed = parseSimple(FRAMEWORKS_QUERY);
+		const parsed = parseSimple(RECORDS_QUERY);
 		const result = engine.execute(parsed);
 		const items = result.bindings.map((row) => ({
 			title: String(row['?title'] ?? row.title ?? ''),
@@ -60,12 +60,12 @@ const meta = loadLaneMeta(resolve(appRoot, '.trellis'), vcsLaneId);
 const laneLog = new LaneOpLog(laneDir(resolve(appRoot, '.trellis'), vcsLaneId));
 laneLog.load();
 
-const [materialized] = await Promise.all([listMaterializedFrameworks(vcs, appLane)]);
+const [materialized] = await Promise.all([listMaterializedRecords(vcs, appLane)]);
 
 console.log(
 	`Lane ${appLane} → VCS ${vcsLaneId} (${meta?.status ?? 'unknown'}, ${laneLog.count()} journal op(s))`
 );
-console.log(`Materialized:  ${materialized.length} framework(s)`);
+console.log(`Materialized:  ${materialized.length} collection record(s)`);
 
 if (materialized.length === 0 && laneLog.count() === 0) {
 	console.log('✓ Empty lane journal');
@@ -73,10 +73,10 @@ if (materialized.length === 0 && laneLog.count() === 0) {
 }
 
 if (materialized.length > 0) {
-	console.log('✓ Materialized overlay has draft framework(s)');
+	console.log('✓ Materialized overlay has draft collection record(s)');
 	console.log('  Titles:', materialized.map((item) => item.title).join(', '));
 	process.exit(0);
 }
 
-console.error('Journal has ops but materialization returned no frameworks');
+console.error('Journal has ops but materialization returned no collection records');
 process.exit(1);

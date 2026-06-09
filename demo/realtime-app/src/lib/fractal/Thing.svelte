@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getThing, updateFramework } from '../../routes/data.remote';
+	import { getThing, updateCollectionRecordForm } from '../../routes/data.remote';
 	import { submitWithoutReset } from '$lib/trellis/forms';
 	import { resolveShell, vantageLabel } from './shells';
 
@@ -16,7 +16,7 @@
 	// server — it is purely a representation concern handled below in CSS.
 	const thing = $derived(getThing({ id, lane }));
 	const shell = $derived(resolveShell(vantage));
-	const update = $derived(updateFramework.for(id));
+	const update = $derived(updateCollectionRecordForm.for(id));
 </script>
 
 <div
@@ -34,7 +34,7 @@
 	{#if await thing}
 		{@const value = (await thing)!}
 		<span class="name">{value.title}</span>
-		<span class="slug">{value.slug ?? value.id}</span>
+		<span class="slug">{value.collectionId}</span>
 		<span class="lane-badge">{value.laneId}</span>
 
 		{#if shell === 'card' && editable}

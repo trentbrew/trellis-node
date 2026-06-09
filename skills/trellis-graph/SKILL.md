@@ -6,6 +6,8 @@ description: >
   using the TQL Graph API via MCP tools. Use this skill whenever the user asks
   you to interact with their Trellis data, create entities, query the graph,
   or manage relationships between entities.
+created: 2026-05-30
+updated: 2026-05-30
 ---
 
 # Trellis Graph Skill

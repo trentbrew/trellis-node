@@ -1,3 +1,10 @@
+---
+title: Trellis
+description: The Agentic Framework — a local-first semantic graph OS for code, agents, and decisions.
+created: 2026-05-30
+updated: 2026-06-05
+---
+
 # Trellis
 
 > **The Agentic Framework**

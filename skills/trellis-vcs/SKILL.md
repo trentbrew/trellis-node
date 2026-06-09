@@ -6,6 +6,8 @@ description: >
   semantic AST-level diffs using the Trellis CLI. Use this skill when working
   inside a Trellis-enabled workspace or repository, context-switching between issues,
   tracking changes, or checking the state of a project.
+created: 2026-05-30
+updated: 2026-05-30
 ---
 
 # TrellisVCS Skill

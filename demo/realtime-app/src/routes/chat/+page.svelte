@@ -1,19 +1,35 @@
 <script lang="ts">
+	import { onDestroy, onMount } from 'svelte';
 	import { tick } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
 	import { page } from '$app/state';
 	import SendAlt from 'carbon-icons-svelte/lib/SendAlt.svelte';
+	import { TrellisDb } from 'trellis/client/sdk';
 	import { createRoom } from 'trellis/svelte';
+	import { entitiesStore, mutations } from 'trellis/svelte/typed';
 	import { joinPresence } from 'trellis/realtime';
 	import { createTypingTracker, formatTyping, type TypingPeer } from '$lib/chat/typing';
-	import { getMessages, sendMessage } from '../chat.remote';
+	import { bootstrapExplorerSchemas, trellisClientUrl } from '$lib/trellis/bootstrap-schemas';
+	import { ChatMessageType, sortMessages, type ChatMessage } from '$lib/schemas/chat';
 	import { identity } from '$lib/presence/identity.svelte';
 	import LiveIndicator from '$lib/ui/LiveIndicator.svelte';
 
 	const RELAY_URL = import.meta.env.VITE_PRESENCE_RELAY_URL as string | undefined;
 
+	const client = new TrellisDb({ url: trellisClientUrl() });
+	const messageMut = mutations(client, ChatMessageType);
+
 	const room = $derived(page.url.searchParams.get('room')?.trim() || 'lobby');
-	const messages = $derived(getMessages({ room }));
+
+	let ready = $state(false);
+	let messages = $state<{ data: ChatMessage[]; loading: boolean; error: Error | null }>({
+		data: [],
+		loading: true,
+		error: null
+	});
+
+	const connected = $derived(!messages.loading && !messages.error);
+	const sortedMessages = $derived(sortMessages(messages.data));
 
 	let draft = $state('');
 	let sending = $state(false);
@@ -31,6 +47,27 @@
 		await tick();
 		if (scroller) scroller.scrollTop = scroller.scrollHeight;
 	}
+
+	onMount(() => {
+		bootstrapExplorerSchemas(client)
+			.then(() => {
+				ready = true;
+			})
+			.catch(() => {
+				ready = true;
+			});
+	});
+
+	onDestroy(() => client.disconnect());
+
+	$effect(() => {
+		if (!ready) return;
+		const roomKey = room;
+		const store = entitiesStore(client, ChatMessageType, { where: { room: roomKey } });
+		return store.subscribe((value) => {
+			messages = value;
+		});
+	});
 
 	$effect(() => {
 		const roomKey = room;
@@ -61,22 +98,25 @@
 	});
 
 	$effect(() => {
-		const stream = messages;
-		void (async () => {
-			await stream;
-			await scrollToBottom();
-		})();
+		void sortedMessages;
+		void scrollToBottom();
 	});
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		const text = draft.trim();
-		if (!text || sending) return;
+		if (!text || sending || !ready) return;
 		sending = true;
 		draft = '';
 		typingTracker?.stop();
 		try {
-			await sendMessage({ room, author: identity.name, color: identity.color, text });
+			await messageMut.create({
+				room,
+				author: identity.name,
+				color: identity.color,
+				text,
+				createdAt: Date.now()
+			});
 		} finally {
 			sending = false;
 		}
@@ -89,18 +129,22 @@
 			<h1 class="carbon-section-title">Chat room</h1>
 			<p class="text-sm text-carbon-text-secondary">
 				Room <code>{room}</code> · durable & ordered. Messages persist in the graph and stream to every
-				open tab.
+				open tab via typed <code>entitiesStore</code>.
 			</p>
 		</div>
-		<LiveIndicator connected={messages.connected} />
+		<LiveIndicator {connected} />
 	</div>
+
+	{#if messages.error}
+		<p class="text-sm text-red-400" role="alert">{messages.error.message}</p>
+	{/if}
 
 	<ul
 		{@attach captureScroller}
 		class="bg-carbon-panel min-h-0 flex-1 space-y-3 overflow-y-auto border border-carbon-border p-4"
 		data-testid="chat-log"
 	>
-		{#each await messages as message (message.id)}
+		{#each sortedMessages as message (message.id)}
 			{@const mine = message.author === identity.name}
 			<li class="flex gap-2" class:flex-row-reverse={mine} data-testid="chat-message">
 				<span
@@ -126,7 +170,9 @@
 				</div>
 			</li>
 		{:else}
-			<li class="text-sm text-carbon-text-secondary">No messages yet — say hello.</li>
+			<li class="text-sm text-carbon-text-secondary">
+				{messages.loading ? 'Loading messages…' : 'No messages yet — say hello.'}
+			</li>
 		{/each}
 	</ul>
 
@@ -147,12 +193,17 @@
 			placeholder="Message {room}…"
 			autocomplete="off"
 			maxlength="2000"
+			disabled={!ready}
 			oninput={() => {
 				if (draft.trim()) typingTracker?.ping();
 				else typingTracker?.stop();
 			}}
 		/>
-		<button type="submit" class="carbon-btn-primary" disabled={sending || !draft.trim()}>
+		<button
+			type="submit"
+			class="carbon-btn-primary"
+			disabled={sending || !draft.trim() || !ready}
+		>
 			<SendAlt size={16} />
 			Send
 		</button>

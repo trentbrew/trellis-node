@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 
 const DEMO_ROUTES = [
-	{ label: 'Frameworks', href: '/', order: 0 },
+	{ label: 'Collections', href: '/', order: 0 },
 	{ label: 'Fractal', href: '/fractal', order: 1 },
 	{ label: 'Cursors', href: '/presence', order: 2 },
 	{ label: 'Chat', href: '/chat', order: 3 },
@@ -123,6 +123,16 @@ export async function seedNavKernel(kernel) {
 		const explore =
 			sections.find((s) => factValue(s, 'label') === 'Explore') ?? sections[0];
 		sectionId = explore.id;
+	}
+
+	for (const entity of items) {
+		const href = String(factValue(entity, 'href') ?? '');
+		if (href === '/') {
+			const label = String(factValue(entity, 'label') ?? '');
+			if (label !== 'Collections') {
+				await kernel.updateEntity(entity.id, { label: 'Collections' });
+			}
+		}
 	}
 
 	let created = 0;

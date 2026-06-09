@@ -12,7 +12,7 @@
 		"trellis:init": "node scripts/ensure-trellis-build.mjs && node scripts/trellis-init.mjs",
 		"trellis:seed": "node scripts/trellis-seed.mjs",
 		"trellis:dedupe": "node scripts/trellis-dedupe.mjs",
-		"trellis:ontology": "node scripts/register-framework-ontology.mjs",
+		"trellis:ontology": "node scripts/register-collection-ontology.mjs",
 		"trellis:vcs-init": "node scripts/trellis-vcs-init.mjs",
 		"lane:check": "node scripts/lane-materialize-check.mjs",
 		"trellis:serve": "node scripts/trellis-serve.mjs",

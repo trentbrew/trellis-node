@@ -1,3 +1,10 @@
+---
+title: TrellisVCS Architecture Design
+description: Design document for the TrellisVCS subsystem — causal streams, branches, milestones, and merge.
+created: 2026-05-30
+updated: 2026-05-30
+---
+
 # TrellisVCS: Architecture Design
 
 **Version:** 0.1.0-draft

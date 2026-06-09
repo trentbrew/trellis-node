@@ -1,3 +1,10 @@
+---
+title: The Story — Why Trellis Exists
+description: Trellis is a structured runtime for the agentic era — the system of record for decisions.
+created: 2026-05-30
+updated: 2026-05-30
+---
+
 # The Story: Why Trellis Exists
 
 > Trellis is not a better database. It's a structured runtime for the agentic era—the system of record for **decisions**, providing agents with the memory they need to act, learn, and explain themselves.

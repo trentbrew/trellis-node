@@ -4,7 +4,7 @@
 	import { Select, Slider, ToggleGroup } from 'bits-ui';
 	import ChevronDown from 'carbon-icons-svelte/lib/ChevronDown.svelte';
 	import Checkmark from 'carbon-icons-svelte/lib/Checkmark.svelte';
-	import { getFrameworks } from '../data.remote';
+	import { getCustomEntities } from '../data.remote';
 	import Thing from '$lib/fractal/Thing.svelte';
 	import LiveIndicator from '$lib/ui/LiveIndicator.svelte';
 
@@ -12,7 +12,7 @@
 	let vantage = $state(8);
 	let selectedId = $state<string | null>(null);
 
-	const frameworks = $derived(getFrameworks({ lane }));
+	const entities = $derived(getCustomEntities({ lane }));
 
 	const ctA = $derived(page.url.searchParams.get('ctA'));
 	const ctB = $derived(page.url.searchParams.get('ctB'));
@@ -37,7 +37,7 @@
 				kernel — edit the card and watch the others move.
 			</p>
 		</div>
-		<LiveIndicator connected={frameworks.connected} />
+		<LiveIndicator connected={entities.connected} />
 	</header>
 
 	<section class="flex flex-wrap items-end gap-6 border-b border-carbon-border pb-4">
@@ -54,7 +54,7 @@
 
 		<div class="space-y-1">
 			<p class="carbon-label">Thing (identity)</p>
-			{#await frameworks then list}
+			{#await entities then list}
 				{@const items = list.map((f) => ({ value: f.id, label: f.title }))}
 				<Select.Root
 					type="single"
@@ -104,8 +104,8 @@
 		</div>
 	</section>
 
-	{#if await frameworks}
-		{@const list = await frameworks}
+	{#if await entities}
+		{@const list = await entities}
 		{@const effectiveId = selectedId ?? list[0]?.id ?? null}
 		{#if effectiveId}
 			<section class="space-y-3">

@@ -45,19 +45,19 @@ async function api(config, method, path, body) {
 }
 
 const config = readConfig();
-const list = await api(config, 'GET', '/entities?type=framework&limit=500');
+const list = await api(config, 'GET', '/entities?type=CollectionRecord&limit=500');
 const entities = list.data ?? [];
 
-const bySlug = new Map();
+const byKey = new Map();
 for (const entity of entities) {
-	const slug = String(entity.slug ?? slugify(String(entity.title ?? entity.id)));
-	const group = bySlug.get(slug) ?? [];
+	const key = `${entity.collectionId ?? ''}:${entity.title ?? entity.id}`;
+	const group = byKey.get(key) ?? [];
 	group.push(entity);
-	bySlug.set(slug, group);
+	byKey.set(key, group);
 }
 
 let removed = 0;
-for (const [, group] of bySlug) {
+for (const [, group] of byKey) {
 	if (group.length <= 1) continue;
 	group.sort((a, b) => String(a.createdAt ?? a.id).localeCompare(String(b.createdAt ?? b.id)));
 	for (const duplicate of group.slice(1)) {
@@ -66,4 +66,4 @@ for (const [, group] of bySlug) {
 	}
 }
 
-console.log(removed ? `✓ Removed ${removed} duplicate framework(s)` : '✓ No duplicates found');
+console.log(removed ? `✓ Removed ${removed} duplicate collection record(s)` : '✓ No duplicates found');

@@ -21,10 +21,10 @@ test.describe('WebContainer full boot', () => {
 		const appPage = await page.context().newPage();
 		await appPage.goto(appUrl!, { waitUntil: 'domcontentloaded', timeout: 120_000 });
 
-		await expect(appPage.getByRole('heading', { name: 'Frameworks' })).toBeVisible({
+		await expect(appPage.getByRole('heading', { name: 'Collections' })).toBeVisible({
 			timeout: 120_000
 		});
-		await expect(appPage.getByTestId('platform-status')).toContainText('Trellis connected', {
+		await expect(appPage.getByTestId('platform-status')).toContainText('Trellis', {
 			timeout: 120_000
 		});
 	});

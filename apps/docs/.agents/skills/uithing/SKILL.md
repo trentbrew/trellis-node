@@ -1,6 +1,8 @@
 ---
 name: uithing
 description: Manages UI Thing components, prose, blocks, themes, shortcuts, docs, and MCP-driven workflows in Nuxt projects and in the UI Thing source repo. Use when working with `ui-thing` CLI commands like `ui-thing init`, `ui-thing add`, `ui-thing prose`, `ui-thing block`, or `ui-thing theme`; when editing `app/components/Ui`, docs, generators, or generated registries; or when converting pasted React/shadcn code into native Vue/Nuxt UI Thing components.
+created: 2026-05-30
+updated: 2026-05-30
 ---
 
 # UI Thing

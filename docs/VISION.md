@@ -1,3 +1,10 @@
+---
+title: Trellis Vision
+description: The north-star vision for Trellis as a local-first semantic graph OS.
+created: 2026-05-30
+updated: 2026-05-30
+---
+
 # Trellis Vision
 
 > The semantic web was right. Just at the wrong scale.

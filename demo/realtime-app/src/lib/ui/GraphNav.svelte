@@ -3,10 +3,10 @@
 	import { TrellisDb } from 'trellis/client/sdk';
 	import { entitiesStore, mutations } from 'trellis/svelte/typed';
 	import {
-		bootstrapGraphNav,
+		bootstrapExplorerSchemas,
 		byOrder,
 		trellisClientUrl
-	} from '$lib/trellis/bootstrap-nav';
+	} from '$lib/trellis/bootstrap-schemas';
 	import { NavSection, type NavSectionLoaded } from '$lib/schemas/nav';
 	import NavSectionBlock from '$lib/ui/NavSectionBlock.svelte';
 
@@ -18,7 +18,7 @@
 	let failed = $state(false);
 
 	const FALLBACK = [
-		{ href: '/', label: 'Frameworks' },
+		{ href: '/', label: 'Collections' },
 		{ href: '/fractal', label: 'Fractal' },
 		{ href: '/presence', label: 'Cursors' },
 		{ href: '/chat', label: 'Chat' },
@@ -26,7 +26,7 @@
 	];
 
 	onMount(() => {
-		bootstrapGraphNav(client)
+		bootstrapExplorerSchemas(client)
 			.then(() => {
 				ready = true;
 			})

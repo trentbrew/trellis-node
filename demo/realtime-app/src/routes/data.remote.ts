@@ -1,43 +1,35 @@
 import { error } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
 import {
-	AddFrameworkInput,
 	DiscardLaneInput,
 	LaneQueryInput,
 	PromoteLaneInput,
-	RemoveFrameworkInput,
 	ThingQueryInput,
-	UpdateFrameworkInput
-} from '$lib/schemas/framework';
-import { ToggleFrameworkTagInput } from '$lib/schemas/tagged';
-import { assignTag, unassignTag } from '$lib/server/framework-tags';
-import { journalTagLink, usesJournalLane } from '$lib/server/vcs-lane';
+	UpdateCollectionRecordInput
+} from '$lib/schemas/collection';
 import {
 	assertTrellisConfigured,
-	refreshAfterEntityMutation,
 	refreshAfterLaneMutation,
 	runLiveQueryStream
 } from '$lib/trellis';
 import { MAIN_LANE, normalizeLaneId } from '$lib/trellis/lane';
 import {
-	createFramework,
-	deleteFrameworkRecord,
 	discardLane,
-	findFramework,
-	listFrameworks,
+	findCollectionRecord,
+	listCollectionRecords,
 	promoteLane,
-	subscribeFrameworks,
-	updateFrameworkRecord
-} from '$lib/server/trellis';
+	subscribeCollectionRecords,
+	updateCollectionRecord
+} from '$lib/server/records';
 
-export const getFrameworks = query.live(LaneQueryInput, async function* ({ lane }) {
+export const getCollectionRecords = query.live(LaneQueryInput, async function* ({ lane }) {
 	assertTrellisConfigured();
 	const laneId = normalizeLaneId(lane);
 
 	try {
 		yield* runLiveQueryStream({
-			load: () => listFrameworks(laneId),
-			subscribe: (onUpdate) => subscribeFrameworks(laneId, onUpdate)
+			load: () => listCollectionRecords(laneId),
+			subscribe: (onUpdate) => subscribeCollectionRecords(laneId, onUpdate)
 		});
 	} catch (e) {
 		if (e && typeof e === 'object' && 'status' in e) throw e;
@@ -45,10 +37,12 @@ export const getFrameworks = query.live(LaneQueryInput, async function* ({ lane 
 	}
 });
 
+/** @deprecated Use getCollectionRecords */
+export const getCustomEntities = getCollectionRecords;
+
 /**
- * Single-Thing live query — the fractal kernel. Keyed by (id, lane), so the same
- * Thing rendered at multiple vantages shares one stream. Lane is the version axis;
- * the same id resolves to a different value per lane.
+ * Single-Thing live query — fractal kernel. Keyed by (id, lane), so the same
+ * record rendered at multiple vantages shares one stream.
  */
 export const getThing = query.live(ThingQueryInput, async function* ({ id, lane }) {
 	assertTrellisConfigured();
@@ -56,9 +50,9 @@ export const getThing = query.live(ThingQueryInput, async function* ({ id, lane 
 
 	try {
 		yield* runLiveQueryStream({
-			load: async () => (await listFrameworks(laneId)).find((item) => item.id === id) ?? null,
+			load: async () => (await listCollectionRecords(laneId)).find((item) => item.id === id) ?? null,
 			subscribe: (onUpdate) =>
-				subscribeFrameworks(laneId, (items) =>
+				subscribeCollectionRecords(laneId, (items) =>
 					onUpdate(items.find((item) => item.id === id) ?? null)
 				)
 		});
@@ -68,34 +62,22 @@ export const getThing = query.live(ThingQueryInput, async function* ({ id, lane 
 	}
 });
 
-export const addFramework = form(AddFrameworkInput, async ({ title, lane }) => {
+export const updateCollectionRecordForm = form(UpdateCollectionRecordInput, async ({ id, title }) => {
 	assertTrellisConfigured();
-	await createFramework(title, { laneId: normalizeLaneId(lane) });
-	await refreshAfterLaneMutation(getFrameworks, lane);
+	const existing = await findCollectionRecord(id);
+	await updateCollectionRecord(id, title);
+	await refreshAfterLaneMutation(getCollectionRecords, existing?.lane ?? MAIN_LANE);
 	return { success: true };
 });
 
-export const removeFramework = form(RemoveFrameworkInput, async ({ id }) => {
-	assertTrellisConfigured();
-	const existing = await findFramework(id);
-	await deleteFrameworkRecord(id);
-	await refreshAfterEntityMutation(getFrameworks, existing ? existing.lane : MAIN_LANE);
-	return { success: true };
-});
-
-export const updateFramework = form(UpdateFrameworkInput, async ({ id, title }) => {
-	assertTrellisConfigured();
-	const existing = await findFramework(id);
-	await updateFrameworkRecord(id, title);
-	await refreshAfterEntityMutation(getFrameworks, existing ? existing.lane : MAIN_LANE);
-	return { success: true };
-});
+/** @deprecated Use updateCollectionRecordForm */
+export const updateCustomEntity = updateCollectionRecordForm;
 
 export const promoteLaneDrafts = command(PromoteLaneInput, async ({ lane }) => {
 	assertTrellisConfigured();
 	const laneId = normalizeLaneId(lane);
 	const result = await promoteLane(laneId);
-	await refreshAfterLaneMutation(getFrameworks, lane);
+	await refreshAfterLaneMutation(getCollectionRecords, lane);
 	return result;
 });
 
@@ -103,26 +85,6 @@ export const discardLaneDrafts = command(DiscardLaneInput, async ({ lane }) => {
 	assertTrellisConfigured();
 	const laneId = normalizeLaneId(lane);
 	const result = await discardLane(laneId);
-	await refreshAfterLaneMutation(getFrameworks, lane);
+	await refreshAfterLaneMutation(getCollectionRecords, lane);
 	return result;
 });
-
-export const toggleFrameworkTag = command(
-	ToggleFrameworkTagInput,
-	async ({ frameworkId, tagId, assign }) => {
-		assertTrellisConfigured();
-		const existing = await findFramework(frameworkId);
-		const lane = existing?.lane ?? MAIN_LANE;
-
-		if (usesJournalLane(lane)) {
-			await journalTagLink(lane, frameworkId, tagId, assign ? 'add' : 'remove');
-		} else if (assign) {
-			await assignTag(frameworkId, tagId);
-		} else {
-			await unassignTag(frameworkId, tagId);
-		}
-
-		await refreshAfterEntityMutation(getFrameworks, lane);
-		return { success: true };
-	}
-);

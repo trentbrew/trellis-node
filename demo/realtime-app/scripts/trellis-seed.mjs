@@ -1,17 +1,28 @@
 #!/usr/bin/env node
 /**
- * Seed demo frameworks once (idempotent by slug). Run after trellis:init.
+ * Seed demo collections once (idempotent). Run after trellis:init.
  *
  *   pnpm trellis:seed
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(__dirname, '..');
 
-const SEED_TITLES = ['svelte', 'sveltekit', 'solid', 'react', 'vue'];
+const SEED_COLLECTIONS = [
+	{
+		id: 'collectionMeta:ideas',
+		title: 'Ideas',
+		slug: 'ideas',
+		icon: '💡',
+		color: '#0f62fe',
+		description: 'Rough concepts and sparks worth revisiting',
+		sortOrder: 0
+	}
+];
 
 function readConfig() {
 	const path = resolve(appRoot, '.trellis-db.json');
@@ -20,14 +31,6 @@ function readConfig() {
 		process.exit(1);
 	}
 	return JSON.parse(readFileSync(path, 'utf8'));
-}
-
-function slugify(title) {
-	return title
-		.toLowerCase()
-		.trim()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-|-$/g, '');
 }
 
 async function api(config, method, path, body) {
@@ -46,21 +49,29 @@ async function api(config, method, path, body) {
 }
 
 const config = readConfig();
-const list = await api(config, 'GET', '/entities?type=framework&limit=500');
-const slugs = new Set(
-	(list.data ?? []).map((e) => String(e.slug ?? slugify(String(e.title ?? ''))))
-);
+const metaList = await api(config, 'GET', '/entities?type=CollectionMeta&limit=500');
+const slugs = new Set((metaList.data ?? []).map((e) => String(e.slug ?? '')));
 
 let created = 0;
-for (let i = 0; i < SEED_TITLES.length; i++) {
-	const title = SEED_TITLES[i];
-	const slug = slugify(title);
-	if (slugs.has(slug)) continue;
+for (const collection of SEED_COLLECTIONS) {
+	if (slugs.has(collection.slug)) continue;
 	await api(config, 'POST', '/entities', {
-		type: 'framework',
-		attributes: { title, slug, sortOrder: i, laneId: 'main' }
+		id: collection.id,
+		type: 'CollectionMeta',
+		attributes: {
+			title: collection.title,
+			slug: collection.slug,
+			icon: collection.icon,
+			color: collection.color,
+			description: collection.description,
+			sortOrder: collection.sortOrder
+		}
 	});
 	created++;
 }
 
-console.log(created ? `✓ Seeded ${created} framework(s)` : '✓ Seed data already present');
+if (created === 0) {
+	console.log('✓ Collection seed data already present');
+} else {
+	console.log(`✓ Seeded ${created} collection(s)`);
+}

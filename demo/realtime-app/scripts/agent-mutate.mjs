@@ -108,12 +108,12 @@ async function appendLaneOp(vcsLaneId, kind, payload) {
 async function journalCreate(appLane, title) {
 	const vcsLaneId = await ensureVcsLane(appLane);
 	const slug = slugify(title);
-	const id = `framework:${randomUUID()}`;
+	const id = `collectionRecord:${randomUUID()}`;
 	await appendLaneOp(vcsLaneId, 'vcs:storeAssert', {
 		facts: [
-			{ e: id, a: 'type', v: 'framework' },
+			{ e: id, a: 'type', v: 'CollectionRecord' },
 			{ e: id, a: 'title', v: title },
-			{ e: id, a: 'slug', v: slug },
+			{ e: id, a: 'collectionId', v: 'collectionMeta:ideas' },
 			{ e: id, a: 'laneId', v: appLane }
 		],
 		laneId: vcsLaneId
@@ -143,7 +143,7 @@ async function listMaterializedFrameworks(appLane) {
 	engine.open();
 	await engine.enterLane(vcsLaneId);
 	try {
-		const query = `SELECT ?e ?title ?laneId WHERE { [?e "type" "framework"] [?e "title" ?title] }`;
+		const query = `SELECT ?e ?title ?laneId WHERE { [?e "type" "CollectionRecord"] [?e "title" ?title] }`;
 		const result = new QueryEngine(engine.getStore()).execute(parseSimple(query));
 		return result.bindings.map((row) => ({
 			id: String(row['?e'] ?? ''),
@@ -188,23 +188,26 @@ try {
 			console.log(`✓ Agent journaled ${id} "${title}" on lane ${laneId}`);
 		}
 	} else if (mode === 'update') {
-		const list = await api(config, 'GET', '/entities?type=framework&limit=500');
+		const list = await api(config, 'GET', '/entities?type=CollectionRecord&limit=500');
 		const last = (list.data ?? [])
 			.filter((item) => String(item.laneId ?? 'main') === 'main')
 			.at(-1);
 		if (!last) {
-			console.error('No frameworks to update.');
+			console.error('No collection records to update.');
 			process.exit(1);
 		}
 		await api(config, 'PUT', `/entities/${encodeURIComponent(last.id)}`, {
-			title,
-			slug: slugify(title)
+			title
 		});
 		console.log(`✓ Agent updated ${last.id} → "${title}"`);
 	} else {
 		const { id } = await api(config, 'POST', '/entities', {
-			type: 'framework',
-			attributes: { title, slug: slugify(title), laneId: 'main' }
+			type: 'CollectionRecord',
+			attributes: {
+				title,
+				collectionId: 'collectionMeta:ideas',
+				laneId: 'main'
+			}
 		});
 		console.log(`✓ Agent created ${id} "${title}" on lane main`);
 	}

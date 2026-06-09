@@ -1,3 +1,10 @@
+---
+title: Trellis Scratch Notes
+description: Working notes and exploratory thinking about Trellis design and direction.
+created: 2026-05-30
+updated: 2026-05-30
+---
+
 Trent: if you could re-invent git from scratch how would you approach it
 
 ===========================

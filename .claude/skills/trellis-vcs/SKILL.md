@@ -5,6 +5,8 @@ description: >
   TrellisVCS, milestones, the Idea Garden, semantic diffs, or causal op streams. Teaches the correct
   workflow: milestones instead of commits, garden checks before new work, semantic diffs for code review.
   Do NOT use for standard Git operations on non-TrellisVCS repositories.
+created: 2026-05-30
+updated: 2026-05-30
 license: Apache-2.0
 allowed-tools:
   - bash

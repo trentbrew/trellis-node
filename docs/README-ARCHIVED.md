@@ -1,3 +1,10 @@
+---
+title: Trellis Archived Documentation
+description: Comprehensive legacy documentation from 2024-04-04, preserved for reference.
+created: 2026-05-30
+updated: 2026-05-30
+---
+
 # Trellis (Archived Documentation)
 
 > **Note**: This is the archived comprehensive documentation from 2024-04-04. It has been replaced with a streamlined README.md. This file preserves all detailed information for reference and will eventually migrate to [trellis.computer](https://trellis.computer).
