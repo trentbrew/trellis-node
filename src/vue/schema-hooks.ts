@@ -17,7 +17,9 @@
 import { computed, onScopeDispose, shallowRef, type ComputedRef, type Ref } from 'vue';
 import {
   liveEntities,
+  liveEntity,
   type LiveEntitiesOptions,
+  type LiveEntityOptions,
   type ReadState,
 } from '../client/live.js';
 import type { EntityData, TrellisDb } from '../client/sdk.js';
@@ -25,9 +27,11 @@ import { entityMutations, type EntityMutations } from '../schema/mutations.js';
 import type {
   AnyType,
   InferEntitiesRead,
+  InferEntityRead,
   InferType,
   ResolveSpecFor,
 } from '../schema/define.js';
+import type { WhereInput } from '../schema/eql.js';
 
 export interface TypedRead<T> {
   data: T;
@@ -36,7 +40,11 @@ export interface TypedRead<T> {
 }
 
 export type TypedReadOptions<S extends AnyType> = LiveEntitiesOptions & {
-  where?: Partial<InferType<S>>;
+  where?: WhereInput;
+  resolve?: ResolveSpecFor<S>;
+};
+
+export type TypedEntityOptions<S extends AnyType> = LiveEntityOptions & {
   resolve?: ResolveSpecFor<S>;
 };
 
@@ -83,15 +91,28 @@ export function useEntities<
   }));
 }
 
-/** Live single entity by id (selected from the type subscription). */
-export function useEntity<S extends AnyType>(
+/** Live single entity by id — read-first, then type subscription. */
+export function useEntity<
+  S extends AnyType,
+  O extends TypedEntityOptions<S> | undefined = undefined,
+>(
   client: TrellisDb,
   schema: S,
-  id: string,
-): ComputedRef<TypedRead<InferType<S> | null>> {
-  const state = useLive(client, schema);
+  id: string | null | undefined,
+  opts?: O,
+): ComputedRef<TypedRead<InferEntityRead<S, O>>> {
+  const res = liveEntity(client, schema, id, opts);
+  const state = shallowRef(res.signal.peek());
+  const off = res.signal.subscribe((v) => {
+    state.value = v;
+  });
+  const stop = res.start();
+  onScopeDispose(() => {
+    off();
+    stop();
+  });
   return computed(() => ({
-    data: (state.value.data.find((e) => e.id === id) ?? null) as InferType<S> | null,
+    data: state.value.data as unknown as InferEntityRead<S, O>,
     loading: state.value.loading,
     error: state.value.error,
   }));

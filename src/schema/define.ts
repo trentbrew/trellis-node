@@ -197,6 +197,18 @@ export type InferEntitiesRead<S extends AnyType, O> = O extends {
     : InferType<S>[]
   : InferType<S>[];
 
+/**
+ * Infer the entity shape returned by typed single-entity reads (`useEntity`,
+ * `entityStore`) from optional read options.
+ */
+export type InferEntityRead<S extends AnyType, O> = O extends {
+  resolve: infer R;
+}
+  ? R extends ResolveSpecFor<S>
+    ? InferResolvedType<S, R> | null
+    : InferType<S> | null
+  : InferType<S> | null;
+
 // ---------------------------------------------------------------------------
 // defineType
 // ---------------------------------------------------------------------------

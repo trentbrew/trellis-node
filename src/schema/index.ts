@@ -20,6 +20,7 @@ export type {
   ComputedMap,
   DefineTypeOptions,
   InferEntitiesRead,
+  InferEntityRead,
   InferType,
   InferResolvedType,
   Ref,
@@ -31,7 +32,14 @@ export type {
 } from './define.js';
 
 // EQL-S query builders (shared by the typed read adapters)
-export { entitiesQuery, escapeValue } from './eql.js';
+export {
+  entitiesQuery,
+  escapeValue,
+  formatEqlLiteral,
+  isWhereFilter,
+  whereCondition,
+} from './eql.js';
+export type { WhereFilter, WhereInput, WhereOp, WhereValue } from './eql.js';
 
 // Schema-typed mutations
 export { entityMutations } from './mutations.js';

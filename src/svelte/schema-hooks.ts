@@ -17,7 +17,9 @@
  */
 import {
   liveEntities,
+  liveEntity,
   type LiveEntitiesOptions,
+  type LiveEntityOptions,
   type ReadState,
 } from '../client/live.js';
 import type { EntityData, TrellisDb } from '../client/sdk.js';
@@ -25,9 +27,11 @@ import { entityMutations, type EntityMutations } from '../schema/mutations.js';
 import type {
   AnyType,
   InferEntitiesRead,
+  InferEntityRead,
   InferType,
   ResolveSpecFor,
 } from '../schema/define.js';
+import type { WhereInput } from '../schema/eql.js';
 
 /** Minimal Svelte store contract (a structural subset of `svelte/store`'s `Readable`). */
 export interface Readable<T> {
@@ -41,7 +45,11 @@ export interface TypedRead<T> {
 }
 
 export type TypedReadOptions<S extends AnyType> = LiveEntitiesOptions & {
-  where?: Partial<InferType<S>>;
+  where?: WhereInput;
+  resolve?: ResolveSpecFor<S>;
+};
+
+export type TypedEntityOptions<S extends AnyType> = LiveEntityOptions & {
   resolve?: ResolveSpecFor<S>;
 };
 
@@ -53,13 +61,11 @@ function parseReadOptions<S extends AnyType>(
   return { where: opts as Record<string, unknown> };
 }
 
-function liveStore<R>(
-  client: TrellisDb,
-  schema: AnyType,
-  opts: LiveEntitiesOptions | undefined,
-  project: (state: ReadState<EntityData[]>) => R,
+function bindLiveResource<T, R>(
+  create: () => { signal: { subscribe(fn: (v: ReadState<T>) => void): () => void }; start(): () => void },
+  project: (state: ReadState<T>) => R,
 ): Readable<R> {
-  const res = liveEntities(client, schema, opts);
+  const res = create();
   let stop: (() => void) | null = null;
   let count = 0;
   return {
@@ -77,6 +83,18 @@ function liveStore<R>(
   };
 }
 
+function liveListStore<R>(
+  client: TrellisDb,
+  schema: AnyType,
+  opts: LiveEntitiesOptions | undefined,
+  project: (state: ReadState<EntityData[]>) => R,
+): Readable<R> {
+  return bindLiveResource(
+    () => liveEntities(client, schema, opts),
+    project,
+  );
+}
+
 /** Live list of a type as a Svelte store. */
 export function entitiesStore<
   S extends AnyType,
@@ -86,7 +104,7 @@ export function entitiesStore<
   schema: S,
   opts?: O,
 ): Readable<TypedRead<InferEntitiesRead<S, O>>> {
-  return liveStore(
+  return liveListStore(
     client,
     schema,
     parseReadOptions(opts),
@@ -98,17 +116,24 @@ export function entitiesStore<
   );
 }
 
-/** Live single entity by id as a Svelte store (selected from the type subscription). */
-export function entityStore<S extends AnyType>(
+/** Live single entity by id as a Svelte store — read-first, then type subscription. */
+export function entityStore<
+  S extends AnyType,
+  O extends TypedEntityOptions<S> | undefined = undefined,
+>(
   client: TrellisDb,
   schema: S,
-  id: string,
-): Readable<TypedRead<InferType<S> | null>> {
-  return liveStore(client, schema, undefined, (v) => ({
-    data: (v.data.find((e) => e.id === id) ?? null) as InferType<S> | null,
-    loading: v.loading,
-    error: v.error,
-  }));
+  id: string | null | undefined,
+  opts?: O,
+): Readable<TypedRead<InferEntityRead<S, O>>> {
+  return bindLiveResource(
+    () => liveEntity(client, schema, id, opts),
+    (v) => ({
+      data: v.data as unknown as InferEntityRead<S, O>,
+      loading: v.loading,
+      error: v.error,
+    }),
+  );
 }
 
 /** Schema-typed create/update/remove. */

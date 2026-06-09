@@ -89,11 +89,17 @@ describe('Vue useEntities', () => {
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
-  test('passes an equality where into the query', () => {
+  test('passes structured where operators into the query', () => {
     const { client, subs } = fakeClient(TABLE);
     const scope = effectScope();
-    scope.run(() => useVueEntities(client, Note, { pinned: true }));
-    expect(subs[0]!.eql).toBe('find ?e where type = "Note" and pinned = "true"');
+    scope.run(() =>
+      useVueEntities(client, Note, {
+        where: { pinned: true, order: { gte: 2 } },
+      }),
+    );
+    expect(subs[0]!.eql).toBe(
+      'find ?e where type = "Note" and pinned = true and order >= 2',
+    );
     scope.stop();
   });
 });

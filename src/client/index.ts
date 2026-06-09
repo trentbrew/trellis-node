@@ -49,5 +49,10 @@ export type {
 export { Signal, BatchSignal } from './reactive.js';
 
 // Signal-first live reads
-export { liveQuery, liveEntities } from './live.js';
-export type { ReadState, LiveResource } from './live.js';
+export { liveQuery, liveEntities, liveEntity } from './live.js';
+export type {
+  LiveEntitiesOptions,
+  LiveEntityOptions,
+  ReadState,
+  LiveResource,
+} from './live.js';

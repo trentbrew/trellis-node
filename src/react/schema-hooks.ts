@@ -21,7 +21,9 @@ import { useEffect, useMemo } from 'react';
 import { Signal } from '../client/reactive.js';
 import {
   liveEntities,
+  liveEntity,
   type LiveEntitiesOptions,
+  type LiveEntityOptions,
   type ReadState,
 } from '../client/live.js';
 import type { EntityData } from '../client/sdk.js';
@@ -29,14 +31,22 @@ import { entityMutations, type EntityMutations } from '../schema/mutations.js';
 import type {
   AnyType,
   InferEntitiesRead,
+  InferEntityRead,
   InferType,
   ResolveSpecFor,
 } from '../schema/define.js';
+import type { WhereInput } from '../schema/eql.js';
 import { useTrellis } from './provider.js';
 import { useSignal } from './realtime.js';
 
 const IDLE = new Signal<ReadState<EntityData[]>>({
   data: [],
+  loading: false,
+  error: null,
+});
+
+const IDLE_SINGLE = new Signal<ReadState<EntityData | null>>({
+  data: null,
   loading: false,
   error: null,
 });
@@ -49,7 +59,12 @@ export interface TypedReadResult<T> {
 
 /** `where` shorthand or full read options including nested `resolve`. */
 export type TypedReadOptions<S extends AnyType> = LiveEntitiesOptions & {
-  where?: Partial<InferType<S>>;
+  where?: WhereInput;
+  resolve?: ResolveSpecFor<S>;
+};
+
+/** Options for {@link useEntity} — optional relation expansion. */
+export type TypedEntityOptions<S extends AnyType> = LiveEntityOptions & {
   resolve?: ResolveSpecFor<S>;
 };
 
@@ -78,6 +93,27 @@ function useLiveEntities<S extends AnyType>(
   return useSignal((res?.signal ?? IDLE) as Signal<ReadState<EntityData[]>>);
 }
 
+function useLiveEntity<S extends AnyType>(
+  schema: S | null,
+  id: string | null | undefined,
+  opts?: TypedEntityOptions<S>,
+): ReadState<EntityData | null> {
+  const client = useTrellis();
+  const optsKey = JSON.stringify(opts ?? {});
+  const res = useMemo(
+    () =>
+      schema && id
+        ? liveEntity(client, schema, id, opts)
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [client, schema, id, optsKey],
+  );
+  useEffect(() => res?.start(), [res]);
+  return useSignal(
+    (res?.signal ?? IDLE_SINGLE) as Signal<ReadState<EntityData | null>>,
+  );
+}
+
 /** Live list of a type — filter with `where`, expand relations with `resolve`. */
 export function useEntities<
   S extends AnyType,
@@ -95,20 +131,21 @@ export function useEntities<
 }
 
 /**
- * Live single entity by id, typed by its schema. `null` until loaded / if absent.
+ * Live single entity by id — read-first, then kept fresh via type subscription.
  *
- * Since `id` is not an EQL-queryable attribute, this subscribes to the type and
- * selects the matching row — fine for bounded sets (nav, settings). Reach for a
- * dedicated read if you need a single hot entity out of a large collection.
+ * `id` may be `null`/`undefined` while routing resolves; returns `{ data: null, loading: false }`.
  */
-export function useEntity<S extends AnyType>(
+export function useEntity<
+  S extends AnyType,
+  O extends TypedEntityOptions<S> | undefined = undefined,
+>(
   schema: S,
   id: string | null | undefined,
-): TypedReadResult<InferType<S> | null> {
-  const state = useLiveEntities(id ? schema : null);
-  const found = id ? (state.data.find((e) => e.id === id) ?? null) : null;
+  opts?: O,
+): TypedReadResult<InferEntityRead<S, O>> {
+  const state = useLiveEntity(id ? schema : null, id, opts);
   return {
-    data: found as InferType<S> | null,
+    data: state.data as unknown as InferEntityRead<S, O>,
     loading: state.loading,
     error: state.error,
   };

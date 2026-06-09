@@ -20,7 +20,7 @@ import {
   bindingToEntity,
   isSparseBinding,
 } from '../schema/entity-projection.js';
-import { entitiesQuery } from '../schema/eql.js';
+import { entitiesQuery, type WhereInput } from '../schema/eql.js';
 import { resolveRelations, type ResolveSpec } from '../schema/resolve.js';
 import type { AnyType } from '../schema/define.js';
 import type { EntityData, Subscription, TrellisDb } from './sdk.js';
@@ -80,8 +80,13 @@ export function liveQuery<T = Record<string, unknown>>(
 }
 
 export interface LiveEntitiesOptions {
-  where?: Record<string, unknown>;
+  where?: WhereInput;
   /** Expand declared relations after hydration (requires `schema`). */
+  resolve?: ResolveSpec;
+}
+
+export interface LiveEntityOptions {
+  /** Expand declared relations on the loaded row (requires `schema`). */
   resolve?: ResolveSpec;
 }
 
@@ -137,20 +142,8 @@ export function liveEntities<T extends EntityData = EntityData>(
           entitiesQuery(type, where),
           (rows, _diff, meta) => {
             const turn = ++token;
-            const hydrate = async (): Promise<EntityData[]> => {
-              if (rows.length === 0) return [];
-              if (meta?.resolved) {
-                return rows as EntityData[];
-              }
-              if (rows.some((r) => isSparseBinding(r))) {
-                const ids = rows
-                  .map((r) => bindingEntityId(r))
-                  .filter((id): id is string => Boolean(id));
-                const loaded = await Promise.all(ids.map((id) => client.read(id)));
-                return loaded.filter((e): e is EntityData => e != null);
-              }
-              return rows.map((r) => bindingToEntity(r));
-            };
+            const hydrate = async (): Promise<EntityData[]> =>
+              hydrateSubscriptionRows(client, rows, meta);
 
             hydrate()
               .then(async (entities) => {
@@ -198,6 +191,149 @@ export function liveEntities<T extends EntityData = EntityData>(
 
   function stop(): void {
     token++; // invalidate any in-flight hydration
+    sub?.unsubscribe();
+    sub = null;
+  }
+}
+
+async function hydrateSubscriptionRows(
+  client: TrellisDb,
+  rows: Record<string, unknown>[],
+  meta?: { resolved?: boolean },
+): Promise<EntityData[]> {
+  if (rows.length === 0) return [];
+  if (meta?.resolved) return rows as EntityData[];
+  if (rows.some((r) => isSparseBinding(r))) {
+    const ids = rows
+      .map((r) => bindingEntityId(r))
+      .filter((id): id is string => Boolean(id));
+    const loaded = await Promise.all(ids.map((id) => client.read(id)));
+    return loaded.filter((e): e is EntityData => e != null);
+  }
+  return rows.map((r) => bindingToEntity(r));
+}
+
+async function pickEntityFromRows(
+  client: TrellisDb,
+  rows: Record<string, unknown>[],
+  entityId: string,
+  meta?: { resolved?: boolean },
+): Promise<EntityData | null> {
+  const hydrated = await hydrateSubscriptionRows(client, rows, meta);
+  const hit = hydrated.find((r) => r.id === entityId);
+  if (hit) return hit;
+  if (hydrated.length === 0) return client.read(entityId);
+  return null;
+}
+
+/**
+ * Live single entity by id (TRL-9).
+ *
+ * Opens with a direct `read(id)` for fast first paint, then keeps the row fresh
+ * via the type subscription (same channel as {@link liveEntities}). Suitable for
+ * nav-scale sets — not a substitute for a dedicated hot-entity read at large scale.
+ */
+export function liveEntity<T extends EntityData = EntityData>(
+  client: TrellisDb,
+  typeOrSchema: string | AnyType,
+  id: string | null | undefined,
+  opts?: LiveEntityOptions,
+): LiveResource<T | null> {
+  const schema =
+    typeof typeOrSchema === 'string' ? undefined : typeOrSchema;
+  const type = typeof typeOrSchema === 'string' ? typeOrSchema : typeOrSchema.type;
+  const { resolve } = opts ?? {};
+
+  const signal = new Signal<ReadState<T | null>>({
+    data: null,
+    loading: Boolean(id),
+    error: null,
+  });
+  let sub: Subscription | null = null;
+  let token = 0;
+
+  return {
+    signal,
+    start() {
+      if (!id) {
+        signal.value = { data: null, loading: false, error: null };
+        return () => {};
+      }
+      if (sub) return () => stop();
+
+      const entityId = id;
+      const serverResolve =
+        Boolean(schema) && Boolean(resolve && Object.keys(resolve).length > 0);
+
+      const applyRow = async (
+        row: EntityData | null,
+        turn: number,
+      ): Promise<void> => {
+        if (turn !== token) return;
+        if (!row) {
+          signal.value = { data: null, loading: false, error: null };
+          return;
+        }
+        let data = row;
+        if (
+          schema &&
+          resolve &&
+          Object.keys(resolve).length > 0 &&
+          !serverResolve
+        ) {
+          const [resolved] = await resolveRelations(client, schema, [data], resolve);
+          data = resolved ?? data;
+        }
+        if (turn !== token) return;
+        signal.value = { data: data as T, loading: false, error: null };
+      };
+
+      const readGen = token;
+      client
+        .read(entityId)
+        .then((row) => applyRow(row, readGen))
+        .catch((err: unknown) => {
+          signal.value = {
+            data: signal.peek().data,
+            loading: false,
+            error: err instanceof Error ? err : new Error(String(err)),
+          };
+        });
+
+      try {
+        sub = client.subscribe<Record<string, unknown>>(
+          entitiesQuery(type),
+          (rows, _diff, meta) => {
+            const turn = ++token;
+            pickEntityFromRows(client, rows, entityId, meta)
+              .then((row) => applyRow(row, turn))
+              .catch((err: unknown) => {
+                if (turn !== token) return;
+                signal.value = {
+                  data: signal.peek().data,
+                  loading: false,
+                  error: err instanceof Error ? err : new Error(String(err)),
+                };
+              });
+          },
+          serverResolve
+            ? { entityType: type, resolve }
+            : undefined,
+        );
+      } catch (err) {
+        signal.value = {
+          data: null,
+          loading: false,
+          error: err instanceof Error ? err : new Error(String(err)),
+        };
+      }
+
+      return () => stop();
+    },
+  };
+
+  function stop(): void {
+    token++;
     sub?.unsubscribe();
     sub = null;
   }
