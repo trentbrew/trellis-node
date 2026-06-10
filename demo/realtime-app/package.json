@@ -26,9 +26,10 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check .",
 		"format": "prettier --write .",
+		"test:unit": "vitest run",
 		"test:e2e": "playwright install && playwright test",
 		"test:wc": "WC_E2E=1 playwright install && WC_E2E=1 playwright test wc/wc-boot.e2e.ts",
-		"test": "npm run test:e2e",
+		"test": "npm run test:unit && npm run test:e2e",
 		"agent:add": "node scripts/agent-mutate.mjs"
 	},
 	"devDependencies": {
@@ -49,7 +50,8 @@
 		"svelte-check": "^4.4.6",
 		"tailwindcss": "^4.2.2",
 		"typescript": "^6.0.2",
-		"vite": "^8.0.7"
+		"vite": "^8.0.16",
+		"vitest": "^2.1.9"
 	},
 	"dependencies": {
 		"@fontsource/ibm-plex-mono": "^5.2.7",

@@ -27,6 +27,7 @@ Desk issue: **TRL-35** (W0), **TRL-36** (W1). Plan: `TRELLIS/tooling/planning/ag
 | ADR | Title | Decision |
 | --- | ----- | -------- |
 | [0011](./0011-app-shell-three-bands.md) | App shell three bands | L1 published / L2 editor / L3 operator inset — one graph, one shell (**accepted**, TRL-33) |
+| [0012](./0012-graph-overlay-config-surface.md) | Graph overlay config surface | One projection canvas; anchored/ambient L3 inset; vantage detents; homo/hetero binding (**accepted**, TRL-25/38) |
 
 ## Terminology
 

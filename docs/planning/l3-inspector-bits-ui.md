@@ -6,14 +6,15 @@ updated: 2026-06-10
 issue: TRL-38
 related:
   - ../adr/0011-app-shell-three-bands.md
+  - ../adr/0012-graph-overlay-config-surface.md
   - ../sdk-typed-realtime.md
 ---
 
 # L3 operator inset — native Bits UI inspector
 
-**Status:** spec  
+**Status:** impl (TRL-38 — native Dialog-as-sheet inset in realtime-app)  
 **Issue:** TRL-38  
-**Depends on:** TRL-25 (fractal shell), ADR 0011 L3 band  
+**Depends on:** TRL-25 (fractal shell), ADR 0011 L3 band, ADR 0012 anchored inset binding  
 **Does not block:** TRL-37 (TurtleDB Cloud C0)
 
 ## Goal

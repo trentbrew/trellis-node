@@ -6,10 +6,14 @@
 	 * L3 operator inset — drop-in Trellis DB inspector (Vue CE) as a floating FAB.
 	 * Loads same-origin via Vite proxy (`/__trellis/inspector.js` → sidecar :3920).
 	 *
-	 * Enable in prod with PUBLIC_TRELLIS_INSPECTOR=true.
+	 * Skipped when native Bits UI inset is enabled (dev / PUBLIC_TRELLIS_NATIVE_INSET).
+	 * Enable CE in prod with PUBLIC_TRELLIS_INSPECTOR=true.
 	 */
+	let { nativeInsetEnabled = false }: { nativeInsetEnabled?: boolean } = $props();
+
 	const enabled =
-		import.meta.env.DEV || env.PUBLIC_TRELLIS_INSPECTOR === 'true';
+		!nativeInsetEnabled &&
+		(import.meta.env.DEV || env.PUBLIC_TRELLIS_INSPECTOR === 'true');
 
 	onMount(() => {
 		if (!enabled) return;

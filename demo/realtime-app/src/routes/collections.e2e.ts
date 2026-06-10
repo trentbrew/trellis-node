@@ -25,6 +25,23 @@ test.describe('Collections live platform', () => {
 		).toBeVisible();
 	});
 
+	test('collection view picker gates by ontology', async ({ page }) => {
+		await openCollection(page, 'ideas');
+		const picker = page.getByTestId('collection-view-picker');
+		await expect(picker).toBeVisible();
+		await expect(picker.getByRole('radio', { name: /Table/i })).toHaveAttribute('aria-checked', 'true');
+		await expect(picker.getByRole('radio', { name: /Kanban/i })).toHaveCount(0);
+	});
+
+	test('browse variant shows toolbar; operator inset FAB in dev', async ({ page }) => {
+		await openCollection(page, 'ideas');
+		await expect(page.getByTestId('collection-page-toolbar')).toBeVisible();
+		await expect(page.locator('[data-page-variant="browse"]')).toBeVisible();
+		await expect(page.getByTestId('inset-fab')).toBeVisible();
+		await page.getByTestId('inset-fab').click();
+		await expect(page.getByTestId('operator-inset')).toBeVisible();
+	});
+
 	test('create collection metadata syncs across tabs', async ({ browser }) => {
 		const context = await browser.newContext();
 		const pageA = await context.newPage();
