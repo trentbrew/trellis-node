@@ -43,6 +43,34 @@ build:
   rm -rf dist
   bun run build
 
+# Test the `pnpm create trellis` scaffolder locally → ../create-trellis/sandbox
+# Usage: just create [name] [framework] [template] [install]
+#   just create my-app svelte tasks          # scaffolds + installs deps
+#   just create my-app svelte tasks false     # skip dependency install
+create name="my-app" framework="svelte" template="tasks" install="true":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  CT="$(cd ../create-trellis && pwd)"
+  DEST="$CT/sandbox/{{name}}"
+  if [ ! -d "$CT/node_modules" ]; then
+    echo "📦 Installing scaffolder deps…"
+    (cd "$CT" && npm install)
+  fi
+  echo "🧹 Resetting $DEST"
+  rm -rf "$DEST"
+  mkdir -p "$CT/sandbox"
+  INSTALL_FLAG=""
+  [ "{{install}}" = "false" ] && INSTALL_FLAG="--no-install"
+  echo "🏗  Scaffolding {{framework}}/{{template}} → $DEST"
+  (cd "$CT/sandbox" && node "$CT/index.mjs" "{{name}}" --framework "{{framework}}" --template "{{template}}" $INSTALL_FLAG)
+  echo ""
+  echo "── Artifacts ──"
+  [ -d "$DEST/.trellis" ] && echo "  ✓ .trellis/ initialized" || echo "  ✗ .trellis/ missing"
+  [ -d "$DEST/skills" ]   && echo "  ✓ skills/ ($(ls "$DEST/skills" | tr '\n' ' '))" || echo "  ✗ skills/ missing"
+  [ -f "$DEST/justfile" ] && echo "  ✓ justfile" || echo "  ✗ justfile missing"
+  echo ""
+  echo "✓ Next: cd ../create-trellis/sandbox/{{name}} && npm run dev:all"
+
 # Launch the System Visualizer (builds if needed, opens browser)
 ui path="sandbox/workspace" port="4000" trellis_port="3920":
   #!/usr/bin/env bash
