@@ -38,7 +38,11 @@ export {
 export type { PermissionRule, PermissionsDef, CrudOp } from './permissions.js';
 
 // Multi-tenancy
-export { TenantPool, DEFAULT_TENANT } from './tenancy.js';
+export {
+  TenantPool,
+  DEFAULT_TENANT,
+  resolvePoolBackendFromEnv,
+} from './tenancy.js';
 
 // Realtime
 export { SubscriptionManager } from './realtime.js';

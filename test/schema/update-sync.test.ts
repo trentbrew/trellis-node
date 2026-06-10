@@ -33,7 +33,7 @@ let baseUrl: string;
 beforeAll(async () => {
   if (!existsSync(TMP)) mkdirSync(TMP, { recursive: true });
   const config = defaultLocalConfig(DB_PATH);
-  const pool = new TenantPool(DB_PATH); // default backend — matches `trellis db serve`
+  const pool = new TenantPool(DB_PATH); // matches `trellis db serve` (preload before listen)
   await pool.preload();
   server = await startServer({ port: 0, config, pool });
   baseUrl = `http://127.0.0.1:${server.port}`;

@@ -24,6 +24,16 @@ import type { CreateKernelBackendOptions } from '../core/persist/factory.js';
 export const DEFAULT_TENANT = 'default';
 const TENANTS_DIR = 'tenants';
 
+/** `TRELLIS_BACKEND=sqljs|better-sqlite` for `trellis db serve` and custom hosts. */
+export function resolvePoolBackendFromEnv():
+  | CreateKernelBackendOptions
+  | undefined {
+  const backend = process.env.TRELLIS_BACKEND;
+  if (backend === 'sqljs') return { backend: 'sqljs' };
+  if (backend === 'better-sqlite') return { backend: 'better-sqlite' };
+  return undefined;
+}
+
 // ---------------------------------------------------------------------------
 // TenantPool
 // ---------------------------------------------------------------------------
@@ -81,6 +91,15 @@ export class TenantPool {
   get(tenantId?: string | null): TrellisKernel {
     const id = tenantId ?? DEFAULT_TENANT;
     if (!this.pool.has(id)) {
+      const isBun =
+        typeof process !== 'undefined' &&
+        Boolean((process as NodeJS.Process).versions?.bun);
+      if (!isBun) {
+        throw new Error(
+          'TenantPool.get() on Node requires `await pool.preload()` first. ' +
+            '`trellis db serve` preloads automatically; custom servers should call preload before get().',
+        );
+      }
       this.pool.set(id, this._createKernelSync(id));
     }
     return this.pool.get(id)!;

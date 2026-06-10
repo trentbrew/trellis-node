@@ -4038,7 +4038,15 @@ db.command('serve')
     }
 
     const port = opts.port ? parseInt(opts.port) : (config.port ?? 3000);
-    const pool = new TenantPool(config.dbPath);
+    const { DEFAULT_TENANT, resolvePoolBackendFromEnv } = await import(
+      '../server/tenancy.js'
+    );
+    const backendOpts = resolvePoolBackendFromEnv();
+    const pool = new TenantPool(
+      config.dbPath,
+      backendOpts ? { backend: backendOpts } : undefined,
+    );
+    await pool.preload(DEFAULT_TENANT);
     const { startServerCrossRuntime } = await import('../server/server.js');
     const server = await startServerCrossRuntime({ port, config, pool });
 

@@ -2,6 +2,13 @@
 
 Notable changes by release date and version. See [trellis.computer/changelog](https://trellis.computer/changelog) for the public site copy.
 
+## trellis [3.2.2] — 2026-06-10
+
+- **`trellis db serve` on Node:** preloads the default tenant with sql.js / better-sqlite3 before accepting traffic — fixes `create-trellis` scaffolds and any `npx trellis db serve` flow that hit `SqliteKernelBackend requires the Bun runtime`.
+- **`TenantPool.get()` on Node:** fails fast with a preload hint instead of attempting `bun:sqlite`.
+- **`TRELLIS_BACKEND`:** `sqljs` or `better-sqlite` env override for `db serve` and custom hosts (`resolvePoolBackendFromEnv`).
+- **Gitignore:** `.trellis-db/`, `.trellis-db.json`, `.trellis-deploy/` at repo root.
+
 ## trellis [3.2.0] — 2026-06-08
 
 - **Typed realtime SDK:** `trellis/schema` — `defineType`, `entityQuery`, `WhereFilter` operators, nested `InferResolvedType`, server `hydrateAndResolve` on subscription push.
