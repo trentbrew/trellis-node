@@ -60,6 +60,11 @@ import {
 } from './usage-meter.js';
 import type { TrellisHttpServer } from './server-shared.js';
 export type { TrellisHttpServer } from './server-shared.js';
+import {
+  corsEnabledForConfig,
+  corsPreflightResponse,
+  withCors,
+} from './cors.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,8 +111,9 @@ function buildServerContext(opts: ServerConfig) {
 
   const meter = new UsageMeter();
   const subs = new SubscriptionManager(pool, permissions ?? null, meter);
+  const enableCors = corsEnabledForConfig(config.apiKey);
 
-  const handleHttp = async (req: Request): Promise<Response> => {
+  const handleHttpInner = async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const path = url.pathname;
 
@@ -132,8 +138,30 @@ function buildServerContext(opts: ServerConfig) {
         return json(err.toResponse(), 403);
       }
       const msg = err instanceof Error ? err.message : String(err);
-      return json({ error: 'Internal Server Error', message: msg }, 500);
+      if (process.env.TRELLIS_DEBUG) {
+        console.error(
+          `[trellis] ${req.method} ${path} → 500:`,
+          msg,
+        );
+      }
+      return json(
+        {
+          error: 'Internal Server Error',
+          message: msg,
+          method: req.method,
+          path,
+        },
+        500,
+      );
     }
+  };
+
+  const handleHttp = async (req: Request): Promise<Response> => {
+    if (enableCors && req.method === 'OPTIONS') {
+      return corsPreflightResponse(req);
+    }
+    const res = await handleHttpInner(req);
+    return enableCors ? withCors(req, res) : res;
   };
 
   return { port, authConfig, subs, handleHttp };
@@ -508,14 +536,69 @@ async function handleQuery(
   });
 }
 
+async function readJsonObject(
+  req: Request,
+  route: string,
+): Promise<
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; response: Response }
+> {
+  const raw = await req.text();
+  if (!raw.trim()) {
+    if (process.env.TRELLIS_DEBUG) {
+      console.warn(`[trellis] ${req.method} ${route}: empty request body`);
+    }
+    return {
+      ok: false,
+      response: json(
+        {
+          error: 'Bad Request',
+          message: 'Request body is empty — client may not have sent JSON (common on iOS HTTP dev)',
+          method: req.method,
+          path: route,
+          bodyBytes: 0,
+        },
+        400,
+      ),
+    };
+  }
+  try {
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    return { ok: true, data };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (process.env.TRELLIS_DEBUG) {
+      console.warn(
+        `[trellis] ${req.method} ${route}: invalid JSON (${raw.length}B):`,
+        msg,
+      );
+    }
+    return {
+      ok: false,
+      response: json(
+        {
+          error: 'Bad Request',
+          message: `Invalid JSON: ${msg}`,
+          method: req.method,
+          path: route,
+          bodyBytes: raw.length,
+        },
+        400,
+      ),
+    };
+  }
+}
+
 async function handleCreateOntology(
   req: Request,
   auth: import('./auth.js').AuthContext,
   tenantId: string | null,
   ctx: RouteCtx,
 ): Promise<Response> {
+  const parsed = await readJsonObject(req, '/ontologies');
+  if (!parsed.ok) return parsed.response;
   const schema =
-    (await req.json()) as import('../core/ontology/types.js').SchemaDefinition;
+    parsed.data as unknown as import('../core/ontology/types.js').SchemaDefinition;
   if (!schema || !schema['@id'] || !Array.isArray(schema.fields)) {
     return json(
       { error: 'A SchemaDefinition (with @id and fields) is required' },
