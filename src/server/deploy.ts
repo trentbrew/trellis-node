@@ -24,7 +24,12 @@ import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join, resolve } from 'path';
 import { updateConfig } from '../client/config.js';
 import { buildDeployUrl, validateDeployName } from './deploy-meta.js';
-import { assertSpriteCli, runSpriteCmd, runSpriteCopy } from './sprites.js';
+import {
+  assertSpriteCli,
+  ensureSprite,
+  runSpriteCopy,
+  runSpriteExec,
+} from './sprites.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,56 +111,34 @@ export async function deploy(opts: DeployOptions): Promise<DeployResult> {
     'esm',
   ]);
 
-  // ── Step 4: Upload bundle to Sprite ──────────────────────────────────────
-  onProgress(`Uploading to Sprite: ${name}...`);
-  await runSpriteCmd([
-    'exec',
-    '--sprite',
-    name,
-    'mkdir',
-    '-p',
-    '/home/sprite/trellis-db',
-  ]);
+  // ── Step 4: Ensure Sprite exists ─────────────────────────────────────────
+  onProgress(`Ensuring Sprite: ${name}...`);
+  await ensureSprite(name);
 
+  // ── Step 5: Upload bundle to Sprite ─────────────────────────────────────
+  onProgress(`Uploading to Sprite: ${name}...`);
+  await runSpriteExec(name, 'mkdir -p /home/sprite/trellis-db');
   await runSpriteCopy(bundlePath, name, '/home/sprite/trellis-db/server.js');
 
-  // ── Step 5: Install Bun on the Sprite (if needed) ────────────────────────
+  // ── Step 6: Install Bun on the Sprite (if needed) ─────────────────────────
   onProgress('Ensuring Bun is installed...');
-  await runSpriteCmd([
-    'exec',
-    '--sprite',
+  await runSpriteExec(
     name,
-    'bash',
-    '-c',
     'which bun || curl -fsSL https://bun.sh/install | bash',
-  ]).catch(() => {});
+  ).catch(() => {});
 
-  // ── Step 6: Kill any existing server session ──────────────────────────────
+  // ── Step 7: Restart server (background; survives exec return) ─────────────
   onProgress('Starting server...');
-  await runSpriteCmd([
-    'exec',
-    '--sprite',
+  await runSpriteExec(
     name,
-    'bash',
-    '-c',
-    "sprite sessions list 2>/dev/null | grep trellis-db | awk '{print $1}' | xargs -r sprite sessions kill",
-  ]).catch(() => {});
-
-  // ── Step 7: Start as a detached session ──────────────────────────────────
-  await runSpriteCmd([
-    'exec',
-    '--sprite',
+    'pkill -f "/home/sprite/trellis-db/server.js" 2>/dev/null || true',
+  ).catch(() => {});
+  await runSpriteExec(
     name,
-    '-tty',
-    '--detach',
-    '--session-name',
-    'trellis-db',
-    'bash',
-    '-c',
-    `cd /home/sprite/trellis-db && ~/.bun/bin/bun run server.js`,
-  ]);
+    'cd /home/sprite/trellis-db && nohup ~/.bun/bin/bun run server.js >> server.log 2>&1 &',
+  );
 
-  // ── Step 8: Write config ──────────────────────────────────────────────────
+  // ── Step 8: Write local remote config ─────────────────────────────────────
   onProgress('Writing .trellis-db.json...');
   writeRemoteDeployConfig({ name, url, apiKey, configDir });
 

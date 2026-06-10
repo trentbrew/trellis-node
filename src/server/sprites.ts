@@ -26,7 +26,28 @@ export async function runSpriteCmd(args: string[]): Promise<string> {
 }
 
 /**
- * Copy a file to/from a sprite using sprite cp.
+ * Run a remote shell command on a sprite (`bash -c`).
+ * Wraps commands so flags like `mkdir -p` are not parsed as sprite CLI flags.
+ */
+export async function runSpriteExec(
+  spriteName: string,
+  shellCommand: string,
+  extraArgs: string[] = [],
+): Promise<string> {
+  return runSpriteCmd([
+    'exec',
+    '-s',
+    spriteName,
+    ...extraArgs,
+    '--',
+    'bash',
+    '-c',
+    shellCommand,
+  ]);
+}
+
+/**
+ * Upload a local file to a sprite via `exec --file` (Sprites CLI has no `cp` subcommand).
  */
 export async function runSpriteCopy(
   localPath: string,
@@ -35,14 +56,31 @@ export async function runSpriteCopy(
 ): Promise<void> {
   try {
     await execFileAsync('sprite', [
-      'cp',
-      localPath,
-      `${spriteName}:${remotePath}`,
+      'exec',
+      '-s',
+      spriteName,
+      '--file',
+      `${localPath}:${remotePath}`,
+      'echo',
+      'uploaded',
     ]);
   } catch (err: any) {
     throw new Error(
-      `sprite cp failed (exit ${err.code ?? '?'}): ${err.stderr ?? err.message}`,
+      `sprite file upload failed (exit ${err.code ?? '?'}): ${err.stderr ?? err.message}`,
     );
+  }
+}
+
+/**
+ * Create a sprite if it does not already exist.
+ */
+export async function ensureSprite(spriteName: string): Promise<void> {
+  try {
+    await runSpriteCmd(['create', spriteName, '--skip-console']);
+  } catch (err: any) {
+    const msg = String(err.message ?? err);
+    if (/already exists|duplicate|conflict/i.test(msg)) return;
+    throw err;
   }
 }
 
