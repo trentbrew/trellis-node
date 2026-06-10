@@ -18,6 +18,7 @@ export default defineConfig({
       '/query': API,
       '/ontologies': API,
       '/realtime': { target: WS, ws: true },
+      '/__trellis': API,
     },
   },
   build: {

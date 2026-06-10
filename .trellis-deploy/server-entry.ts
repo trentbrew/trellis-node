@@ -7,18 +7,18 @@ import { existsSync } from 'fs';
 const dbPath = '/home/sprite/trellis-db/data';
 const configDir = '/home/sprite/trellis-db';
 
-if (!existsSync(join(configDir, '.trellis-db.json'))) {
-  writeConfig(defaultLocalConfig(dbPath, {
-    apiKey: 'spk_qMZMNENX1ABmu9m19mjgSl7jiB62rRli',
-    jwtSecret: 'jws_9wHTbXh-jbA8DAFLM4fVMJyWT6Y2CcHj',
-    port: 3000,
-  }), configDir);
-}
+writeConfig(defaultLocalConfig(dbPath, {
+  apiKey: 'spk_y5ZlYq1mJ-OwXP9mSVrdmKuevKZ1Irc8',
+  jwtSecret: 'jws_hNmKTSdV7kjEC3v1fvj8rEt7JTzi_9ub',
+  port: 8080,
+}), configDir);
 
 const config = readConfig(configDir)!;
-const pool = new TenantPool(dbPath);
+// Sprites VMs lack better-sqlite3 native bindings — use WASM sql.js backend.
+const pool = new TenantPool(dbPath, { backend: { backend: 'sqljs' } });
+await pool.preload();
 
-const server = startServer({ port: 3000, config, pool });
+const server = startServer({ port: 8080, config, pool });
 
-console.log('Trellis DB running on port 3000');
-console.log('URL: https://${process.env.SPRITE_NAME ?? 'localhost'}.sprites.app');
+console.log('Trellis DB running on port 8080');
+console.log(`Listening on port 8080`);

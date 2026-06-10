@@ -48,6 +48,7 @@ relay) — any browser hitting the same Vite origin shares one graph.
 - React: <http://localhost:4200/react/>
 - Vue: <http://localhost:4200/vue/>
 - Svelte: <http://localhost:4200/svelte/>
+- **L3 inspector FAB** — bottom-right DB pill on all Vite entries (proxied to trellis `:8230`); bare DB landing at <http://localhost:8230/>
 
 **QA:** open any framework URL in two tabs. Add a section or item in tab A — tab B
 updates within a second (no refresh).

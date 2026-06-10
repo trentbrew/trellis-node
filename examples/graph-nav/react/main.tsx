@@ -13,6 +13,7 @@ import {
   type NavItemT,
   type NavSectionLoaded,
 } from '../schema';
+import '../inspector-loader';
 
 function Bootstrap({ children }: { children: React.ReactNode }) {
   const client = useTrellis();
