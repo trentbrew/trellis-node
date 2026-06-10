@@ -8,7 +8,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { TrellisKernel } from '../../src/core/kernel/trellis-kernel.js';
-import { BetterSqliteKernelBackend } from '../../src/core/persist/better-sqlite-backend.js';
+import { createKernelBackend } from '../../src/core/persist/factory.js';
 import {
   createAutoEmbedMiddleware,
   buildRAGContext,
@@ -49,7 +49,9 @@ describe('Auto-Embed Middleware', () => {
   beforeEach(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'trellis-autoembed-'));
     kernel = new TrellisKernel({
-      backend: new BetterSqliteKernelBackend(join(tmpDir, 'kernel.db')),
+      backend: await createKernelBackend(join(tmpDir, 'kernel.db'), {
+        backend: 'sqljs',
+      }),
       agentId: 'test',
     });
     kernel.boot();

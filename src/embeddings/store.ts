@@ -120,7 +120,12 @@ export class VectorStore {
     try {
       const fs = require('fs');
       const path = require('path');
+      // sql.js `export()` frees all prepared statements and closes/reopens the
+      // underlying database, which invalidates the handles cached in
+      // `this.stmts`. Re-prepare them afterwards so subsequent writes/reads on
+      // this store instance keep working.
       const data = this.db.export();
+      this.prepareStatements();
       fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
       const tmp = `${this.dbPath}.tmp`;
       fs.writeFileSync(tmp, Buffer.from(data));
@@ -172,7 +177,10 @@ export class VectorStore {
         $updatedAt: record.updatedAt,
       });
       this.stmts.upsertChunk.reset();
-      this.stmts.upsertVector.run({ $id: record.id, $embedding: embeddingBlob });
+      this.stmts.upsertVector.run({
+        $id: record.id,
+        $embedding: embeddingBlob,
+      });
       this.stmts.upsertVector.reset();
       this.db.run('COMMIT');
     } catch (e) {
@@ -200,7 +208,10 @@ export class VectorStore {
           $updatedAt: record.updatedAt,
         });
         this.stmts.upsertChunk.reset();
-        this.stmts.upsertVector.run({ $id: record.id, $embedding: embeddingBlob });
+        this.stmts.upsertVector.run({
+          $id: record.id,
+          $embedding: embeddingBlob,
+        });
         this.stmts.upsertVector.reset();
       }
       this.db.run('COMMIT');

@@ -9,7 +9,11 @@
  */
 
 import type { KernelOp } from '../core/persist/backend.js';
-import type { KernelMiddleware, MiddlewareContext, OpMiddlewareNext } from '../core/kernel/middleware.js';
+import type {
+  KernelMiddleware,
+  MiddlewareContext,
+  OpMiddlewareNext,
+} from '../core/kernel/middleware.js';
 import type { Fact, Link } from '../core/store/eav-store.js';
 import type { ChunkMeta, EmbeddingRecord } from './types.js';
 import type { Embedder } from './search.js';
@@ -31,12 +35,19 @@ function linksToText(links: Link[]): string {
   return links.map((l) => `${l.e1} —[${l.a}]→ ${l.e2}`).join('\n');
 }
 
-function entitySummaryText(entityId: string, facts: Fact[], links: Link[]): string {
+function entitySummaryText(
+  entityId: string,
+  facts: Fact[],
+  links: Link[],
+): string {
   const type = facts.find((f) => f.a === 'type')?.v ?? 'Entity';
-  const name = facts.find((f) => f.a === 'name' || f.a === 'title')?.v ?? entityId;
+  const name =
+    facts.find((f) => f.a === 'name' || f.a === 'title')?.v ?? entityId;
   const parts = [`${type}: ${name} (${entityId})`];
 
-  const attrs = facts.filter((f) => !['type', 'name', 'title', 'createdAt', 'updatedAt'].includes(f.a));
+  const attrs = facts.filter(
+    (f) => !['type', 'name', 'title', 'createdAt', 'updatedAt'].includes(f.a),
+  );
   if (attrs.length > 0) {
     parts.push(attrs.map((f) => `  ${f.a} = ${f.v}`).join('\n'));
   }
@@ -68,7 +79,9 @@ export interface AutoEmbedOptions {
  * On addFacts/addLinks: embeds entity summaries into the vector store.
  * On deleteFacts/deleteLinks: removes stale embeddings.
  */
-export async function createAutoEmbedMiddleware(options: AutoEmbedOptions): Promise<KernelMiddleware & { close: () => void }> {
+export async function createAutoEmbedMiddleware(
+  options: AutoEmbedOptions,
+): Promise<KernelMiddleware & { close: () => void }> {
   const store = await VectorStore.create(options.dbPath);
   const embedFn = options.embedFn ?? embed;
   const embedIndividual = options.embedIndividualFacts ?? false;
@@ -76,7 +89,11 @@ export async function createAutoEmbedMiddleware(options: AutoEmbedOptions): Prom
   return {
     name: 'auto-embed',
 
-    handleOp: async (op: KernelOp, ctx: MiddlewareContext, next: OpMiddlewareNext) => {
+    handleOp: async (
+      op: KernelOp,
+      ctx: MiddlewareContext,
+      next: OpMiddlewareNext,
+    ) => {
       // Let the op proceed first
       await next(op, ctx);
 
@@ -105,15 +122,26 @@ async function _processOp(
   // Collect affected entity IDs
   const entityIds = new Set<string>();
   if (op.facts) for (const f of op.facts) entityIds.add(f.e);
-  if (op.links) for (const l of op.links) { entityIds.add(l.e1); entityIds.add(l.e2); }
+  if (op.links)
+    for (const l of op.links) {
+      entityIds.add(l.e1);
+      entityIds.add(l.e2);
+    }
   if (op.deleteFacts) for (const f of op.deleteFacts) entityIds.add(f.e);
-  if (op.deleteLinks) for (const l of op.deleteLinks) { entityIds.add(l.e1); entityIds.add(l.e2); }
+  if (op.deleteLinks)
+    for (const l of op.deleteLinks) {
+      entityIds.add(l.e1);
+      entityIds.add(l.e2);
+    }
+
+  let mutated = false;
 
   // Handle deletions — remove old embeddings for deleted entities
   if (op.deleteFacts || op.deleteLinks) {
     for (const eid of entityIds) {
       store.deleteByEntity(eid);
     }
+    mutated = true;
   }
 
   // Handle additions — embed entity summaries
@@ -178,7 +206,15 @@ async function _processOp(
 
     if (records.length > 0) {
       store.upsertBatch(records);
+      mutated = true;
     }
+  }
+
+  // Persist immediately so embeddings are durable per-op. The store otherwise
+  // only flushes its in-memory image to disk every N writes, which would leave
+  // freshly indexed entities invisible to readers that open the store anew.
+  if (mutated) {
+    store.flush();
   }
 }
 
