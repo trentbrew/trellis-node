@@ -10,7 +10,7 @@
  *   1. Bundle the server entrypoint with Bun
  *   2. Create or wake the target Sprite via `sprite exec`
  *   3. Upload the bundle + SQLite file (if seeding)
- *   4. Install dependencies and start the server as a detached session
+ *   4. Install Bun and register the server via `sprite-env services` (port 8080)
  *   5. Write the resulting URL + API key back to .trellis-db.json
  *
  * Prerequisites:
@@ -20,8 +20,10 @@
  * @module trellis/server
  */
 
+import { execFile } from 'child_process';
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join, resolve } from 'path';
+import { promisify } from 'util';
 import { updateConfig } from '../client/config.js';
 import {
   buildDeployUrl,
@@ -139,16 +141,23 @@ export async function deploy(opts: DeployOptions): Promise<DeployResult> {
     throw new Error(`Bun install failed on sprite ${name}: ${bunPath || '(no output)'}`);
   }
 
-  // ── Step 7: Restart server (background; survives exec return) ─────────────
-  onProgress('Starting server...');
-  await runSpriteExec(
-    name,
-    'pkill -f "/home/sprite/trellis-db/server.js" 2>/dev/null || true',
-  ).catch(() => {});
+  // ── Step 7: Register Trellis DB as a Sprite service (survives hibernation) ─
+  onProgress('Starting server (sprite-env service)...');
   const bun = bunPath.trim().split('\n').pop()!.trim();
   await runSpriteExec(
     name,
-    `cd /home/sprite/trellis-db && (nohup ${bun} run server.js >> server.log 2>&1 </dev/null &); exit 0`,
+    `
+export PATH="$HOME/.bun/bin:$PATH"
+ENV="/.sprite/bin/sprite-env"
+BUN="${bun}"
+$ENV services delete trellis-db 2>/dev/null || true
+$ENV services create trellis-db \\
+  --cmd "$BUN" \\
+  --args run,server.js \\
+  --dir /home/sprite/trellis-db \\
+  --http-port ${listenPort} \\
+  --no-stream
+`.trim(),
   );
 
   onProgress('Waiting for health check...');
@@ -213,8 +222,6 @@ function generateSecret(prefix: string): string {
 }
 
 async function runBun(args: string[]): Promise<void> {
-  const { execFile } = require('child_process');
-  const { promisify } = require('util');
   const execFileAsync = promisify(execFile);
   try {
     await execFileAsync('bun', args);
