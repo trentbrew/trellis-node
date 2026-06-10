@@ -239,6 +239,6 @@ const pool = new TenantPool(dbPath);
 const server = startServer({ port: ${opts.port}, config, pool });
 
 console.log('Trellis DB running on port ${opts.port}');
-console.log('URL: https://\${process.env.SPRITE_NAME ?? 'localhost'}.sprites.app');
+console.log(\`URL: https://\${process.env.SPRITE_NAME ?? 'localhost'}.sprites.app\`);
 `;
 }
