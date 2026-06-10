@@ -48,19 +48,23 @@ test('onboarding: fresh init flow with cursor default', () => {
 
 test('onboarding: init with custom frameworks and IDEs', () => {
     const r = runCli([
-        'init', 
-        '--no-interactive', 
-        '--path', '.', 
-        '--framework', 'next', 
-        '--ides', 'windsurf', 'claude'
+        'init',
+        '--no-interactive',
+        '--path',
+        '.',
+        '--framework',
+        'next',
+        '--ides',
+        'devin',
+        'claude',
     ]);
     expect(r.code).toBe(0);
     expect(existsSync(join(testDir, '.cursor'))).toBe(false);
-    expect(existsSync(join(testDir, '.windsurf'))).toBe(true);
+    expect(existsSync(join(testDir, '.devin'))).toBe(true);
     expect(existsSync(join(testDir, '.claude'))).toBe(true);
-    
-    const windsurf = readFileSync(join(testDir, '.windsurf', 'rules.md'), 'utf-8');
-    expect(windsurf.toLowerCase()).toContain('next');
+
+    const devin = readFileSync(join(testDir, '.devin', 'rules.md'), 'utf-8');
+    expect(devin.toLowerCase()).toContain('next');
     const claude = readFileSync(join(testDir, '.claude', 'settings.md'), 'utf-8');
     expect(claude.toLowerCase()).toContain('next');
 });
