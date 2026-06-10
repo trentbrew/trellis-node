@@ -13,6 +13,7 @@
  *   POST   /upload                     File upload → blob hash
  *   GET    /files/:hash                Download blob
  *   GET    /health                     Health check
+ *   GET    /admin/usage?tenant=<id>    Day-bucket usage (TURTLEDB_ADMIN_KEY)
  *
  * Auth:
  *   POST   /auth/login                 Email+password → JWT
@@ -52,6 +53,11 @@ import {
 import type { PermissionRegistry } from './permissions.js';
 import { PermissionError } from './permissions.js';
 import { SubscriptionManager } from './realtime.js';
+import {
+  UsageMeter,
+  resolveUsageTenantId,
+  verifyAdminKey,
+} from './usage-meter.js';
 import type { TrellisHttpServer } from './server-shared.js';
 export type { TrellisHttpServer } from './server-shared.js';
 
@@ -98,7 +104,8 @@ function buildServerContext(opts: ServerConfig) {
     allowPublic: true,
   };
 
-  const subs = new SubscriptionManager(pool, permissions ?? null);
+  const meter = new UsageMeter();
+  const subs = new SubscriptionManager(pool, permissions ?? null, meter);
 
   const handleHttp = async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
@@ -115,6 +122,7 @@ function buildServerContext(opts: ServerConfig) {
         pool,
         permissions: permissions ?? null,
         subs,
+        meter,
         authConfig,
         config,
         oauthProviders: opts.oauthProviders ?? {},
@@ -178,9 +186,14 @@ interface RouteCtx {
   pool: TenantPool;
   permissions: PermissionRegistry | null;
   subs: SubscriptionManager;
+  meter: UsageMeter;
   authConfig: AuthConfig;
   config: TrellisDbConfig;
   oauthProviders: Record<string, import('./auth.js').OAuthProvider>;
+}
+
+function recordGraphIo(ctx: RouteCtx, tenantId: string | null): void {
+  ctx.meter.recordGraphIo(resolveUsageTenantId(tenantId));
 }
 
 async function route(
@@ -258,6 +271,11 @@ async function route(
       ops,
       tenants: ctx.pool.activeTenants().length,
     });
+  }
+
+  // ── Admin usage (TurtleDB Cloud C1 stub) ───────────────────────────────────
+  if (method === 'GET' && path === '/admin/usage') {
+    return handleAdminUsage(req, url, ctx);
   }
 
   // ── Entities ──────────────────────────────────────────────────────────────
@@ -351,6 +369,7 @@ async function handleCreate(
     attrs,
     body.links,
   );
+  recordGraphIo(ctx, tenantId);
   await ctx.subs.notify(tenantId);
 
   return json({ id: entityId, op: result.op.hash }, 201);
@@ -394,6 +413,7 @@ async function handleUpdate(
 
   const updates = (await req.json()) as Record<string, unknown>;
   await kernel.updateEntity(id, updates as any);
+  recordGraphIo(ctx, tenantId);
   await ctx.subs.notify(tenantId);
 
   return json({ id, updated: true });
@@ -416,6 +436,7 @@ async function handleDelete(
   ctx.permissions?.assert(auth, entity.type, 'delete', entity);
 
   await kernel.deleteEntity(id);
+  recordGraphIo(ctx, tenantId);
   await ctx.subs.notify(tenantId);
 
   return json({ id, deleted: true });
@@ -475,6 +496,7 @@ async function handleQuery(
 
   const kernel = await ctx.pool.preload(tenantId);
   const result = await kernel.query(parsed);
+  recordGraphIo(ctx, tenantId);
   const bindings = hydrateBindings(
     kernel,
     result.bindings as Record<string, unknown>[],
@@ -514,6 +536,7 @@ async function handleCreateOntology(
 
   try {
     kernel.createOntology(schema);
+    recordGraphIo(ctx, tenantId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('already exists')) {
@@ -577,6 +600,7 @@ async function handleFileDownload(
     blob.byteOffset,
     blob.byteOffset + blob.byteLength,
   ) as ArrayBuffer;
+  ctx.meter.recordEgress(resolveUsageTenantId(tenantId), blob.byteLength);
   return new Response(cleanBuf, {
     headers: { 'Content-Type': 'application/octet-stream' },
   });
@@ -829,6 +853,32 @@ async function verifyPassword(
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
   return hash === expectedHash;
+}
+
+function handleAdminUsage(
+  req: Request,
+  url: URL,
+  ctx: RouteCtx,
+): Response {
+  if (!process.env.TURTLEDB_ADMIN_KEY) {
+    return json({ error: 'Admin usage not configured' }, 501);
+  }
+  if (!verifyAdminKey(req)) {
+    return json({ error: 'Unauthorized' }, 401);
+  }
+
+  const tenant = url.searchParams.get('tenant');
+  if (!tenant) {
+    return json({ error: 'tenant query param is required' }, 400);
+  }
+
+  const refresh = url.searchParams.get('refresh') === '1';
+  if (refresh) {
+    ctx.meter.sampleStorage(ctx.pool, tenant);
+  }
+
+  const day = url.searchParams.get('day') ?? undefined;
+  return json(ctx.meter.getUsage(tenant, day));
 }
 
 function entityToJson(

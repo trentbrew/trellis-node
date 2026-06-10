@@ -59,7 +59,7 @@ App / demo sidecar ──HTTP/WS──────────►└─ Blob sto
 
 | Component | Owner | Description |
 | --------- | ----- | ----------- |
-| **Deploy CLI polish** | `trellis-node` | `npx trellis deploy` wraps `deploy.ts`; validates name, prints URL + key |
+| **Deploy CLI polish** | `trellis-node` | `trellis deploy --name <slug>` validates name, prints URL + key; `--stub` for local dry-run |
 | **Broker route** | `cloud/` | `POST /turtledb/provision { name }` → create Sprite, start server, return credentials |
 | **Project registry** | `cloud/` (InstantDB) | `turtleDbProjects` entity: owner, name, url, apiKeyHash, createdAt, status |
 | **Meter stub** | `trellis-node` | In-process counters per tenant (no Stripe yet) |
@@ -111,21 +111,23 @@ Daily cron on room node:
 
 ### C0 — deploy path
 
-- [ ] `npx trellis deploy --name <slug>` completes against Sprites (or documented local stub) and writes `.trellis-db.json` with `mode: remote`
+- [x] `trellis deploy --name <slug> --stub` writes `.trellis-db.json` with `mode: remote` (local dry-run)
+- [ ] `trellis deploy --name <slug>` completes against Sprites and writes `.trellis-db.json` with `mode: remote`
 - [ ] Deployed room serves `GET /health` → 200
 - [ ] Deployed room accepts `POST /entities` with API key and returns created id
 - [ ] Deployed room accepts WebSocket subscribe on `/realtime` and pushes diff on mutation
 - [ ] `demo/realtime-app` can point `TRELLIS_URL` at deployed room and pass smoke test (list + live add)
-- [ ] Broker `POST /turtledb/provision` creates registry row linked to authenticated user
+- [x] Broker `POST /turtledb/provision` creates registry row linked to authenticated user (stub mode; `cloud/src/turtledb/`)
+- [ ] Broker live provision (`TURTLEDB_PROVISION_LIVE=1`) completes against Sprites
 - [ ] Docs: link from `docs/planning/turtle-cloud-pricing.md` and `cloud/docs/turtledb.md`
 
 ### C1 — metering
 
-- [ ] `TenantPool` / server records `graph_io` increment on write + query (testable via unit test with mock meter)
-- [ ] Daily storage sampler returns byte totals per tenant (integration test with temp db + blob dir)
-- [ ] Egress counter increments on WS send (unit test)
-- [ ] `GET /admin/usage?tenant=<id>` returns day-bucket totals (auth: admin API key only)
-- [ ] test: `bun test test/cloud/usage-meter.test.ts` (new)
+- [x] `TenantPool` / server records `graph_io` increment on write + query (testable via unit test with mock meter)
+- [x] Daily storage sampler returns byte totals per tenant (integration test with temp db + blob dir)
+- [x] Egress counter increments on WS send (unit test)
+- [x] `GET /admin/usage?tenant=<id>` returns day-bucket totals (auth: admin API key only)
+- [x] test: `bun test test/cloud/usage-meter.test.ts` (new)
 
 ---
 

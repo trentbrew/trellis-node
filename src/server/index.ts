@@ -47,6 +47,20 @@ export type {
   WsClient,
 } from './realtime.js';
 
+// Usage metering (TurtleDB Cloud C1)
+export {
+  UsageMeter,
+  sampleTenantStorage,
+  resolveUsageTenantId,
+  verifyAdminKey,
+  dayKey,
+} from './usage-meter.js';
+export type {
+  DayBucket,
+  MeterName,
+  TenantUsageSnapshot,
+} from './usage-meter.js';
+
 // Realtime relay hub (server side of WebSocketRelayTransport)
 export {
   attachRealtimeRelay,
@@ -66,6 +80,12 @@ export type { ImportOptions, ImportResult } from './import.js';
 // Deploy
 export { deploy } from './deploy.js';
 export type { DeployOptions, DeployResult } from './deploy.js';
+export {
+  validateDeployName,
+  normalizeDeployName,
+  buildDeployUrl,
+  DeployNameError,
+} from './deploy-meta.js';
 
 // Sprites
 export {

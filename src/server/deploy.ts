@@ -23,6 +23,7 @@
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join, resolve } from 'path';
 import { updateConfig } from '../client/config.js';
+import { buildDeployUrl, validateDeployName } from './deploy-meta.js';
 import { assertSpriteCli, runSpriteCmd, runSpriteCopy } from './sprites.js';
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,11 @@ export interface DeployOptions {
   configDir?: string;
   /** Progress callback. */
   onProgress?: (msg: string) => void;
+  /**
+   * Skip Sprite provisioning — validate name and write `.trellis-db.json` only.
+   * For local dry-runs and CI (`trellis deploy --stub`).
+   */
+  stub?: boolean;
 }
 
 export interface DeployResult {
@@ -57,19 +63,23 @@ export interface DeployResult {
 // ---------------------------------------------------------------------------
 
 export async function deploy(opts: DeployOptions): Promise<DeployResult> {
-  const { name, port = 3000, configDir = '.', onProgress = () => {} } = opts;
+  const { port = 3000, configDir = '.', onProgress = () => {} } = opts;
 
+  const name = validateDeployName(opts.name);
   const apiKey = opts.apiKey ?? generateSecret('spk_');
   const jwtSecret = opts.jwtSecret ?? generateSecret('jws_');
-  const url = `https://${name}.sprites.app`;
+  const url = buildDeployUrl(name);
+
+  if (opts.stub) {
+    onProgress('Stub deploy — skipping Sprites provisioning');
+    onProgress('Writing .trellis-db.json...');
+    writeRemoteDeployConfig({ name, url, apiKey, configDir });
+    return { url, name, apiKey };
+  }
 
   // ── Step 1: Check `sprite` CLI is available ───────────────────────────────
   onProgress('Checking Sprites CLI...');
-  await runSpriteCmd(['--version']).catch(() => {
-    throw new Error(
-      '`sprite` CLI not found. Install it from https://docs.sprites.dev and authenticate.',
-    );
-  });
+  await assertSpriteCli();
 
   // ── Step 2: Write server entrypoint ──────────────────────────────────────
   onProgress('Writing server entrypoint...');
@@ -147,18 +157,27 @@ export async function deploy(opts: DeployOptions): Promise<DeployResult> {
 
   // ── Step 8: Write config ──────────────────────────────────────────────────
   onProgress('Writing .trellis-db.json...');
+  writeRemoteDeployConfig({ name, url, apiKey, configDir });
+
+  return { url, name, apiKey };
+}
+
+function writeRemoteDeployConfig(opts: {
+  name: string;
+  url: string;
+  apiKey: string;
+  configDir: string;
+}): void {
   updateConfig(
     {
       mode: 'remote',
-      url,
-      apiKey,
-      spriteName: name,
+      url: opts.url,
+      apiKey: opts.apiKey,
+      spriteName: opts.name,
       deployedAt: new Date().toISOString(),
     },
-    configDir,
+    opts.configDir,
   );
-
-  return { url, name, apiKey };
 }
 
 // ---------------------------------------------------------------------------

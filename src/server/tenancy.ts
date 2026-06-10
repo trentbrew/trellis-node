@@ -138,6 +138,11 @@ export class TenantPool {
     this.pool.clear();
   }
 
+  /** Absolute path to the tenant data directory. */
+  dataPath(): string {
+    return this.dbPath;
+  }
+
   /**
    * Return the SQLite file path for a given tenant.
    */

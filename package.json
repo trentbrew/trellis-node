@@ -217,7 +217,7 @@
     "build:realtime-bundle": "esbuild src/realtime/index.ts --bundle --format=esm --platform=browser --outfile=dist/realtime.bundle.js && esbuild src/realtime/relay-persistence.ts --bundle --format=esm --platform=node --outfile=dist/realtime/relay-persistence.js",
     "build:state-demo-bundle": "esbuild demo/state-demo/entry.ts --bundle --format=esm --platform=browser --outfile=dist/state-demo.bundle.js",
     "build:inspector": "vite build --config vite.inspector.config.ts",
-    "test": "vitest run test/core test/cms test/vcs test/git test/p2 test/p3 test/p4 test/p5 test/p6 test/p7 test/client test/realtime test/schema test/engine.test.ts test/cli",
+    "test": "vitest run test/core test/cms test/vcs test/git test/p2 test/p3 test/p4 test/p5 test/p6 test/p7 test/client test/realtime test/schema test/cloud test/engine.test.ts test/cli",
     "test:all": "vitest run",
     "test:wc": "node test/webcontainer/server.mjs",
     "prepublishOnly": "npm run test && npm run build"

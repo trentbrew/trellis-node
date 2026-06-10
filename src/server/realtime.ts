@@ -29,6 +29,9 @@ import { parseSimple } from '../core/query/index.js';
 import { hydrateAndResolve } from '../schema/kernel-resolve.js';
 import type { ResolveSpec } from '../schema/resolve.js';
 import type { TenantPool } from './tenancy.js';
+import { DEFAULT_TENANT } from './tenancy.js';
+import type { UsageMeter } from './usage-meter.js';
+import { resolveUsageTenantId } from './usage-meter.js';
 import type { AuthContext } from './auth.js';
 import type { PermissionRegistry } from './permissions.js';
 
@@ -79,10 +82,16 @@ export class SubscriptionManager {
   private clients: Map<string, WsClient> = new Map();
   private pool: TenantPool;
   private permissions: PermissionRegistry | null;
+  private meter: UsageMeter | null;
 
-  constructor(pool: TenantPool, permissions: PermissionRegistry | null = null) {
+  constructor(
+    pool: TenantPool,
+    permissions: PermissionRegistry | null = null,
+    meter: UsageMeter | null = null,
+  ) {
     this.pool = pool;
     this.permissions = permissions;
+    this.meter = meter;
   }
 
   // -------------------------------------------------------------------------
@@ -209,6 +218,7 @@ export class SubscriptionManager {
     let result: Record<string, unknown>[];
     try {
       const qr = await kernel.query(parsedQuery);
+      this._recordGraphIo(tid);
       result = await hydrateAndResolve(
         kernel,
         qr.bindings as Record<string, unknown>[],
@@ -259,6 +269,7 @@ export class SubscriptionManager {
     try {
       const parsed = parseSimple(sub.query);
       const qr = await kernel.query(parsed);
+      this._recordGraphIo(sub.tenantId);
       newResult = await hydrateAndResolve(
         kernel,
         qr.bindings as Record<string, unknown>[],
@@ -291,9 +302,18 @@ export class SubscriptionManager {
     });
   }
 
+  private _recordGraphIo(tenantId: string | null): void {
+    this.meter?.recordGraphIo(resolveUsageTenantId(tenantId));
+  }
+
   private _send(client: WsClient, payload: Record<string, unknown>): void {
+    const data = JSON.stringify(payload);
+    if (this.meter) {
+      const tid = resolveUsageTenantId(client.tenantId ?? DEFAULT_TENANT);
+      this.meter.recordEgress(tid, new TextEncoder().encode(data).length);
+    }
     try {
-      client.ws.send(JSON.stringify(payload));
+      client.ws.send(data);
     } catch {
       // Client disconnected
     }

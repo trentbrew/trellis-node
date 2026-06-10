@@ -409,11 +409,69 @@ program
     'Workspace footprint (minimal, standard, full)',
     'standard',
   )
+  .option(
+    '--minimal',
+    'Create minimal .trellis metadata and skip existing-file indexing',
+  )
+  .option(
+    '--index-workspace',
+    'Index existing workspace files into the Trellis graph',
+  )
+  .option('--no-index', 'Skip indexing existing workspace files during init')
   .option('--no-interactive', 'Skip interactive prompts')
   .action(async (opts) => {
     const rootPath = resolve(opts.path);
+    const indexWorkspace =
+      opts.minimal || opts.index === false
+        ? false
+        : opts.indexWorkspace === true
+          ? true
+          : undefined;
+    const footprint = opts.minimal ? 'minimal' : opts.footprint;
 
     if (TrellisVcsEngine.isRepo(rootPath)) {
+      if (opts.indexWorkspace === true && indexWorkspace !== false) {
+        const engine = new TrellisVcsEngine({ rootPath });
+        engine.open();
+        let renderedProgress = false;
+        const result = await engine.indexWorkspace({
+          onProgress: (progress) => {
+            renderedProgress = true;
+            if (progress.phase === 'done') {
+              process.stdout.write('\r\x1b[2K');
+              return;
+            }
+
+            const label =
+              progress.phase === 'discovering'
+                ? 'Discovering…'
+                : progress.phase === 'hashing'
+                  ? 'Hashing…'
+                  : progress.phase === 'scaffolding'
+                    ? 'Scaffolding…'
+                    : 'Scanning…';
+
+            process.stdout.write(
+              `\r\x1b[2K  ${chalk.dim(label)} ${progress.message}`,
+            );
+          },
+        });
+
+        if (renderedProgress) {
+          process.stdout.write('\n');
+        }
+
+        console.log(chalk.green('✓ Indexed Trellis workspace'));
+        console.log(`  ${chalk.dim('Path:')}           ${rootPath}`);
+        console.log(
+          `  ${chalk.dim('Files indexed:')}  ${result.filesIndexed}`,
+        );
+        console.log(
+          `  ${chalk.dim('Ops created:')}    ${result.opsCreated}`,
+        );
+        return;
+      }
+
       console.log(chalk.yellow('Already a Trellis workspace.'));
       return;
     }
@@ -423,15 +481,19 @@ program
         process.stdout.isTTY && !process.argv.includes('--no-interactive'),
       ides: opts.ides,
       framework: opts.framework,
-      footprint: opts.footprint,
+      footprint,
+      indexWorkspace,
     });
 
     console.log(chalk.green('✓ Initialized Trellis repository'));
-    const engine = new TrellisVcsEngine({ rootPath });
-    const opsCount = (await engine.log()).length;
     console.log(`  ${chalk.dim('Path:')}           ${rootPath}`);
     console.log(
-      `  ${chalk.dim('Ops:')}            ${opsCount} initial operations scanned`,
+      `  ${chalk.dim('Files indexed:')}  ${configResult.filesIndexed}`,
+    );
+    console.log(
+      `  ${chalk.dim('Ops:')}            ${configResult.opsCreated} initial ${
+        configResult.opsCreated === 1 ? 'operation' : 'operations'
+      }`,
     );
     console.log(`  ${chalk.dim('Config:')}         .trellis/config.json`);
     console.log(`  ${chalk.dim('Op log:')}         .trellis/ops.json`);
@@ -484,11 +546,19 @@ program
       );
     }
     console.log();
-    console.log(
-      chalk.dim(
-        'The causal stream is now active. Every file change will be tracked.',
-      ),
-    );
+    if (configResult.indexWorkspace) {
+      console.log(
+        chalk.dim(
+          'The causal stream is now active. Every file change will be tracked.',
+        ),
+      );
+    } else {
+      console.log(
+        chalk.dim(
+          'Minimal workspace initialized. Existing files were not indexed.',
+        ),
+      );
+    }
   });
 
 // ---------------------------------------------------------------------------
@@ -3940,7 +4010,7 @@ db.command('init')
       `  ${chalk.cyan('trellis db serve')}          Start the local HTTP server`,
     );
     console.log(
-      `  ${chalk.cyan('trellis db deploy --name <n>')}  Deploy to Sprites`,
+      `  ${chalk.cyan('trellis deploy --name <n>')}       Deploy room node to Sprites`,
     );
   });
 // trellis db serve
@@ -4153,53 +4223,46 @@ db.command('import <file>')
     pool.closeAll();
   });
 
+function registerDeployOptions(cmd: import('commander').Command) {
+  return cmd
+    .requiredOption('--name <name>', 'Room slug (becomes <name>.sprites.app)')
+    .option(
+      '--key <key>',
+      'API key for the deployed server (auto-generated if omitted)',
+    )
+    .option('--jwt-secret <secret>', 'JWT secret (auto-generated if omitted)')
+    .option('--port <port>', 'Port inside Sprite', '3000')
+    .option('--config-dir <dir>', 'Directory for .trellis-db.json', '.')
+    .option(
+      '--stub',
+      'Validate name and write config only — skip Sprites provisioning',
+      false,
+    );
+}
+
+async function handleDeployCommand(opts: {
+  name: string;
+  key?: string;
+  jwtSecret?: string;
+  port?: string;
+  configDir?: string;
+  stub?: boolean;
+}) {
+  const { runDeployCli } = await import('./deploy-cli.js');
+  await runDeployCli(opts);
+}
+
 // trellis db deploy
-db.command('deploy')
-  .description('Deploy Trellis DB to a Sprites cloud environment')
-  .requiredOption('--name <name>', 'Sprite name (becomes <name>.sprites.app)')
-  .option(
-    '--key <key>',
-    'API key for the deployed server (auto-generated if omitted)',
-  )
-  .option('--jwt-secret <secret>', 'JWT secret (auto-generated if omitted)')
-  .option('--port <port>', 'Port to run on inside Sprite', '3000')
-  .option('--config-dir <dir>', 'Config directory', '.')
-  .action(async (opts) => {
-    const { deploy } = await import('../server/deploy.js');
-    const { readConfig } = await import('../client/config.js');
+registerDeployOptions(
+  db.command('deploy').description('Deploy Trellis DB to a Sprites cloud environment'),
+).action(handleDeployCommand);
 
-    const config = readConfig(opts.configDir);
-
-    console.log(chalk.bold(`Deploying to Sprites: ${opts.name}...`));
-
-    try {
-      const result = await deploy({
-        name: opts.name,
-        dbPath: config?.dbPath,
-        apiKey: opts.key,
-        jwtSecret: opts.jwtSecret,
-        port: opts.port ? parseInt(opts.port) : 3000,
-        configDir: opts.configDir,
-        onProgress: (msg) => console.log(chalk.dim(`  ${msg}`)),
-      });
-
-      console.log('');
-      console.log(chalk.green(`✓ Deployed successfully`));
-      console.log(chalk.dim(`  URL:    ${result.url}`));
-      console.log(chalk.dim(`  Key:    ${result.apiKey}`));
-      console.log('');
-      console.log(chalk.bold('SDK usage:'));
-      console.log(chalk.cyan(`  import { TrellisDb } from 'trellis/client';`));
-      console.log(
-        chalk.cyan(
-          `  const db = new TrellisDb({ url: '${result.url}', apiKey: '${result.apiKey}' });`,
-        ),
-      );
-    } catch (err: any) {
-      console.error(chalk.red(`Deploy failed: ${err.message}`));
-      process.exit(1);
-    }
-  });
+// trellis deploy — top-level alias (TurtleDB Cloud C0)
+registerDeployOptions(
+  program
+    .command('deploy')
+    .description('Deploy a managed TurtleDB room node to Sprites'),
+).action(handleDeployCommand);
 
 // ---------------------------------------------------------------------------
 // trellis vm — Sprite VM management
