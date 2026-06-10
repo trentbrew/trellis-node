@@ -434,23 +434,27 @@ export function createTrellisMcpServer(): McpServer {
     'trellis_init',
     {
       description:
-        'Initialize a new TrellisVCS repository. Scans the directory and creates initial ops for all existing files.',
+        'Initialize a new TrellisVCS repository. Can either index existing files or create minimal metadata only.',
       inputSchema: {
         path: z
           .string()
           .default('.')
           .describe('Directory to initialize as a TrellisVCS repo'),
+        indexWorkspace: z
+          .boolean()
+          .default(true)
+          .describe('Whether to index existing workspace files during init'),
       },
     },
-    async ({ path }) => {
+    async ({ path, indexWorkspace }) => {
       const absPath = resolve(path);
       if (TrellisVcsEngine.isRepo(absPath)) {
         return text(`Already a Trellis workspace: ${absPath}`);
       }
       const engine = new TrellisVcsEngine({ rootPath: absPath });
-      const result = await engine.initRepo();
+      const result = await engine.initRepo({ indexWorkspace });
       return text(
-        `Initialized Trellis workspace at ${absPath}\nOps created: ${result.opsCreated}`,
+        `Initialized Trellis workspace at ${absPath}\nOps created: ${result.opsCreated}\nFiles indexed: ${result.filesIndexed}`,
       );
     },
   );

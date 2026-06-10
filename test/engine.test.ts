@@ -73,6 +73,43 @@ describe('TrellisVcsEngine', () => {
 
     // 1 branch op + 3 file ops (index.ts, utils.ts, README.md)
     expect(result.opsCreated).toBe(4);
+    expect(result.filesIndexed).toBe(3);
+    expect(result.indexWorkspace).toBe(true);
+  });
+
+  test('initRepo can create minimal metadata without indexing files', async () => {
+    const engine = new TrellisVcsEngine({ rootPath: TEST_DIR });
+    const result = await engine.initRepo({ indexWorkspace: false });
+
+    expect(result.opsCreated).toBe(1);
+    expect(result.filesIndexed).toBe(0);
+    expect(result.indexWorkspace).toBe(false);
+
+    const config = JSON.parse(
+      readFileSync(join(TEST_DIR, '.trellis', 'config.json'), 'utf-8'),
+    );
+    expect(config.indexWorkspace).toBe(false);
+
+    const engine2 = new TrellisVcsEngine({ rootPath: TEST_DIR });
+    engine2.open();
+    expect(engine2.status().totalOps).toBe(1);
+    expect(engine2.trackedFiles()).toHaveLength(0);
+  });
+
+  test('indexWorkspace indexes files after minimal init', async () => {
+    const engine = new TrellisVcsEngine({ rootPath: TEST_DIR });
+    await engine.initRepo({ indexWorkspace: false });
+
+    const result = await engine.indexWorkspace();
+
+    expect(result.opsCreated).toBe(3);
+    expect(result.filesIndexed).toBe(3);
+    expect(engine.trackedFiles()).toHaveLength(3);
+
+    const config = JSON.parse(
+      readFileSync(join(TEST_DIR, '.trellis', 'config.json'), 'utf-8'),
+    );
+    expect(config.indexWorkspace).toBe(true);
   });
 
   test('initRepo reports progress while scanning and recording files', async () => {
@@ -252,6 +289,20 @@ describe('TrellisVcsEngine', () => {
     expect(fileOps).toHaveLength(1);
     expect(fileOps[0].kind).toBe('vcs:fileAdd');
     expect(fileOps[0].vcs?.filePath).toBe('src/new-file.ts');
+  });
+
+  test('watch() skips startup reconciliation for minimal workspaces', async () => {
+    const engine = new TrellisVcsEngine({ rootPath: TEST_DIR });
+    await engine.initRepo({ indexWorkspace: false });
+
+    const opsBefore = engine.getOpCount();
+
+    engine.watch();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    engine.stop();
+
+    expect(engine.getOpCount()).toBe(opsBefore);
+    expect(engine.trackedFiles()).toHaveLength(0);
   });
 
   test('watch() does NOT duplicate ops for already-tracked files', async () => {
