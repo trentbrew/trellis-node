@@ -4231,7 +4231,10 @@ function registerDeployOptions(cmd: import('commander').Command) {
       'API key for the deployed server (auto-generated if omitted)',
     )
     .option('--jwt-secret <secret>', 'JWT secret (auto-generated if omitted)')
-    .option('--port <port>', 'Port inside Sprite', '3000')
+    .option(
+      '--port <port>',
+      'Port inside Sprite (live default: 8080 — Sprites public URL)',
+    )
     .option('--config-dir <dir>', 'Directory for .trellis-db.json', '.')
     .option(
       '--stub',

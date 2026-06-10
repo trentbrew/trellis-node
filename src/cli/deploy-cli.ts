@@ -45,8 +45,13 @@ export function printDeploySuccess(
 
 export async function runDeployCli(opts: DeployCliOptions): Promise<void> {
   const configDir = opts.configDir ?? '.';
+  // Live Sprites deploy defaults to 8080 in deploy() — only pass port when set explicitly.
   const port =
-    typeof opts.port === 'string' ? parseInt(opts.port, 10) : (opts.port ?? 3000);
+    opts.port === undefined
+      ? undefined
+      : typeof opts.port === 'string'
+        ? parseInt(opts.port, 10)
+        : opts.port;
 
   const { readConfig } = await import('../client/config.js');
   const config = readConfig(configDir);

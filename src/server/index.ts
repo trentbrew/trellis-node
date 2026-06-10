@@ -84,6 +84,7 @@ export {
   validateDeployName,
   normalizeDeployName,
   buildDeployUrl,
+  SPRITE_PUBLIC_HTTP_PORT,
   DeployNameError,
 } from './deploy-meta.js';
 
@@ -91,9 +92,15 @@ export {
 export {
   runSpriteCmd,
   runSpriteCopy,
+  runSpriteExec,
   runSpriteInteractive,
   assertSpriteCli,
   resolveSprite,
+  parseSpriteUrlOutput,
+  resolveSpritePublicUrl,
+  ensureSpritePublicAccess,
+  ensureSprite,
+  SPRITE_ENSURE_BUN_SH,
 } from './sprites.js';
 
 // VM Config

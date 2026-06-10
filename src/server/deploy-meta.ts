@@ -52,8 +52,15 @@ export function validateDeployName(name: string): string {
   return normalized;
 }
 
-/** Public HTTPS URL for a deployed room node on Sprites. */
+/**
+ * Stub / docs URL pattern (`https://<slug>.sprites.app`).
+ * Live deploy must call `resolveSpritePublicUrl()` — Sprites assigns
+ * `https://<slug>-<org>.sprites.app`.
+ */
 export function buildDeployUrl(name: string): string {
   const slug = validateDeployName(name);
   return `https://${slug}.sprites.app`;
 }
+
+/** Sprites public HTTP URL routes to this port by default. */
+export const SPRITE_PUBLIC_HTTP_PORT = 8080;

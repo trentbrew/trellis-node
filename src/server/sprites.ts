@@ -71,6 +71,43 @@ export async function runSpriteCopy(
   }
 }
 
+/** Remote shell snippet: install Bun if missing and print resolved binary path. */
+export const SPRITE_ENSURE_BUN_SH = `
+set -e
+export PATH="$HOME/.bun/bin:$PATH"
+if ! command -v bun >/dev/null 2>&1; then
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="$HOME/.bun/bin:$PATH"
+fi
+command -v bun
+`.trim();
+
+/** Parse `sprite url` stdout → `https://…` (no trailing slash). */
+export function parseSpriteUrlOutput(stdout: string): string {
+  const match = stdout.match(/URL:\s*(https:\/\/\S+)/i);
+  if (!match) {
+    throw new Error(`Could not parse sprite URL from output: ${stdout.trim()}`);
+  }
+  return match[1].replace(/\/$/, '');
+}
+
+/** Resolve the sprite's assigned public HTTPS URL (`sprite url -s <name>`). */
+export async function resolveSpritePublicUrl(spriteName: string): Promise<string> {
+  const out = await runSpriteCmd(['url', '-s', spriteName]);
+  return parseSpriteUrlOutput(out);
+}
+
+/** Make the sprite URL reachable without org auth (TurtleDB API uses its own key). */
+export async function ensureSpritePublicAccess(spriteName: string): Promise<void> {
+  try {
+    await runSpriteCmd(['url', 'update', '--auth', 'public', '-s', spriteName]);
+  } catch (err: any) {
+    const msg = String(err.message ?? err);
+    if (/already|unchanged|public/i.test(msg)) return;
+    throw err;
+  }
+}
+
 /**
  * Create a sprite if it does not already exist.
  */

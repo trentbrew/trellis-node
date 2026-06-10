@@ -3,8 +3,8 @@
  *
  * Deploys a Trellis DB server to a Sprites cloud environment.
  *
- * Sprites is a cloud VM platform. Each Sprite gets a persistent URL:
- *   https://<name>.sprites.app
+ * Sprites is a cloud VM platform. Each Sprite gets a persistent URL from
+ * `sprite url` (typically `https://<name>-<org>.sprites.app`).
  *
  * Deployment steps:
  *   1. Bundle the server entrypoint with Bun
@@ -23,12 +23,19 @@
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join, resolve } from 'path';
 import { updateConfig } from '../client/config.js';
-import { buildDeployUrl, validateDeployName } from './deploy-meta.js';
+import {
+  buildDeployUrl,
+  SPRITE_PUBLIC_HTTP_PORT,
+  validateDeployName,
+} from './deploy-meta.js';
 import {
   assertSpriteCli,
   ensureSprite,
+  ensureSpritePublicAccess,
+  resolveSpritePublicUrl,
   runSpriteCopy,
   runSpriteExec,
+  SPRITE_ENSURE_BUN_SH,
 } from './sprites.js';
 
 // ---------------------------------------------------------------------------
@@ -68,14 +75,16 @@ export interface DeployResult {
 // ---------------------------------------------------------------------------
 
 export async function deploy(opts: DeployOptions): Promise<DeployResult> {
-  const { port = 3000, configDir = '.', onProgress = () => {} } = opts;
+  const { configDir = '.', onProgress = () => {} } = opts;
+  // Sprites public URL routes to 8080 by default — not the generic CLI default (3000).
+  const listenPort = opts.port ?? SPRITE_PUBLIC_HTTP_PORT;
 
   const name = validateDeployName(opts.name);
   const apiKey = opts.apiKey ?? generateSecret('spk_');
   const jwtSecret = opts.jwtSecret ?? generateSecret('jws_');
-  const url = buildDeployUrl(name);
 
   if (opts.stub) {
+    const url = buildDeployUrl(name);
     onProgress('Stub deploy — skipping Sprites provisioning');
     onProgress('Writing .trellis-db.json...');
     writeRemoteDeployConfig({ name, url, apiKey, configDir });
@@ -94,7 +103,7 @@ export async function deploy(opts: DeployOptions): Promise<DeployResult> {
   const entrypoint = join(tmpDir, 'server-entry.ts');
   writeFileSync(
     entrypoint,
-    generateServerEntrypoint({ port, apiKey, jwtSecret }),
+    generateServerEntrypoint({ port: listenPort, apiKey, jwtSecret }),
   );
 
   // ── Step 3: Bundle with Bun ───────────────────────────────────────────────
@@ -111,9 +120,12 @@ export async function deploy(opts: DeployOptions): Promise<DeployResult> {
     'esm',
   ]);
 
-  // ── Step 4: Ensure Sprite exists ─────────────────────────────────────────
+  // ── Step 4: Ensure Sprite exists + public URL ─────────────────────────────
   onProgress(`Ensuring Sprite: ${name}...`);
   await ensureSprite(name);
+  onProgress('Configuring public URL...');
+  await ensureSpritePublicAccess(name);
+  const url = await resolveSpritePublicUrl(name);
 
   // ── Step 5: Upload bundle to Sprite ─────────────────────────────────────
   onProgress(`Uploading to Sprite: ${name}...`);
@@ -122,10 +134,10 @@ export async function deploy(opts: DeployOptions): Promise<DeployResult> {
 
   // ── Step 6: Install Bun on the Sprite (if needed) ─────────────────────────
   onProgress('Ensuring Bun is installed...');
-  await runSpriteExec(
-    name,
-    'which bun || curl -fsSL https://bun.sh/install | bash',
-  ).catch(() => {});
+  const bunPath = await runSpriteExec(name, SPRITE_ENSURE_BUN_SH);
+  if (!bunPath.includes('bun')) {
+    throw new Error(`Bun install failed on sprite ${name}: ${bunPath || '(no output)'}`);
+  }
 
   // ── Step 7: Restart server (background; survives exec return) ─────────────
   onProgress('Starting server...');
@@ -133,10 +145,14 @@ export async function deploy(opts: DeployOptions): Promise<DeployResult> {
     name,
     'pkill -f "/home/sprite/trellis-db/server.js" 2>/dev/null || true',
   ).catch(() => {});
+  const bun = bunPath.trim().split('\n').pop()!.trim();
   await runSpriteExec(
     name,
-    'cd /home/sprite/trellis-db && nohup ~/.bun/bin/bun run server.js >> server.log 2>&1 &',
+    `cd /home/sprite/trellis-db && (nohup ${bun} run server.js >> server.log 2>&1 </dev/null &); exit 0`,
   );
+
+  onProgress('Waiting for health check...');
+  await waitForDeployHealth(url, 60_000);
 
   // ── Step 8: Write local remote config ─────────────────────────────────────
   onProgress('Writing .trellis-db.json...');
@@ -166,6 +182,25 @@ function writeRemoteDeployConfig(opts: {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+async function waitForDeployHealth(url: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const healthUrl = `${url.replace(/\/$/, '')}/health`;
+  let lastStatus = 0;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(healthUrl);
+      lastStatus = res.status;
+      if (res.ok) return;
+    } catch {
+      /* sprite may still be waking */
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error(
+    `Deploy health check timed out (${healthUrl}${lastStatus ? `, last status ${lastStatus}` : ''})`,
+  );
+}
 
 function generateSecret(prefix: string): string {
   const bytes = new Uint8Array(24);
@@ -208,20 +243,20 @@ import { existsSync } from 'fs';
 const dbPath = '/home/sprite/trellis-db/data';
 const configDir = '/home/sprite/trellis-db';
 
-if (!existsSync(join(configDir, '.trellis-db.json'))) {
-  writeConfig(defaultLocalConfig(dbPath, {
-    apiKey: '${opts.apiKey}',
-    jwtSecret: '${opts.jwtSecret}',
-    port: ${opts.port},
-  }), configDir);
-}
+writeConfig(defaultLocalConfig(dbPath, {
+  apiKey: '${opts.apiKey}',
+  jwtSecret: '${opts.jwtSecret}',
+  port: ${opts.port},
+}), configDir);
 
 const config = readConfig(configDir)!;
-const pool = new TenantPool(dbPath);
+// Sprites VMs lack better-sqlite3 native bindings — use WASM sql.js backend.
+const pool = new TenantPool(dbPath, { backend: { backend: 'sqljs' } });
+await pool.preload();
 
 const server = startServer({ port: ${opts.port}, config, pool });
 
 console.log('Trellis DB running on port ${opts.port}');
-console.log(\`URL: https://\${process.env.SPRITE_NAME ?? 'localhost'}.sprites.app\`);
+console.log(\`Listening on port ${opts.port}\`);
 `;
 }
