@@ -30,6 +30,18 @@ async function gotoFractal(page: Page) {
 	});
 }
 
+/** Bits UI Select — no native `<select>` on /fractal */
+async function selectThing(page: Page, title: string) {
+	await page.getByRole('button', { name: 'Select thing' }).click();
+	const option = page.getByRole('option', { name: title });
+	await expect(option).toBeVisible({ timeout: 10_000 });
+	await option.click();
+}
+
+async function selectLane(page: Page, lane: string) {
+	await page.getByRole('radio', { name: lane, exact: true }).click();
+}
+
 test.describe('fractal wedge', () => {
 	test('one kernel renders at multiple vantages; edit propagates live', async ({
 		page,
@@ -40,7 +52,7 @@ test.describe('fractal wedge', () => {
 		await createRecord(request, title);
 
 		await gotoFractal(page);
-		await page.locator('select').selectOption({ label: title });
+		await selectThing(page, title);
 
 		await expect(page.locator('[data-shell="node"]')).toHaveCount(1);
 		await expect(page.locator('[data-shell="row"]')).toHaveCount(1);
@@ -62,10 +74,10 @@ test.describe('fractal wedge', () => {
 		await createRecord(request, title);
 
 		await gotoFractal(page);
-		await page.locator('select').selectOption({ label: title });
+		await selectThing(page, title);
 		await expect(page.locator('[data-shell="row"] .name')).toHaveText(title);
 
-		await page.getByRole('button', { name: 'agent:demo', exact: true }).click();
+		await selectLane(page, 'agent:demo');
 		await expect(page.locator('.missing').first()).toContainText('not present in agent:demo', {
 			timeout: 5000
 		});

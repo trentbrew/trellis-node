@@ -19,8 +19,8 @@ import React, {
   useEffect,
   type ReactNode,
 } from 'react';
-import { TrellisDb } from '../client/sdk.js';
-import type { TrellisDbRemoteOptions } from '../client/sdk.js';
+import { TrellisDb } from '../client/sdk.browser.js';
+import type { TrellisDbRemoteOptions } from '../client/sdk.browser.js';
 
 // ---------------------------------------------------------------------------
 // Context

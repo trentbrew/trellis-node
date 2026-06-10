@@ -29,7 +29,9 @@ export default defineConfig({
 		proxy: {
 			'/entities': trellisApi,
 			'/query': trellisApi,
+			'/health': trellisApi,
 			'/ontologies': trellisApi,
+			'/__trellis': trellisApi,
 			'/realtime': { target: trellisWs, ws: true }
 		}
 	}

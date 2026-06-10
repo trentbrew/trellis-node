@@ -228,6 +228,9 @@ export interface TrellisVcsConfig {
 
   /** Path to the .trellis database file. */
   dbPath: string;
+
+  /** Whether init/watch should reconcile existing workspace files by default. */
+  indexWorkspace: boolean;
 }
 
 export const DEFAULT_CONFIG: Omit<TrellisVcsConfig, 'rootPath'> = {
@@ -243,4 +246,5 @@ export const DEFAULT_CONFIG: Omit<TrellisVcsConfig, 'rootPath'> = {
   debounceMs: 300,
   defaultBranch: 'main',
   dbPath: '.trellis/trellis.db',
+  indexWorkspace: true,
 };

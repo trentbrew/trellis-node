@@ -254,12 +254,12 @@ Next steps (VCS):
 Semantic Substrate (Live local services):
   trellis web             Launch local web client / graph visualizer
   trellis query           Run EQL-S semantic queries against your code graph
-  Agent Rules            Active for cursor, windsurf. Agents will auto-detect the graph.
+  Agent Rules            Active for cursor, devin. Agents will auto-detect the graph.
 ```
 
 **Smart IDE Detection**
 
-- In Minimal setup mode, Trellis scans `process.env.TERM_PROGRAM` to detect Windsurf or Cursor
+- In Minimal setup mode, Trellis scans `process.env.TERM_PROGRAM` to detect Devin or Cursor
 - If IDE cannot be determined confidently, it defaults to scaffolding rules for both IDEs
 - Framework detection inherits from the `inferProjectContext` engine during repository scanning
 

@@ -2,6 +2,7 @@
 	import { browser } from '$app/environment';
 	import type { Component } from 'svelte';
 	import IdentityBadge from '$lib/ui/IdentityBadge.svelte';
+	import TrellisInspectorLoader from '$lib/ui/TrellisInspectorLoader.svelte';
 
 	let { children } = $props();
 	let GraphNav = $state<Component | null>(null);
@@ -38,3 +39,5 @@
 		</main>
 	</div>
 </div>
+
+<TrellisInspectorLoader />

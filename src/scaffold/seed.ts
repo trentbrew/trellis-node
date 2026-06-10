@@ -61,11 +61,7 @@ export async function seedContext(opts: SeedOptions): Promise<SeedResult> {
         confidence: context.confidence,
         lastSeed: timestamp,
       };
-      writeFileSync(
-        agentContextPath,
-        JSON.stringify(config, null, 2),
-        'utf-8',
-      );
+      writeFileSync(agentContextPath, JSON.stringify(config, null, 2), 'utf-8');
       filesUpdated.push('.trellis/agents/agent-context.json');
     }
   }
@@ -74,19 +70,29 @@ export async function seedContext(opts: SeedOptions): Promise<SeedResult> {
     case 'cursor': {
       const cursorRulesPath = join(rootPath, '.cursor', 'rules.md');
       if (existsSync(cursorRulesPath) || force) {
-        const content = renderSeedIdeRules(profile, context, 'cursor', timestamp);
+        const content = renderSeedIdeRules(
+          profile,
+          context,
+          'cursor',
+          timestamp,
+        );
         writeFileSync(cursorRulesPath, content, 'utf-8');
         filesUpdated.push('.cursor/rules.md');
       }
       break;
     }
 
-    case 'windsurf': {
-      const windsurfRulesPath = join(rootPath, '.windsurf', 'rules.md');
-      if (existsSync(windsurfRulesPath) || force) {
-        const content = renderSeedIdeRules(profile, context, 'windsurf', timestamp);
-        writeFileSync(windsurfRulesPath, content, 'utf-8');
-        filesUpdated.push('.windsurf/rules.md');
+    case 'devin': {
+      const devinRulesPath = join(rootPath, '.devin', 'rules.md');
+      if (existsSync(devinRulesPath) || force) {
+        const content = renderSeedIdeRules(
+          profile,
+          context,
+          'devin',
+          timestamp,
+        );
+        writeFileSync(devinRulesPath, content, 'utf-8');
+        filesUpdated.push('.devin/rules.md');
       }
       break;
     }
@@ -94,7 +100,12 @@ export async function seedContext(opts: SeedOptions): Promise<SeedResult> {
     case 'claude': {
       const claudeSettingsPath = join(rootPath, '.claude', 'settings.md');
       if (existsSync(claudeSettingsPath) || force) {
-        const content = renderSeedIdeRules(profile, context, 'claude', timestamp);
+        const content = renderSeedIdeRules(
+          profile,
+          context,
+          'claude',
+          timestamp,
+        );
         writeFileSync(claudeSettingsPath, content, 'utf-8');
         filesUpdated.push('.claude/settings.md');
       }

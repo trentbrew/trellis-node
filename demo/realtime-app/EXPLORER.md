@@ -19,7 +19,8 @@ Fractal + platform remotes use **server** `createEntityCollection` in
 
 ## What it demonstrates
 
-- **Graph sidecar** — `query.live`, ontology, entity CRUD (`:3920` + inspector)
+- **Graph sidecar** — `query.live`, ontology, entity CRUD (`:3920`)
+- **L3 inspector FAB** — embedded on `:4000` via `TrellisInspectorLoader` (bottom-right DB pill); `:3920` is dev-only bare landing
 - **Realtime primitives** — presence, chat, `/collab` RealtimeText CRDT (`/editor` redirects here)
 - **Agent lanes** — draft/promote on `/?lane=agent:demo`
 

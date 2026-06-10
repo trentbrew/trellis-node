@@ -30,7 +30,10 @@ function detectDbUrl(): string {
 function autoInject() {
   if (document.querySelector('trellis-db-inspector')) return;
   const el = document.createElement('trellis-db-inspector');
+  const script = document.currentScript as HTMLScriptElement | null;
   el.setAttribute('db-url', detectDbUrl());
+  const clientUrl = script?.dataset?.clientUrl ?? window.location.origin;
+  if (clientUrl) el.setAttribute('client-url', clientUrl);
   document.body.appendChild(el);
 }
 

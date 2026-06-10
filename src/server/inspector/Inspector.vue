@@ -1,7 +1,21 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 
-const props = defineProps<{ dbUrl: string }>()
+const props = defineProps<{ dbUrl: string; clientUrl?: string }>()
+
+const ATTR_SKIP = new Set(['id', 'type'])
+
+function entityAttrs(entity: Record<string, unknown>) {
+  return Object.entries(entity).filter(([key]) => !ATTR_SKIP.has(key))
+}
+
+function clientAppUrl(): string {
+  if (props.clientUrl) return props.clientUrl
+  const host = window.location.origin
+  const db = new URL(props.dbUrl).origin
+  if (host !== db) return host
+  return 'http://localhost:4000'
+}
 
 // ── Panel state ───────────────────────────────────────────────────────────────
 const isOpen = ref(false)
@@ -159,7 +173,7 @@ function close() { isOpen.value = false }
         <span class="tdb-title">Trellis DB</span>
       </div>
       <div class="tdb-header-r">
-        <span class="tdb-link" title="Coming soon — full client UI">Open Client ↗</span>
+        <a class="tdb-link" :href="clientAppUrl()" target="_blank" rel="noopener noreferrer">Open App ↗</a>
         <button class="tdb-close" @click.stop="close">✕</button>
       </div>
     </div>
@@ -196,9 +210,9 @@ function close() { isOpen.value = false }
             <span class="tdb-eid">{{ e.id }}</span>
           </div>
           <div v-if="expandedIds.has(e.id)" class="tdb-attrs">
-            <div v-for="(val, key) in e" :key="String(key)" class="tdb-attr">
+            <div v-for="[key, val] in entityAttrs(e)" :key="String(key)" class="tdb-attr">
               <span class="tdb-akey">{{ key }}</span>
-              <span class="tdb-aval">{{ val }}</span>
+              <span class="tdb-aval">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</span>
             </div>
           </div>
         </div>
@@ -302,9 +316,10 @@ function close() { isOpen.value = false }
 .tdb-header-l, .tdb-header-r { display: flex; align-items: center; gap: 7px; }
 .tdb-title { font-weight: 700; font-size: 12px; color: #a78bfa; letter-spacing: .3px; }
 .tdb-link {
-  font-size: 10px; color: #374151; cursor: default; letter-spacing: .2px;
-  pointer-events: none;
+  font-size: 10px; color: #64748b; cursor: pointer; letter-spacing: .2px;
+  text-decoration: none; transition: color .15s;
 }
+.tdb-link:hover { color: #a78bfa; }
 .tdb-close {
   background: none; border: none; color: #4b5563; cursor: pointer;
   font-size: 12px; padding: 2px 5px; border-radius: 3px; line-height: 1;
@@ -365,16 +380,22 @@ function close() { isOpen.value = false }
 }
 .tdb-entity-row:hover { background: #141428; }
 .tdb-arrow { color: #374151; font-size: 10px; width: 10px; flex-shrink: 0; }
-.tdb-etype { color: #6d28d9; font-weight: 700; font-size: 10px; flex-shrink: 0; }
-.tdb-eid { color: #334155; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdb-etype {
+  color: #6d28d9; font-weight: 700; font-size: 10px; flex-shrink: 0;
+  padding-right: 6px; border-right: 1px solid #1e1b4b; margin-right: 2px;
+}
+.tdb-eid { color: #334155; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .tdb-attrs {
   background: #08080f; border: 1px solid #13132a; border-top: none;
   border-radius: 0 0 4px 4px; padding: 5px 8px;
   display: flex; flex-direction: column; gap: 2px; margin-top: -1px;
 }
-.tdb-attr { display: flex; gap: 8px; font-size: 10px; }
-.tdb-akey { color: #475569; flex-shrink: 0; min-width: 72px; }
-.tdb-aval { color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdb-attr {
+  display: grid; grid-template-columns: minmax(4.5rem, 34%) 1fr;
+  gap: 8px; font-size: 10px; align-items: start;
+}
+.tdb-akey { color: #475569; flex-shrink: 0; word-break: break-word; }
+.tdb-aval { color: #94a3b8; overflow-wrap: anywhere; word-break: break-word; }
 
 /* ── Query ───────────────────────────────────────────────────────────────── */
 .tdb-textarea {

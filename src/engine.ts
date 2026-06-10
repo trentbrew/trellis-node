@@ -25,7 +25,7 @@ import { FileWatcher, type ScanProgress } from './watcher/fs-watcher.js';
 import { Ingestion } from './watcher/ingestion.js';
 import { decompose } from './vcs/decompose.js';
 import { createVcsOp, isVcsOpKind, verifyVcsOpHash } from './vcs/ops.js';
-import type { VcsOp, TrellisVcsConfig, FileChangeEvent } from './vcs/types.js';
+import type { VcsOp, TrellisVcsConfig } from './vcs/types.js';
 import { DEFAULT_CONFIG } from './vcs/types.js';
 import { BlobStore } from './vcs/blob-store.js';
 import type { EngineContext, ApplyOpOptions } from './vcs/engine-context.js';
@@ -139,6 +139,7 @@ interface PersistedConfig {
   ignorePatterns: string[];
   debounceMs: number;
   defaultBranch: string;
+  indexWorkspace?: boolean;
   agentId: string;
   createdAt: string;
 }
@@ -152,6 +153,23 @@ export interface InitProgress {
   current: number;
   total: number;
   message: string;
+}
+
+export interface InitRepoOptions {
+  onProgress?: (progress: InitProgress) => void;
+  indexWorkspace?: boolean;
+}
+
+export interface InitRepoResult {
+  opsCreated: number;
+  filesIndexed: number;
+  indexWorkspace: boolean;
+  context: ProjectContext;
+}
+
+export interface IndexWorkspaceResult {
+  opsCreated: number;
+  filesIndexed: number;
 }
 
 /** Issue lifecycle + acceptance criteria land on integration; issueUpdate stays lane-local. */
@@ -235,6 +253,7 @@ export class TrellisVcsEngine {
       debounceMs: opts.debounceMs ?? DEFAULT_CONFIG.debounceMs,
       defaultBranch: opts.defaultBranch ?? DEFAULT_CONFIG.defaultBranch,
       dbPath: opts.dbPath ?? DEFAULT_CONFIG.dbPath,
+      indexWorkspace: opts.indexWorkspace ?? DEFAULT_CONFIG.indexWorkspace,
     };
     this.agentId = opts.agentId ?? `agent:${process.env.USER ?? 'unknown'}`;
     this.store = new EAVStore();
@@ -243,59 +262,48 @@ export class TrellisVcsEngine {
       new JsonOpLog(join(this.config.rootPath, '.trellis', 'ops.json'));
   }
 
-  // -------------------------------------------------------------------------
-  // Lifecycle
-  // -------------------------------------------------------------------------
+  private readPersistedConfig(): PersistedConfig | null {
+    const configPath = join(this.config.rootPath, '.trellis', 'config.json');
+    if (!existsSync(configPath)) return null;
 
-  /**
-   * Initialize a new TrellisVCS repo. Creates .trellis/ directory and config.
-   */
-  async initRepo(opts?: {
-    onProgress?: (progress: InitProgress) => void;
-  }): Promise<{ opsCreated: number; context: ProjectContext }> {
-    ensureTrellisGitignoreEntry(this.config.rootPath);
-
-    const trellisDir = join(this.config.rootPath, '.trellis');
-    if (!existsSync(trellisDir)) {
-      mkdirSync(trellisDir, { recursive: true });
+    try {
+      return JSON.parse(readFileSync(configPath, 'utf-8'));
+    } catch {
+      return null;
     }
+  }
 
-    // Initialize blob store
-    this._blobStore = new BlobStore(trellisDir);
-
-    // Write config
-    const configPath = join(trellisDir, 'config.json');
+  private writePersistedConfig(createdAt?: string): PersistedConfig {
+    const existing = this.readPersistedConfig();
     const persistedConfig: PersistedConfig = {
       rootPath: this.config.rootPath,
       ignorePatterns: this.config.ignorePatterns,
       debounceMs: this.config.debounceMs,
       defaultBranch: this.config.defaultBranch,
+      indexWorkspace: this.config.indexWorkspace,
       agentId: this.agentId,
-      createdAt: new Date().toISOString(),
+      createdAt: createdAt ?? existing?.createdAt ?? new Date().toISOString(),
     };
+
+    const configPath = join(this.config.rootPath, '.trellis', 'config.json');
     writeFileSync(configPath, JSON.stringify(persistedConfig, null, 2));
+    return persistedConfig;
+  }
 
-    // Load existing ops (empty for new repo)
-    this.opLog.load();
+  private async indexExistingFiles(opts?: {
+    onProgress?: (progress: InitProgress) => void;
+  }): Promise<IndexWorkspaceResult> {
+    if (!this._blobStore) {
+      this._blobStore = new BlobStore(join(this.config.rootPath, '.trellis'));
+    }
 
-    // Create initial branch op
-    const branchOp = await createVcsOp('vcs:branchCreate', {
-      agentId: this.agentId,
-      previousHash: this.opLog.getLastOp()?.hash,
-      vcs: {
-        branchName: this.config.defaultBranch,
-      },
-    });
-    await this.applyOp(branchOp);
-
-    // Scan filesystem and create file-add ops for all existing files
     const scanner = new FileWatcher({
       rootPath: this.config.rootPath,
       ignorePatterns: [...this.config.ignorePatterns, '.trellis'],
       debounceMs: this.config.debounceMs,
       onEvent: () => {},
     });
-    const events = await scanner.scan({
+    const scanEvents = await scanner.scan({
       onProgress: (progress: ScanProgress) => {
         if (progress.phase === 'done') {
           return;
@@ -309,20 +317,23 @@ export class TrellisVcsEngine {
       },
     });
 
-    let opsCreated = 1; // branch op
+    const trackedPaths = new Set(this.trackedFiles().map((f) => f.path));
+    const events = scanEvents.filter((event) => !trackedPaths.has(event.path));
+
     opts?.onProgress?.({
       phase: 'recording',
       current: 0,
       total: events.length,
       message: `Scanning ${events.length} initial file operations…`,
     });
+
+    let opsCreated = 0;
     for (const event of events) {
-      // Store file content in blob store
       if (event.contentHash) {
         try {
           const absPath = join(this.config.rootPath, event.path);
           const content = await readFile(absPath);
-          await this._blobStore!.put(content);
+          await this._blobStore.put(content);
         } catch {}
       }
 
@@ -337,15 +348,65 @@ export class TrellisVcsEngine {
       });
       await this.applyOp(op);
       opsCreated++;
-      const scannedFiles = opsCreated - 1;
-      if (scannedFiles % 25 === 0 || scannedFiles === events.length) {
+      if (opsCreated % 25 === 0 || opsCreated === events.length) {
         opts?.onProgress?.({
           phase: 'recording',
-          current: scannedFiles,
+          current: opsCreated,
           total: events.length,
-          message: `Scanned ${scannedFiles}/${events.length} initial file ops`,
+          message: `Scanned ${opsCreated}/${events.length} initial file ops`,
         });
       }
+    }
+
+    return {
+      opsCreated,
+      filesIndexed: events.length,
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Lifecycle
+  // -------------------------------------------------------------------------
+
+  /**
+   * Initialize a new TrellisVCS repo. Creates .trellis/ directory and config.
+   */
+  async initRepo(opts?: InitRepoOptions): Promise<InitRepoResult> {
+    const indexWorkspace = opts?.indexWorkspace ?? this.config.indexWorkspace;
+    this.config.indexWorkspace = indexWorkspace;
+
+    ensureTrellisGitignoreEntry(this.config.rootPath);
+
+    const trellisDir = join(this.config.rootPath, '.trellis');
+    if (!existsSync(trellisDir)) {
+      mkdirSync(trellisDir, { recursive: true });
+    }
+
+    // Initialize blob store
+    this._blobStore = new BlobStore(trellisDir);
+
+    // Write config
+    this.writePersistedConfig();
+
+    // Load existing ops (empty for new repo)
+    this.opLog.load();
+
+    // Create initial branch op
+    const branchOp = await createVcsOp('vcs:branchCreate', {
+      agentId: this.agentId,
+      previousHash: this.opLog.getLastOp()?.hash,
+      vcs: {
+        branchName: this.config.defaultBranch,
+      },
+    });
+    await this.applyOp(branchOp);
+
+    let opsCreated = 1; // branch op
+    let filesIndexed = 0;
+    if (indexWorkspace) {
+      const indexed = await this.indexExistingFiles(opts);
+      opsCreated += indexed.opsCreated;
+      filesIndexed = indexed.filesIndexed;
     }
 
     await this.flushAutoCheckpoint();
@@ -358,7 +419,7 @@ export class TrellisVcsEngine {
       message: 'Inferring project context…',
     });
     const context = await inferProjectContext(this.config.rootPath, {
-      precomputedFileCount: events.length,
+      precomputedFileCount: filesIndexed,
     });
     const profile = loadProfile();
     writeAgentScaffold(this.config.rootPath, { profile, context });
@@ -367,9 +428,11 @@ export class TrellisVcsEngine {
       phase: 'done',
       current: opsCreated,
       total: opsCreated,
-      message: `Initialized repository with ${opsCreated} operations`,
+      message: indexWorkspace
+        ? `Initialized repository with ${opsCreated} operations`
+        : 'Initialized minimal repository without workspace indexing',
     });
-    return { opsCreated, context };
+    return { opsCreated, filesIndexed, indexWorkspace, context };
   }
 
   /**
@@ -383,10 +446,8 @@ export class TrellisVcsEngine {
     this._blobStore = new BlobStore(trellisDir);
 
     // Load config
-    const configPath = join(this.config.rootPath, '.trellis', 'config.json');
-    if (existsSync(configPath)) {
-      const raw = readFileSync(configPath, 'utf-8');
-      const persisted: PersistedConfig = JSON.parse(raw);
+    const persisted = this.readPersistedConfig();
+    if (persisted) {
       this.agentId = persisted.agentId;
       // Re-merge persisted patterns with .gitignore + .trellisignore
       const filePatterns = readIgnorePatterns(this.config.rootPath);
@@ -395,6 +456,8 @@ export class TrellisVcsEngine {
       ];
       this.config.debounceMs = persisted.debounceMs;
       this.config.defaultBranch = persisted.defaultBranch;
+      this.config.indexWorkspace =
+        persisted.indexWorkspace ?? DEFAULT_CONFIG.indexWorkspace;
     }
 
     // Load branch + lane session state
@@ -417,9 +480,36 @@ export class TrellisVcsEngine {
   }
 
   /**
+   * Index all untracked files currently on disk into the Trellis graph.
+   */
+  async indexWorkspace(opts?: {
+    onProgress?: (progress: InitProgress) => void;
+  }): Promise<IndexWorkspaceResult> {
+    if (!TrellisVcsEngine.isRepo(this.config.rootPath)) {
+      throw new Error(
+        `Not a Trellis workspace: ${this.config.rootPath}. Run trellis init first.`,
+      );
+    }
+
+    if (this.getOpCount() === 0) {
+      this.open();
+    }
+
+    const result = await this.indexExistingFiles(opts);
+    await this.flushAutoCheckpoint();
+    this.config.indexWorkspace = true;
+    this.writePersistedConfig();
+
+    return result;
+  }
+
+  /**
    * Start watching the filesystem for changes.
    */
-  watch(): void {
+  watch(opts?: { reconcileExisting?: boolean }): void {
+    const reconcileExisting =
+      opts?.reconcileExisting ?? this.config.indexWorkspace;
+
     this.ingestion = new Ingestion({
       agentId: this.agentId,
       lastOpHash: this.getActiveJournal().getLastOp()?.hash,
@@ -446,6 +536,11 @@ export class TrellisVcsEngine {
         await this.ingestion!.process(event);
       },
     });
+
+    if (!reconcileExisting) {
+      this.watcher.start();
+      return;
+    }
 
     // Scan to populate known files map, reconcile against op log for
     // untracked files, then start watching for live changes.

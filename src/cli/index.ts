@@ -57,7 +57,7 @@ import { registerLaneCommands } from './lane.js';
 
 export type IdeType =
   | 'cursor'
-  | 'windsurf'
+  | 'devin'
   | 'claude'
   | 'copilot'
   | 'codex'
@@ -95,8 +95,16 @@ async function runInit(
     framework?: string;
     footprint?: string;
     plugins?: string[];
+    indexWorkspace?: boolean;
   } = {},
-): Promise<{ selectedIdes: string[]; footprint: string; framework: string }> {
+): Promise<{
+  selectedIdes: string[];
+  footprint: string;
+  framework: string;
+  opsCreated: number;
+  filesIndexed: number;
+  indexWorkspace: boolean;
+}> {
   const isInteractive =
     opts.interactive !== false &&
     process.stdout.isTTY &&
@@ -107,6 +115,9 @@ async function runInit(
       selectedIdes: opts.ides || [],
       footprint: opts.footprint || 'standard',
       framework: opts.framework || 'none',
+      opsCreated: 0,
+      filesIndexed: 0,
+      indexWorkspace: opts.indexWorkspace ?? true,
     };
   }
 
@@ -138,6 +149,7 @@ async function runInit(
   let framework: FrameworkType =
     (opts.framework as FrameworkType) || detectedFramework || 'none';
   let plugins: string[] = opts.plugins || [];
+  let indexWorkspace = opts.indexWorkspace ?? true;
 
   if (!isInteractive && framework === 'none' && detectedFramework) {
     framework = detectedFramework;
@@ -168,23 +180,21 @@ async function runInit(
     if (setupType === 'minimal') {
       footprint = 'minimal';
       framework = detectedFramework || 'none';
+      indexWorkspace = false;
 
       // Auto-detect active/relevant IDEs
       const ides: string[] = [];
       const envKeys = Object.keys(process.env).join(',').toLowerCase();
-      if (
-        process.env.TERM_PROGRAM === 'Windsurf' ||
-        envKeys.includes('windsurf')
-      ) {
-        ides.push('windsurf');
+      if (process.env.TERM_PROGRAM === 'Devin' || envKeys.includes('devin')) {
+        ides.push('devin');
       } else if (
         process.env.TERM_PROGRAM === 'vscode' ||
         envKeys.includes('cursor')
       ) {
         ides.push('cursor');
       } else {
-        // Default to both Cursor and Windsurf to cover bases
-        ides.push('cursor', 'windsurf');
+        // Default to both Cursor and Devin to cover bases
+        ides.push('cursor', 'devin');
       }
       selectedIdes = ides;
       plugins = [];
@@ -232,9 +242,9 @@ async function runInit(
           checked: selectedIdes.includes('cursor') || selectedIdes.length === 0,
         },
         {
-          name: 'Windsurf',
-          value: 'windsurf',
-          checked: selectedIdes.includes('windsurf'),
+          name: 'Devin',
+          value: 'devin',
+          checked: selectedIdes.includes('devin'),
         },
         {
           name: 'Claude Desktop',
@@ -321,9 +331,10 @@ async function runInit(
     }
   }
 
-  const engine = new TrellisVcsEngine({ rootPath });
+  const engine = new TrellisVcsEngine({ rootPath, indexWorkspace });
   let renderedProgress = false;
   const result = await engine.initRepo({
+    indexWorkspace,
     onProgress: (progress) => {
       renderedProgress = true;
       if (progress.phase === 'done') {
@@ -364,7 +375,14 @@ async function runInit(
     }
   }
 
-  return { selectedIdes, footprint, framework };
+  return {
+    selectedIdes,
+    footprint,
+    framework,
+    opsCreated: result.opsCreated,
+    filesIndexed: result.filesIndexed,
+    indexWorkspace: result.indexWorkspace,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -379,7 +397,7 @@ program
   .option('-p, --path <path>', 'Path to initialize', '.')
   .option(
     '--ides <ides...>',
-    'IDEs to scaffold for (cursor, windsurf, claude, copilot, codex, gemini)',
+    'IDEs to scaffold for (cursor, devin, claude, copilot, codex, gemini)',
   )
   .option(
     '--framework <framework>',
@@ -483,7 +501,7 @@ program
   .option('-p, --path <path>', 'Repository path', '.')
   .option(
     '--ide <ide>',
-    'IDE to update (cursor, windsurf, claude, copilot)',
+    'IDE to update (cursor, devin, claude, copilot)',
     'none',
   )
   .option('-f, --force', 'Force rewrite even if files do not exist', false)
@@ -2796,7 +2814,11 @@ program
   .description(
     'Launch the live graph explorer (SvelteKit realtime-app at demo/realtime-app)',
   )
-  .option('-p, --path <path>', 'Repository path (init .trellis if missing)', '.')
+  .option(
+    '-p, --path <path>',
+    'Repository path (init .trellis if missing)',
+    '.',
+  )
   .option('--port <port>', 'SvelteKit app port', '4000')
   .option('--trellis-port <port>', 'Trellis graph sidecar port', '3920')
   .option(
@@ -2826,12 +2848,8 @@ program
       try {
         const server = await startUIServer({ rootPath, port: appPort });
         const url = `http://localhost:${server.port}`;
-        console.log(
-          chalk.yellow('Legacy System Visualizer (client.html)'),
-        );
-        console.log(
-          chalk.green(`✓ Running at ${chalk.bold(url)}`),
-        );
+        console.log(chalk.yellow('Legacy System Visualizer (client.html)'));
+        console.log(chalk.green(`✓ Running at ${chalk.bold(url)}`));
         openBrowser(url);
         process.on('SIGINT', () => {
           server.stop();
@@ -2845,12 +2863,9 @@ program
     }
 
     try {
-      const { launchRealtimeExplorer } = await import(
-        '../ui/launch-explorer.js'
-      );
-      console.log(
-        chalk.dim(`Workspace: ${rootPath}`),
-      );
+      const { launchRealtimeExplorer } =
+        await import('../ui/launch-explorer.js');
+      console.log(chalk.dim(`Workspace: ${rootPath}`));
       console.log(
         chalk.dim('Starting Svelte realtime explorer (sidecar + Vite)…\n'),
       );
@@ -2886,9 +2901,8 @@ program
 async function bootKernel(rootPath: string): Promise<TrellisKernel> {
   const dbPath = join(rootPath, '.trellis', 'kernel.db');
   const { createKernelBackend } = await import('../core/persist/factory.js');
-  const { attachStandardMiddleware } = await import(
-    '../core/kernel/boot-middleware.js'
-  );
+  const { attachStandardMiddleware } =
+    await import('../core/kernel/boot-middleware.js');
   const backend = await createKernelBackend(dbPath);
   const kernel = new TrellisKernel({
     backend,
