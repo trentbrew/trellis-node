@@ -108,8 +108,7 @@ function buildServerContext(opts: ServerConfig) {
       req.headers.get('authorization'),
       authConfig,
     );
-    const tenantId =
-      auth.tenantId ?? url.searchParams.get('tenantId') ?? null;
+    const tenantId = auth.tenantId ?? url.searchParams.get('tenantId') ?? null;
 
     try {
       return await route(req, url, path, auth, tenantId, {
@@ -132,9 +131,7 @@ function buildServerContext(opts: ServerConfig) {
   return { port, authConfig, subs, handleHttp };
 }
 
-async function startServerNode(
-  opts: ServerConfig,
-): Promise<TrellisHttpServer> {
+async function startServerNode(opts: ServerConfig): Promise<TrellisHttpServer> {
   const { port, subs, handleHttp } = buildServerContext(opts);
   const { startNodeServer } = await import('./node-adapter.js');
 
@@ -254,7 +251,7 @@ async function route(
 
   // ── Health ────────────────────────────────────────────────────────────────
   if (method === 'GET' && path === '/health') {
-    const kernel = ctx.pool.get(tenantId);
+    const kernel = await ctx.pool.preload(tenantId);
     const ops = kernel.readAllOps().length;
     return json({
       status: 'ok',
@@ -284,7 +281,10 @@ async function route(
   }
 
   // ── Ontologies ──────────────────────────────────────────────────────────────
-  if (method === 'POST' && (path === '/ontologies' || path === '/ontologies/')) {
+  if (
+    method === 'POST' &&
+    (path === '/ontologies' || path === '/ontologies/')
+  ) {
     return handleCreateOntology(req, auth, tenantId, ctx);
   }
 
@@ -336,7 +336,7 @@ async function handleCreate(
 
   ctx.permissions?.assert(auth, body.type, 'create');
 
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const entityId = `${body.type.toLowerCase()}:${crypto.randomUUID()}`;
   const attrs: Record<string, import('../core/store/eav-store.js').Atom> = {
     ...(body.attributes as any),
@@ -366,7 +366,7 @@ async function handleRead(
   tenantId: string | null,
   ctx: RouteCtx,
 ): Promise<Response> {
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const entity = kernel.getEntity(id);
   if (!entity) return json({ error: 'Not Found' }, 404);
 
@@ -386,7 +386,7 @@ async function handleUpdate(
   tenantId: string | null,
   ctx: RouteCtx,
 ): Promise<Response> {
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const entity = kernel.getEntity(id);
   if (!entity) return json({ error: 'Not Found' }, 404);
 
@@ -409,7 +409,7 @@ async function handleDelete(
   tenantId: string | null,
   ctx: RouteCtx,
 ): Promise<Response> {
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const entity = kernel.getEntity(id);
   if (!entity) return json({ error: 'Not Found' }, 404);
 
@@ -435,7 +435,7 @@ async function handleList(
   const limit = parseInt(url.searchParams.get('limit') ?? '100');
   const offset = parseInt(url.searchParams.get('offset') ?? '0');
 
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   let entities = kernel.listEntities(type);
 
   if (ctx.permissions && type) {
@@ -473,7 +473,7 @@ async function handleQuery(
     return json({ error: 'Invalid query', message: String(err) }, 400);
   }
 
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const result = await kernel.query(parsed);
   const bindings = hydrateBindings(
     kernel,
@@ -492,15 +492,19 @@ async function handleCreateOntology(
   tenantId: string | null,
   ctx: RouteCtx,
 ): Promise<Response> {
-  const schema = (await req.json()) as import('../core/ontology/types.js').SchemaDefinition;
+  const schema =
+    (await req.json()) as import('../core/ontology/types.js').SchemaDefinition;
   if (!schema || !schema['@id'] || !Array.isArray(schema.fields)) {
-    return json({ error: 'A SchemaDefinition (with @id and fields) is required' }, 400);
+    return json(
+      { error: 'A SchemaDefinition (with @id and fields) is required' },
+      400,
+    );
   }
   if ((schema.tier ?? 'user') === 'core') {
     return json({ error: 'Core ontologies are immutable' }, 403);
   }
 
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const exists = kernel
     .listOntologies()
     .some((ont) => ont['@id'] === schema['@id']);
@@ -544,7 +548,7 @@ async function handleUpload(
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')}`;
 
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const backend =
     kernel.getBackend() as import('../core/persist/sqlite-backend.js').SqliteKernelBackend;
 
@@ -564,7 +568,7 @@ async function handleFileDownload(
   ctx: RouteCtx,
   tenantId: string | null,
 ): Promise<Response> {
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const backend =
     kernel.getBackend() as import('../core/persist/sqlite-backend.js').SqliteKernelBackend;
   const blob = backend.getBlob(hash);
@@ -600,7 +604,7 @@ async function handleRegister(
     return json({ error: 'email and password are required' }, 400);
   }
 
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const existing = kernel.listEntities('User', { email: body.email });
   if (existing.length > 0) {
     return json({ error: 'Email already registered' }, 409);
@@ -642,7 +646,7 @@ async function handleLogin(
     return json({ error: 'email and password are required' }, 400);
   }
 
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const users = kernel.listEntities('User', { email: body.email });
   if (users.length === 0) {
     return json({ error: 'Invalid credentials' }, 401);
@@ -720,7 +724,7 @@ async function handleOAuthCallback(
     return json({ error: 'OAuth exchange failed', message: String(err) }, 400);
   }
 
-  const kernel = ctx.pool.get(tenantId);
+  const kernel = await ctx.pool.preload(tenantId);
   const oauthId = `oauth:${providerName}:${profile.id}`;
   let users = kernel.listEntities('User', { oauthId });
   let userId: string;

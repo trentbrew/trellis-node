@@ -840,3 +840,10 @@ smoke *ARGS:
 
 smoke-kernel *ARGS:
   cd ".." && just smoke-kernel {{ARGS}}
+
+# ---------------------------------------------------------------------------
+# Deploy
+# ---------------------------------------------------------------------------
+
+deploy version="3.2.0":
+  npm dist-tag add trellis@{{version}} latest

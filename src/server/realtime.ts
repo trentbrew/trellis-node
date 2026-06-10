@@ -205,7 +205,7 @@ export class SubscriptionManager {
       return;
     }
 
-    const kernel = this.pool.get(tid);
+    const kernel = await this.pool.preload(tid);
     let result: Record<string, unknown>[];
     try {
       const qr = await kernel.query(parsedQuery);
@@ -249,8 +249,11 @@ export class SubscriptionManager {
     });
   }
 
-  private async _pushUpdate(client: WsClient, sub: Subscription): Promise<void> {
-    const kernel = this.pool.get(sub.tenantId);
+  private async _pushUpdate(
+    client: WsClient,
+    sub: Subscription,
+  ): Promise<void> {
+    const kernel = await this.pool.preload(sub.tenantId);
 
     let newResult: Record<string, unknown>[];
     try {
@@ -267,7 +270,11 @@ export class SubscriptionManager {
     }
 
     const diff = computeDiff(sub.lastResult, newResult);
-    if (diff.added.length === 0 && diff.updated.length === 0 && diff.removed.length === 0) {
+    if (
+      diff.added.length === 0 &&
+      diff.updated.length === 0 &&
+      diff.removed.length === 0
+    ) {
       return;
     }
 
