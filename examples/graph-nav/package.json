@@ -6,7 +6,7 @@
   "scripts": {
     "server": "node server.mjs",
     "dev": "vite",
-    "dev:all": "concurrently -k -n trellis,vite -c cyan,green \"node server.mjs\" \"vite\"",
+    "dev:all": "node dev-all.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "preinstall": "node ../../scripts/ensure-linked-trellis.mjs"
@@ -25,7 +25,6 @@
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitejs/plugin-vue": "^5.2.1",
-    "concurrently": "^9.2.1",
     "typescript": "^5.6.0",
     "vite": "^6.3.1"
   }

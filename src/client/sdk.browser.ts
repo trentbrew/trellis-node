@@ -52,6 +52,65 @@ function browserOnlyRemoteError(feature: string): Error {
   );
 }
 
+/** Works on HTTP LAN dev (e.g. iPad at 192.168.x.x) where randomUUID is gated. */
+function randomId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 11)}`;
+}
+
+declare global {
+  interface Window {
+    /** Set by host app when WKWebView drops fetch POST bodies (XHR fallback). */
+    __TRELLIS_USE_XHR__?: boolean;
+    /** Host patched fetch via Tauri plugin-http — always use fetch, never XHR. */
+    __TRELLIS_NATIVE_HTTP__?: boolean;
+  }
+}
+
+/**
+ * iOS / Tauri WKWebView on HTTP LAN drops `fetch()` POST bodies.
+ * Skip when host installed native HTTP (see chat-demo ios-transport.ts).
+ */
+function needsXhrForBody(): boolean {
+  if (typeof globalThis.window !== 'undefined' && window.__TRELLIS_NATIVE_HTTP__) {
+    return false;
+  }
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/i.test(ua)) return true;
+  if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true;
+  // Tauri default WKWebView UA: WebKit + Gecko, no Safari/Version/Chrome token.
+  if (
+    /AppleWebKit/i.test(ua) &&
+    /KHTML, like Gecko\)/i.test(ua) &&
+    !/Safari\/|Chrome\/|Chromium\/|Edg\/|Version\//i.test(ua)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function xhrRequest(
+  method: string,
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    for (const [key, value] of Object.entries(headers)) {
+      xhr.setRequestHeader(key, value);
+    }
+    xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText });
+    xhr.onerror = () =>
+      reject(new Error(`XHR network error on ${method} ${url}`));
+    xhr.send(body);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // TrellisDb
 // ---------------------------------------------------------------------------
@@ -175,11 +234,28 @@ export class TrellisDb {
     schema: SchemaDefinition | { definition: SchemaDefinition },
   ): Promise<void> {
     const def = '@id' in schema ? schema : schema.definition;
+    const label =
+      def?.label ??
+      (def?.['@id'] ? String(def['@id']).replace(/^trellis:/, '') : 'unknown');
+    if (!def?.['@id']) {
+      throw new Error(`registerType(${label}): schema is missing a definition with @id`);
+    }
     try {
       await this._fetch('POST', '/ontologies', def);
     } catch (err) {
       // Idempotent re-registration (demo hot reload, StrictMode double-mount).
       if (err instanceof FetchError && err.status === 409) return;
+      if (err instanceof FetchError) {
+        const serverMsg =
+          typeof (err.body as Record<string, unknown> | undefined)?.message ===
+          'string'
+            ? String((err.body as Record<string, unknown>).message)
+            : err.message;
+        throw new FetchError(err.status, serverMsg, err.body, {
+          ...err.context,
+          operation: `registerType(${label})`,
+        });
+      }
       throw err;
     }
   }
@@ -276,7 +352,7 @@ export class TrellisDb {
     callback: SubscriptionCallback<T>,
     opts?: SubscribeOptions,
   ): Subscription<T> {
-    const subId = `sub_${crypto.randomUUID()}`;
+    const subId = `sub_${randomId()}`;
     this._subCallbacks.set(subId, callback as SubscriptionCallback<any>);
     this._ensureWs().then((ws) => {
       ws.send(
@@ -284,6 +360,7 @@ export class TrellisDb {
           type: 'subscribe',
           id: subId,
           query: eql,
+          ...(this.opts.tenantId ? { tenantId: this.opts.tenantId } : {}),
           ...(opts?.entityType ? { entityType: opts.entityType } : {}),
           ...(opts?.resolve ? { resolve: opts.resolve } : {}),
         }),
@@ -319,27 +396,80 @@ export class TrellisDb {
   // Private
   // -------------------------------------------------------------------------
 
+  /**
+   * Tenant isolation, not authorization: when `tenantId` is supplied out-of-band
+   * (not bound to the JWT), the server trusts the query param. Safe for ephemeral
+   * showcase rooms with unguessable ids; real multi-tenant auth must bind the
+   * tenant to the auth token instead. Skipped when the JWT already carries it.
+   */
+  private _applyTenant(path: string): string {
+    const tenantId = this.opts.tenantId;
+    if (!tenantId) return path;
+    const sep = path.includes('?') ? '&' : '?';
+    return `${path}${sep}tenantId=${encodeURIComponent(tenantId)}`;
+  }
+
   private async _fetch(
     method: string,
     path: string,
     body?: unknown,
   ): Promise<unknown> {
-    const url = `${this.opts.url}${path}`;
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.opts.apiKey ? { Authorization: `Bearer ${this.opts.apiKey}` } : {}),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const data = await res.json();
-    if (!res.ok)
-      throw new FetchError(
-        res.status,
-        (data as any)?.message ?? res.statusText,
-        data,
-      );
+    const url = `${this.opts.url}${this._applyTenant(path)}`;
+    let jsonBody: string | undefined;
+    if (body !== undefined) {
+      jsonBody = JSON.stringify(body);
+      if (jsonBody === undefined) {
+        throw new Error(`Request body is not JSON-serializable (${method} ${path})`);
+      }
+    }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(this.opts.apiKey ? { Authorization: `Bearer ${this.opts.apiKey}` } : {}),
+    };
+    const transport =
+      jsonBody !== undefined && needsXhrForBody() ? 'xhr' : 'fetch';
+    headers['X-Trellis-Transport'] = transport;
+    const bodyBytes = jsonBody ? new TextEncoder().encode(jsonBody).byteLength : 0;
+
+    let status: number;
+    let text: string;
+    if (transport === 'xhr' && jsonBody !== undefined) {
+      ({ status, text } = await xhrRequest(method, url, headers, jsonBody));
+    } else {
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: jsonBody as BodyInit | undefined,
+      });
+      status = res.status;
+      text = await res.text();
+    }
+
+    let data: unknown = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { raw: text };
+      }
+    }
+    if (status < 200 || status >= 300) {
+      const server = data as Record<string, unknown> | null;
+      const message =
+        (typeof server?.message === 'string' && server.message) ||
+        (typeof server?.error === 'string' && server.error) ||
+        'request failed';
+      const err = new FetchError(status, message, data, {
+        method,
+        path,
+        url,
+        requestBodyBytes: bodyBytes,
+        responseBytes: text.length,
+        transport,
+      });
+      console.error('[trellis]', err.toString());
+      throw err;
+    }
     return data;
   }
 
@@ -397,13 +527,56 @@ export class TrellisDb {
   }
 }
 
+export interface FetchErrorContext {
+  method?: string;
+  path?: string;
+  url?: string;
+  operation?: string;
+  requestBodyBytes?: number;
+  responseBytes?: number;
+  transport?: 'fetch' | 'xhr';
+}
+
 export class FetchError extends Error {
+  public readonly context: FetchErrorContext;
+
   constructor(
     public status: number,
     message: string,
     public body?: unknown,
+    context: FetchErrorContext = {},
   ) {
-    super(`HTTP ${status}: ${message}`);
+    super(FetchError.format(status, message, context));
     this.name = 'FetchError';
+    this.context = context;
+  }
+
+  static format(
+    status: number,
+    message: string,
+    ctx: FetchErrorContext,
+  ): string {
+    const parts = [`HTTP ${status}`];
+    if (ctx.operation) parts.push(ctx.operation);
+    if (ctx.method && ctx.path) parts.push(`${ctx.method} ${ctx.path}`);
+    parts.push(message);
+    if (ctx.requestBodyBytes !== undefined) {
+      parts.push(`sent ${ctx.requestBodyBytes}B`);
+    }
+    if (ctx.responseBytes !== undefined) {
+      parts.push(`response ${ctx.responseBytes}B`);
+    }
+    if (ctx.transport) parts.push(ctx.transport);
+    return parts.join(' · ');
+  }
+
+  toString(): string {
+    const extra: string[] = [];
+    if (this.body && typeof this.body === 'object') {
+      const b = this.body as Record<string, unknown>;
+      if (typeof b.path === 'string') extra.push(`server ${b.method} ${b.path}`);
+      if (typeof b.bodyBytes === 'number') extra.push(`server saw ${b.bodyBytes}B`);
+    }
+    return extra.length ? `${this.message} (${extra.join(', ')})` : this.message;
   }
 }

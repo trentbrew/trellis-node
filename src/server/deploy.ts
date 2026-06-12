@@ -232,6 +232,17 @@ async function runBun(args: string[]): Promise<void> {
   }
 }
 
+function resolveTrellisImports(): { server: string; client: string } {
+  const root = process.env.TRELLIS_NODE_ROOT?.trim();
+  if (root) {
+    return {
+      server: join(root, 'dist/server/index.js').replace(/\\/g, '/'),
+      client: join(root, 'dist/client/index.js').replace(/\\/g, '/'),
+    };
+  }
+  return { server: 'trellis/server', client: 'trellis/client' };
+}
+
 /**
  * Generate a self-contained server entrypoint script that starts the
  * Trellis DB HTTP server with the given config baked in.
@@ -241,9 +252,10 @@ function generateServerEntrypoint(opts: {
   apiKey: string;
   jwtSecret: string;
 }): string {
+  const { server, client } = resolveTrellisImports();
   return `
-import { TenantPool, startServer } from 'trellis/server';
-import { readConfig, defaultLocalConfig, writeConfig } from 'trellis/client';
+import { TenantPool, startServer } from '${server}';
+import { readConfig, defaultLocalConfig, writeConfig } from '${client}';
 import { join } from 'path';
 import { existsSync } from 'fs';
 

@@ -719,7 +719,7 @@ graph-nav port="4200" trellis_port="8230" open="1":
   just realtime-evict "{{port}}"
   just realtime-evict "{{trellis_port}}"
 
-  if [ ! -d "${dir}/node_modules" ]; then
+  if [ ! -x "${dir}/node_modules/.bin/vite" ]; then
     echo "Installing graph-nav deps…"
     (cd "${dir}" && pnpm install)
   else
