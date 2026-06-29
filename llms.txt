@@ -54,6 +54,10 @@ Import each module from `trellis/<path>`:
 - `trellis milestone create -m "msg"` — narrative checkpoint
 - `trellis branch <name>` — create or switch branches
 - `trellis issue create -t "title" -P high` — create a tracked issue
+- `trellis issue start TRL-N` — branch + agent lane (optional worktree when `lanes.worktreeBind`)
+- `trellis lane promote <lane-id>` — replay lane ops onto integration
+- `trellis protocol send --parent TRL-N --from … --to … --re TRL-N --status HANDOFF` — graph-backed handoff child (ADR 0015)
+- `trellis whereami` — re-entry: waiting / active / moved since checkpoint
 - `trellis garden list` — list abandoned work clusters
 - `trellis sdiff <old> <new>` — AST-level semantic diff
 - `trellis code` — start an agent harness session

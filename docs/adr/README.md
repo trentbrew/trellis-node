@@ -42,4 +42,4 @@ Nothing structurally. ADR 0005 supersedes **naming only** in 0001–0004.
 
 ## Next implementation phase
 
-**W2–W4** (TRL-37–39): ✅ CLI, promote, lazy replay. **W5** (worktree bind): ✅ TRL-40. **Next: [ADR 0014](./0014-git-materialization-and-lane-worktrees.md) Phase 1** (git materialize on promote) · **[ADR 0015](./0015-agent-handoff-protocol.md) Phase 1b** (workflow entity + hook graph sync).
+**W2–W4** (TRL-37–39): ✅ CLI, promote, lazy replay. **W5** (worktree bind): ✅ TRL-40 · **3.2.3**. **ADR 0015 Phase 1a** (protocol + `whereami`): ✅ **3.2.3**. **Next: [ADR 0014](./0014-git-materialization-and-lane-worktrees.md) Phase 1** (git materialize on promote) · **[ADR 0015](./0015-agent-handoff-protocol.md) Phase 1b** (workflow entity + hook graph sync).

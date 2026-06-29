@@ -1,4 +1,4 @@
-# Trellis — The Agentic Framework Guide
+# Trellis � The Agentic Framework Guide
 
 > **Trellis is more than version control.** It is a structured runtime for building agents that understand code, remember everything, and explain themselves. While it uses VCS-like primitives (branches, milestones, causal logs), these are the building blocks of an **Agentic State Engine**.
 
@@ -96,42 +96,42 @@ trellis milestone create -m "Refactored the authentication layer to use JWT"
 
 ```
 src/
-├── core/         # EAV store, kernel, ontology, query, agents, plugins
-├── llm/          # Unified LLM provider abstraction (NEW)
-├── context/      # Context window & RAG management (NEW)
-├── vcs/          # Causal stream, branches, milestones, merge
-├── links/        # Wiki-link parser & resolution
-├── embeddings/   # Semantic indexing & vector store
-├── decisions/    # Decision trace capture & hooks
-├── semantic/     # AST parser & semantic diff/merge
-├── sync/         # CRDT reconciler & peer sync
-├── watcher/      # Ingestion pipeline
-├── mcp/          # MCP server integration
-└── cli/          # CLI command surface
+??? core/         # EAV store, kernel, ontology, query, agents, plugins
+??? llm/          # Unified LLM provider abstraction (NEW)
+??? context/      # Context window & RAG management (NEW)
+??? vcs/          # Causal stream, branches, milestones, merge
+??? links/        # Wiki-link parser & resolution
+??? embeddings/   # Semantic indexing & vector store
+??? decisions/    # Decision trace capture & hooks
+??? semantic/     # AST parser & semantic diff/merge
+??? sync/         # CRDT reconciler & peer sync
+??? watcher/      # Ingestion pipeline
+??? mcp/          # MCP server integration
+??? cli/          # CLI command surface
 ```
 
 ### The Five Pillars of the Trellis Runtime
 
-1. **Causal Stream** — Immutable audit log of every state change.
-2. **Semantic Patching** — AST-level operations instead of text edits.
-3. **Decision Intelligence** — Structured rationale and precedent search.
-4. **Governance Subgraph** — Cryptographic identities and policy enforcement.
-5. **Exploration Memory** — The Idea Garden for reviving abandoned work.
-� every file change creates ops in real time               |
-| `git log`          | `trellis log` — causal op stream with content-addressed hashes       |
-| Tag / release      | `trellis milestone create -m "…"` — narrative checkpoint             |
-| Branch             | `trellis branch <name>` — same concept, with CRDT support            |
+1. **Causal Stream** � Immutable audit log of every state change.
+2. **Semantic Patching** � AST-level operations instead of text edits.
+3. **Decision Intelligence** � Structured rationale and precedent search.
+4. **Governance Subgraph** � Cryptographic identities and policy enforcement.
+5. **Exploration Memory** � The Idea Garden for reviving abandoned work.
+� every file change creates ops in real time               |
+| `git log`          | `trellis log` � causal op stream with content-addressed hashes       |
+| Tag / release      | `trellis milestone create -m "�"` � narrative checkpoint             |
+| Branch             | `trellis branch <name>` � same concept, with CRDT support            |
 | `git diff`         | `trellis diff` (file-level) or `trellis sdiff` (AST-level)           |
-| `git merge`        | `trellis merge <branch>` — three-way with conflict markers           |
-| Stash / abandoned  | `trellis garden` — discovers and revives abandoned work              |
-| Issue / ticket     | `trellis issue` — first-class task tracking with acceptance criteria |
+| `git merge`        | `trellis merge <branch>` � three-way with conflict markers           |
+| Stash / abandoned  | `trellis garden` � discovers and revives abandoned work              |
+| Issue / ticket     | `trellis issue` � first-class task tracking with acceptance criteria |
 
 ### Key Differences from Git
 
 1. **No staging area.** Ops are created automatically when files change.
 2. **Ops are immutable.** They are never rewritten, rebased, or deleted.
 3. **Three-tier ops:** Tier 0 (file-level), Tier 1 (structural), Tier 2 (semantic/AST).
-4. **Milestones ≠ commits.** A milestone spans a _range_ of ops and carries a narrative message.
+4. **Milestones ? commits.** A milestone spans a _range_ of ops and carries a narrative message.
 5. **Idea Garden.** Automatically detects abandoned work (context-switches, stale branches, reverts) and lets you revive it.
 
 ---
@@ -167,6 +167,38 @@ trellis branch                       # List branches
 trellis branch -d old-experiment     # Delete
 ```
 
+### Agent Lanes (multi-agent isolation)
+
+Each agent gets an isolated op journal (`lane-{uuid}`). `issue start` creates and enters a lane by default (`--no-lane` to opt out).
+
+```bash
+trellis issue start TRL-1            # Branch + lane
+trellis lane enter <lane-id>         # Route writes; materialize to worktree when bound
+trellis lane promote <lane-id>       # Replay onto integration � before issue close
+export TRELLIS_LANE_ID=lane-�        # Subprocess agents auto-enter
+```
+
+**Worktree bind (3.2.3+):** `"lanes": { "worktreeBind": true }` in `.trellis/config.json` provisions `.trellis/worktrees/<shortId>/` per lane. Edit there � not the shared repo root. See ADR 0014.
+
+Graph MCP `agent:<id>` lanes attribute graph writes only; desk trail markers are coordination metadata, not VCS.
+
+### Agent handoff protocol (3.2.3+)
+
+Record trellis-handoffs YAML envelopes as graph-backed child issues. Re-orient after context switches with `whereami`. See ADR 0015.
+
+```bash
+# Record a handoff (creates label:message or label:decision child)
+trellis protocol send --parent TRL-41 \
+  --from strategist --to human --re TRL-41 --status DECISION \
+  --body "Path A � ship after review PASS"
+
+# Re-entry dump: WAITING ON YOU / ACTIVE / MOVED SINCE LAST
+trellis whereami
+trellis whereami checkpoint   # writes .trellis/reentry-checkpoint.json
+```
+
+Cursor pipeline hooks still handle auto-advance; protocol children are the durable audit trail.
+
 ### Exploring Abandoned Work
 
 Before starting new work, check the Idea Garden:
@@ -189,7 +221,7 @@ trellis issue create -t "Add Python parser" -P high -l parser \
 # Create with explicit status
 trellis issue create -t "Urgent fix" -P critical -S open
 
-# Triage: move from backlog → open (ready for work)
+# Triage: move from backlog ? open (ready for work)
 trellis issue triage TRL-1
 
 # Start working (auto-creates branch, auto-assigns)
@@ -229,7 +261,7 @@ trellis sdiff src/old.ts src/new.ts  # Semantic diff (symbolAdd, symbolRename, e
 ### Decision Traces
 
 Decision traces are automatically captured from MCP tool invocations. They record
-what tool was called, with what inputs, and what it produced — forming an audit trail.
+what tool was called, with what inputs, and what it produced � forming an audit trail.
 
 ```bash
 trellis decision list                           # Recent decisions
@@ -264,7 +296,7 @@ If connected via MCP, these tools are available:
 | `trellis_issue_start`    | Start issue from backlog or queue (auto-branch, auto-assign)           |
 | `trellis_issue_pause`    | Pause issue, switch to default branch                                  |
 | `trellis_issue_resume`   | Resume issue, switch to issue branch                                   |
-| `trellis_issue_triage`   | Move issue from backlog → queue                                        |
+| `trellis_issue_triage`   | Move issue from backlog ? queue                                        |
 | `trellis_issue_update`   | Update issue metadata (title, description, status, priority, labels)   |
 | `trellis_issue_check`    | Run acceptance criteria                                                |
 | `trellis_issue_close`    | Close issue (requires tests pass + confirm)                            |
@@ -278,9 +310,9 @@ If connected via MCP, these tools are available:
 
 1. **Always check `trellis status` first** to understand the current repo state.
 2. **Use milestones, not commits.** Create a milestone when you complete a coherent unit of work.
-3. **Check the garden** before starting new features — someone may have abandoned relevant work.
+3. **Check the garden** before starting new features � someone may have abandoned relevant work.
 4. **Prefer `trellis sdiff`** over line-level diffs when reviewing TypeScript/JavaScript changes.
-5. **NEVER read, write, edit, or delete files inside `.trellis/`** — this directory contains the immutable op log and is managed exclusively by the engine. Direct edits WILL corrupt the causal chain. If `ops.json` appears corrupted, run `trellis repair` instead of editing the file. Always use the CLI or MCP tools for all VCS operations.
+5. **NEVER read, write, edit, or delete files inside `.trellis/`** � this directory contains the immutable op log and is managed exclusively by the engine. Direct edits WILL corrupt the causal chain. If `ops.json` appears corrupted, run `trellis repair` instead of editing the file. Always use the CLI or MCP tools for all VCS operations.
 6. **Ops are automatic.** File changes during `trellis watch` generate ops without manual intervention.
 7. **Branch names** follow the same conventions as Git: `feature/`, `fix/`, `experiment/`, etc.
 8. **Use issues for task tracking.** Create issues before starting work, add acceptance criteria, and close only when criteria pass.
@@ -290,6 +322,7 @@ If connected via MCP, these tools are available:
 12. **Add descriptions.** Use `--desc` on create or `trellis issue describe` to add a short description. For longer notes, use `summary.md` in the issue directory.
 13. **Decision traces are automatic.** MCP tool calls emit `vcs:decisionRecord` ops. Use `trellis decision chain <entity>` to see what decisions affected an entity.
 14. **Use `[[wiki-links]]`** in markdown and doc-comments to reference entities: `[[TRL-5]]`, `[[src/engine.ts]]`, `[[src/engine.ts#createIssue]]`, `[[decision:DEC-1]]`.
+15. **Handoff protocol (3.2.3+).** Record envelopes with `trellis protocol send`; re-orient with `trellis whereami` after context switches (ADR 0015).
 
 ---
 
@@ -297,26 +330,27 @@ If connected via MCP, these tools are available:
 
 ```
 src/
-├── vcs/          # Core: types, ops, decompose, branch, milestone, checkpoint, diff, merge, issue, blob-store
-├── links/        # Wiki-link parser, resolver, bidirectional ref index
-├── embeddings/   # Semantic embeddings + SQLite vec store
-├── decisions/    # Decision trace auto-capture, hooks, queries
-├── git/          # Git import/export bridge
-├── identity/     # Ed25519 keys, op signing, governance policies
-├── garden/       # Idea Garden: cluster detection + query/revive
-├── semantic/     # AST parser + semantic diff/merge
-├── sync/         # Peer sync: CRDT reconciler + sync engine
-├── watcher/      # Filesystem watcher + ingestion pipeline
-├── mcp/          # MCP server (this integration)
-├── cli/          # CLI commands
-├── engine.ts     # Composition root
-└── index.ts      # Public API surface
+??? protocol/   # Handoff envelope parse + whereami re-entry (ADR 0015)
+??? vcs/          # Core: types, ops, decompose, branch, milestone, checkpoint, diff, merge, issue, blob-store
+??? links/        # Wiki-link parser, resolver, bidirectional ref index
+??? embeddings/   # Semantic embeddings + SQLite vec store
+??? decisions/    # Decision trace auto-capture, hooks, queries
+??? git/          # Git import/export bridge
+??? identity/     # Ed25519 keys, op signing, governance policies
+??? garden/       # Idea Garden: cluster detection + query/revive
+??? semantic/     # AST parser + semantic diff/merge
+??? sync/         # Peer sync: CRDT reconciler + sync engine
+??? watcher/      # Filesystem watcher + ingestion pipeline
+??? mcp/          # MCP server (this integration)
+??? cli/          # CLI commands
+??? engine.ts     # Composition root
+??? index.ts      # Public API surface
 ```
 
 ### Five Pillars
 
-1. **Causal Stream** — Immutable, content-addressed ops with causal chaining
-2. **Semantic Patching** — AST-level diffs (symbolAdd, symbolRename, symbolMove)
-3. **Narrative Milestones** — Human-readable checkpoints spanning op ranges
-4. **Governance Subgraph** — Ed25519 identities, signed ops, policy rules
-5. **Idea Garden** — Automated detection and revival of abandoned work
+1. **Causal Stream** � Immutable, content-addressed ops with causal chaining
+2. **Semantic Patching** � AST-level diffs (symbolAdd, symbolRename, symbolMove)
+3. **Narrative Milestones** � Human-readable checkpoints spanning op ranges
+4. **Governance Subgraph** � Ed25519 identities, signed ops, policy rules
+5. **Idea Garden** � Automated detection and revival of abandoned work

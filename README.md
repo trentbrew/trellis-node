@@ -37,6 +37,10 @@ Track work as graph-native entities instead of text commits:
 
 ```bash
 trellis issue create -t "Bootstrap viz"
+trellis issue start TRL-1          # branch + lane; worktree when lanes.worktreeBind
+trellis protocol send --parent TRL-1 --from executor --to reviewer \
+  --re TRL-1 --status HANDOFF      # graph-backed handoff (3.2.3+)
+trellis whereami                   # re-entry orientation
 trellis milestone create -m "Initial release"
 trellis garden                          # discover & revive abandoned work
 trellis query 'find ?e where type = "Task"'

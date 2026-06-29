@@ -62,7 +62,7 @@ Cursor hooks                                ← execution runtime
 
 - Graph-queryable open decisions and messages
 - `whereami` replaces ad-hoc footer parsing for re-entry
-- Dogfoods W5 concurrent lane isolation before 3.2.3 publish
+- Dogfoods W5 concurrent lane isolation (shipped **3.2.3**)
 - Portable IR — MCP/headless runtimes can write same envelope shape
 
 **Negative**
@@ -75,7 +75,7 @@ Cursor hooks                                ← execution runtime
 
 | Phase | Scope |
 | ----- | ----- |
-| **1a** (TRL-41) | `src/protocol/*`, `trellis protocol send`, `trellis whereami`, tests, this ADR |
+| **1a** (TRL-41) | ✅ **3.2.3** — `src/protocol/*`, `trellis protocol send`, `trellis whereami`, tests, this ADR |
 | **1b** | Pipeline stop hook writes graph + session; `core:Workflow` data instance |
 | **2** | `ProtocolMessage` entity; EQL-S filters on `to`, `status`, stall thresholds |
 
