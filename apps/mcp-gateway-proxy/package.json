@@ -1,0 +1,8 @@
+{
+  "name": "trellis-mcp-gateway-proxy",
+  "private": true,
+  "description": "Vercel reverse proxy — mcp.trellis.computer → Sprites MCP discovery gateway",
+  "scripts": {
+    "deploy": "vercel --prod"
+  }
+}

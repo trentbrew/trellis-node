@@ -123,12 +123,22 @@ export function registerLaneCommands(program: Command): void {
         console.log(chalk.green(`✓ Lane created: ${chalk.bold(meta.id)}`));
         console.log(`  ${chalk.dim('Base:')}     ${meta.baseBranch} @ ${meta.baseOpHash.slice(0, 20)}…`);
         console.log(`  ${chalk.dim('Target:')}   ${meta.targetBranch}`);
+        if (meta.worktreePath) {
+          console.log(`  ${chalk.dim('Worktree:')} ${meta.worktreePath}`);
+        }
         if (meta.issueId) {
           console.log(`  ${chalk.dim('Issue:')}    ${meta.issueId}`);
         }
         console.log(
           chalk.dim(`  Enter: trellis lane enter ${meta.id}  |  export TRELLIS_LANE_ID=${meta.id}`),
         );
+        if (!meta.worktreePath) {
+          console.log(
+            chalk.yellow(
+              '  No worktree — set lanes.worktreeBind in .trellis/config.json and use a CLI build that includes TRL-40 (bun src/cli/index.ts or rebuild dist).',
+            ),
+          );
+        }
       } catch (err: unknown) {
         console.error(chalk.red((err as Error).message));
         process.exit(1);
@@ -174,6 +184,9 @@ export function registerLaneCommands(program: Command): void {
           console.log(
             `    ${chalk.dim('from')} ${lane.parentLaneId}${lane.forkKind ? ` (${lane.forkKind})` : ''}`,
           );
+        }
+        if (lane.worktreePath) {
+          console.log(`    ${chalk.dim('worktree')} ${lane.worktreePath}`);
         }
       }
     });
@@ -263,6 +276,9 @@ export function registerLaneCommands(program: Command): void {
       }
       if (meta.agentId) {
         console.log(`  ${chalk.dim('Agent:')}       ${meta.agentId}`);
+      }
+      if (meta.worktreePath) {
+        console.log(`  ${chalk.dim('Worktree:')}   ${meta.worktreePath}`);
       }
       if (filePaths.length > 0) {
         console.log(`  ${chalk.dim('Files:')}       ${filePaths.length} touched`);

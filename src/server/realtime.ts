@@ -171,8 +171,6 @@ export class SubscriptionManager {
         continue;
       }
 
-      if (client.tenantId !== tid) continue;
-
       for (const [subId, sub] of client.subscriptions) {
         if (sub.tenantId !== tid) continue;
         await this._pushUpdate(client, sub);
@@ -248,6 +246,10 @@ export class SubscriptionManager {
       resolve: opts.resolve,
     };
     client.subscriptions.set(subId, sub);
+    // WS connect defaults client.tenantId to null; align for metering + notify fan-out.
+    if (tid !== null && client.tenantId !== tid) {
+      client.tenantId = tid;
+    }
 
     this._send(client, { type: 'subscribed', id: subId });
     this._send(client, {

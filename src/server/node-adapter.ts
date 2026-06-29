@@ -30,6 +30,11 @@ export interface NodeAdapterOptions {
     message: (ws: WsLike, data: string | Buffer) => void | Promise<void>;
     close: (ws: WsLike) => void;
   };
+  /**
+   * Mount a presence relay on `/rt` (or custom path). Coexists with the graph
+   * subscription socket at `/realtime` when upgrades are path-scoped.
+   */
+  attachPresenceRelay?: boolean | { path?: string };
 }
 
 /**
@@ -67,6 +72,8 @@ export async function startNodeServer(
     wss = new WebSocketServer({ noServer: true });
 
     httpServer.on('upgrade', (req: IncomingMessage, socket: any, head: any) => {
+      const reqPath = (req.url ?? '').split('?')[0];
+      if (reqPath !== '/realtime') return;
       wss.handleUpgrade(req, socket, head, (ws: any) => {
         wss.emit('connection', ws, req);
       });
@@ -94,6 +101,15 @@ export async function startNodeServer(
   await new Promise<void>((resolve) =>
     httpServer.listen(opts.port, opts.hostname, resolve),
   );
+
+  if (opts.attachPresenceRelay) {
+    const { attachRealtimeRelay } = await import('../realtime/relay-server.js');
+    const relayOpts =
+      typeof opts.attachPresenceRelay === 'object'
+        ? opts.attachPresenceRelay
+        : { path: '/rt' };
+    await attachRealtimeRelay(httpServer, relayOpts);
+  }
 
   // After listen() resolves, read the actually-bound address — handles the
   // common "port 0" case where the OS picks an ephemeral port.

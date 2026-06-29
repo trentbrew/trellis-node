@@ -399,11 +399,15 @@ export class TrellisKernel {
     type: string,
     attributes: Record<string, Atom> = {},
     links?: Array<{ attribute: string; targetEntityId: string }>,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
-    const facts: Fact[] = [
-      { e: entityId, a: 'type', v: type },
-      { e: entityId, a: 'createdAt', v: new Date().toISOString() },
-    ];
+    const facts: Fact[] = [{ e: entityId, a: 'type', v: type }];
+
+    // Kernel metadata uses ISO strings; app schemas may define their own
+    // `createdAt` (e.g. chat message epoch ms). Do not inject a duplicate.
+    if (attributes.createdAt === undefined) {
+      facts.push({ e: entityId, a: 'createdAt', v: new Date().toISOString() });
+    }
 
     for (const [attr, value] of Object.entries(attributes)) {
       facts.push({ e: entityId, a: attr, v: value });
@@ -415,10 +419,14 @@ export class TrellisKernel {
       e2: l.targetEntityId,
     }));
 
-    return this.mutate('addFacts', {
-      facts,
-      links: linkRecords.length > 0 ? linkRecords : undefined,
-    });
+    return this.mutate(
+      'addFacts',
+      {
+        facts,
+        links: linkRecords.length > 0 ? linkRecords : undefined,
+      },
+      ctx,
+    );
   }
 
   /**
@@ -444,6 +452,7 @@ export class TrellisKernel {
   async updateEntity(
     entityId: string,
     updates: Record<string, Atom>,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
     const existingFacts = this.store.getFactsByEntity(entityId);
     const deleteFacts: Fact[] = [];
@@ -461,23 +470,34 @@ export class TrellisKernel {
     deleteFacts.push(...updatedAtFacts);
     addFacts.push({ e: entityId, a: 'updatedAt', v: new Date().toISOString() });
 
-    return this.mutate('addFacts', {
-      facts: addFacts,
-      deleteFacts,
-    });
+    return this.mutate(
+      'addFacts',
+      {
+        facts: addFacts,
+        deleteFacts,
+      },
+      ctx,
+    );
   }
 
   /**
    * Delete an entity and all its facts and links.
    */
-  async deleteEntity(entityId: string): Promise<MutateResult> {
+  async deleteEntity(
+    entityId: string,
+    ctx?: Partial<MiddlewareContext>,
+  ): Promise<MutateResult> {
     const facts = this.store.getFactsByEntity(entityId);
     const links = this.store.getLinksByEntity(entityId);
 
-    return this.mutate('deleteFacts', {
-      deleteFacts: facts,
-      deleteLinks: links,
-    });
+    return this.mutate(
+      'deleteFacts',
+      {
+        deleteFacts: facts,
+        deleteLinks: links,
+      },
+      ctx,
+    );
   }
 
   /**
@@ -519,10 +539,15 @@ export class TrellisKernel {
     sourceId: string,
     attribute: string,
     targetId: string,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
-    return this.mutate('addLinks', {
-      links: [{ e1: sourceId, a: attribute, e2: targetId }],
-    });
+    return this.mutate(
+      'addLinks',
+      {
+        links: [{ e1: sourceId, a: attribute, e2: targetId }],
+      },
+      ctx,
+    );
   }
 
   /**
@@ -532,10 +557,15 @@ export class TrellisKernel {
     sourceId: string,
     attribute: string,
     targetId: string,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
-    return this.mutate('deleteLinks', {
-      deleteLinks: [{ e1: sourceId, a: attribute, e2: targetId }],
-    });
+    return this.mutate(
+      'deleteLinks',
+      {
+        deleteLinks: [{ e1: sourceId, a: attribute, e2: targetId }],
+      },
+      ctx,
+    );
   }
 
   /**
@@ -790,9 +820,9 @@ export class TrellisKernel {
     id: string,
     data: Record<string, Atom>,
     type: string,
-    _ctx?: Partial<MiddlewareContext>,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
-    return this.createEntity(id, type, data);
+    return this.createEntity(id, type, data, undefined, ctx);
   }
 
   /**
@@ -802,9 +832,9 @@ export class TrellisKernel {
     id: string,
     data: Record<string, Atom>,
     type: string,
-    _ctx?: Partial<MiddlewareContext>,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
-    return this.updateEntity(id, data);
+    return this.updateEntity(id, data, ctx);
   }
 
   /**
@@ -812,9 +842,9 @@ export class TrellisKernel {
    */
   async deleteNode(
     id: string,
-    _ctx?: Partial<MiddlewareContext>,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
-    return this.deleteEntity(id);
+    return this.deleteEntity(id, ctx);
   }
 
   /**
@@ -824,9 +854,9 @@ export class TrellisKernel {
     e1: string,
     a: string,
     e2: string,
-    _ctx?: Partial<MiddlewareContext>,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
-    return this.addLink(e1, a, e2);
+    return this.addLink(e1, a, e2, ctx);
   }
 
   /**
@@ -836,9 +866,9 @@ export class TrellisKernel {
     e1: string,
     a: string,
     e2: string,
-    _ctx?: Partial<MiddlewareContext>,
+    ctx?: Partial<MiddlewareContext>,
   ): Promise<MutateResult> {
-    return this.removeLink(e1, a, e2);
+    return this.removeLink(e1, a, e2, ctx);
   }
 
   // -------------------------------------------------------------------------

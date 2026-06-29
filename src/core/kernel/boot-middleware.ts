@@ -5,6 +5,7 @@
 import type { SchemaDefinition } from '../ontology/types.js';
 import type { TrellisKernel } from './trellis-kernel.js';
 import { createLogicMiddleware } from './logic-middleware.js';
+import { createSchemaMiddleware } from './schema-middleware.js';
 
 /** Index schemas by @id, short name, and label for entity-type lookup. */
 export function buildOntologyIndex(
@@ -28,13 +29,22 @@ export function buildOntologyIndex(
   return map;
 }
 
-/** Register post-query formula enrichment on the kernel instance. */
+/** Register standard post-query enrichment and schema validation middleware. */
 export function attachStandardMiddleware(kernel: TrellisKernel): void {
   kernel.removeMiddleware('logic-computation');
-  const ontologies = buildOntologyIndex(kernel.listOntologies());
+  kernel.removeMiddleware('schema-validation');
+
+  const getOntologies = () => buildOntologyIndex(kernel.listOntologies());
+
+  kernel.addMiddleware(
+    createSchemaMiddleware({
+      getOntologies,
+    }),
+  );
+
   kernel.addMiddleware(
     createLogicMiddleware({
-      ontologies,
+      ontologies: getOntologies(),
       getStore: () => kernel.getStore(),
       getEntityType: (entityId) => kernel.getEntity(entityId)?.type,
     }),

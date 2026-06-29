@@ -77,6 +77,18 @@ describe('TrellisKernel', () => {
     expect(entity!.facts.find((f) => f.a === 'name')?.v).toBe('My Project');
   });
 
+  it('should not inject ISO createdAt when caller supplies createdAt', async () => {
+    const ts = Date.now();
+    await kernel.createEntity('message:1', 'message', {
+      room: 'lobby',
+      createdAt: ts,
+    });
+
+    const createdFacts = kernel.getEntity('message:1')!.facts.filter((f) => f.a === 'createdAt');
+    expect(createdFacts).toHaveLength(1);
+    expect(createdFacts[0].v).toBe(ts);
+  });
+
   it('should create an entity with links', async () => {
     await kernel.createEntity('team:1', 'Team', { name: 'Core Team' });
     await kernel.createEntity('user:1', 'User', { name: 'Alice' }, [

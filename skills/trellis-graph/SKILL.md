@@ -7,7 +7,7 @@ description: >
   you to interact with their Trellis data, create entities, query the graph,
   or manage relationships between entities.
 created: 2026-05-30
-updated: 2026-05-30
+updated: 2026-06-29
 ---
 
 # Trellis Graph Skill
@@ -16,6 +16,65 @@ Trellis is a personal knowledge graph where everything is an entity with typed
 properties and semantic links. The graph powers a Nuxt web app running on
 `localhost:$TRELLIS_PORT` with realtime sync — any mutations you make via MCP tools
 appear instantly in the browser UI.
+
+## Remote room (`TRELLIS_ROOM_URL`)
+
+When the MCP server points at a **deployed Trellis room** (Streamable HTTP at
+`<room>/mcp`) instead of local trellis-client, the **same core tool names** apply:
+
+| Tool | Remote room |
+| ---- | ----------- |
+| `get_graph_summary` | Yes — call first |
+| `query_graph`, `get_node`, `create_node`, `update_node`, `delete_node`, `link_nodes` | Yes |
+| `graph_health` | Yes |
+| Platform tools (`list_orgs`, `create_tag`, …) | Local campus graph only |
+
+**Cursor / Claude config:** set MCP `url` to `https://<room>.sprites.app/mcp` with
+`Authorization: Bearer spk_...`, or use `npx trellis mcp bridge --room <url>` for stdio clients.
+
+**Lane attribution on writes:** pass optional `lane: "agent:<client-id>"` on
+`create_node`, `update_node`, `delete_node`, and `link_nodes`, or send header
+`X-Trellis-Lane: agent:<client-id>`. Ops are attributed to that lane until promoted.
+
+> **Disambiguation:** Graph MCP `agent:<id>` lanes attribute **EAV graph writes** only.
+> **VCS lanes** (`lane-{uuid}`, `trellis lane`, `TRELLIS_LANE_ID`) isolate **file/op journals**
+> in the repo and may bind a git worktree when `lanes.worktreeBind` is true in `.trellis/config.json`.
+> Desk **trail markers** (`graph/trail-markers/`) are coordination metadata — not VCS.
+> See skill `trellis-vcs` for the agent workflow.
+
+**Playground tenant targeting** (`playground.trellis.computer` hosted app uses
+`embed-{room}` tenants from `?room=` in the URL):
+
+| Mechanism | Example |
+| --------- | ------- |
+| Tool arg `room` | `{ "room": "design-review" }` → tenant `embed-design-review` |
+| Tool arg `tenantId` | `{ "tenantId": "embed-design-review" }` (explicit) |
+| Header | `X-Trellis-Tenant: embed-design-review` |
+| Bridge CLI | `trellis mcp bridge --playground-room design-review` |
+| Bridge env | `TRELLIS_PLAYGROUND_ROOM=design-review` |
+| MCP URL | `…/trellis/mcp?tenantId=embed-design-review` |
+
+Priority per tool call: **`tenantId`** → **`room`** → **header** → **URL `?tenantId=`** → default showcase tenant (`null`).
+
+Match the Playground tab's `?room=` slug so MCP writes appear in that user's graph slice.
+
+Environment variables:
+
+- `TRELLIS_ROOM_URL` — room base URL (bridge CLI reads `.trellis-db.json` when unset)
+- `TRELLIS_TENANT_ID` — default tenant for bridge (e.g. `embed-my-room`)
+- `TRELLIS_PLAYGROUND_ROOM` — playground `?room=` slug → `embed-{slug}`
+- `TRELLIS_MCP_GRAPH_IO_LIMIT` — optional daily request cap per tenant (0 = unlimited)
+
+**Discovery gateway** (`/gateway/mcp` or `trellis mcp gateway serve`):
+
+| Tool | Purpose |
+| ---- | ------- |
+| `list_rooms` | Rooms from vm.json + `.trellis-db.json` + registry |
+| `get_room` | Details for one room |
+| `connect_room` | MCP client config for Cursor / Claude / generic |
+
+OAuth JWT from `/auth/oauth/google` works on room `/mcp` via `Authorization: Bearer <jwt>`.
+Well-known: `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`.
 
 ## IMPORTANT: Always Use MCP Tools
 

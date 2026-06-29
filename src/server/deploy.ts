@@ -22,7 +22,8 @@
 
 import { execFile } from 'child_process';
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
-import { join, resolve } from 'path';
+import { dirname, join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { updateConfig } from '../client/config.js';
 import {
@@ -240,6 +241,18 @@ function resolveTrellisImports(): { server: string; client: string } {
       client: join(root, 'dist/client/index.js').replace(/\\/g, '/'),
     };
   }
+  const here = dirname(fileURLToPath(import.meta.url));
+  const packageRoots = [resolve(here, '..'), resolve(here, '..', '..')];
+  for (const packageRoot of packageRoots) {
+    const server = join(packageRoot, 'dist/server/index.js');
+    const client = join(packageRoot, 'dist/client/index.js');
+    if (existsSync(server) && existsSync(client)) {
+      return {
+        server: server.replace(/\\/g, '/'),
+        client: client.replace(/\\/g, '/'),
+      };
+    }
+  }
   return { server: 'trellis/server', client: 'trellis/client' };
 }
 
@@ -273,7 +286,7 @@ const config = readConfig(configDir)!;
 const pool = new TenantPool(dbPath, { backend: { backend: 'sqljs' } });
 await pool.preload();
 
-const server = startServer({ port: ${opts.port}, config, pool });
+await startServer({ port: ${opts.port}, config, pool, presenceRelay: true });
 
 console.log('Trellis DB running on port ${opts.port}');
 console.log(\`Listening on port ${opts.port}\`);

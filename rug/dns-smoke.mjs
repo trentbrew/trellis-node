@@ -1,0 +1,12 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+const url = 'https://mcp.trellis.computer/gateway/mcp';
+const client = new Client({ name: 'dns-smoke', version: '1.0.0' });
+const transport = new StreamableHTTPClientTransport(new URL(url));
+await client.connect(transport);
+const tools = await client.listTools();
+console.log('tools:', tools.tools.map(t=>t.name).join(', '));
+const rooms = await client.callTool({ name: 'list_rooms', arguments: {} });
+const text = rooms.content.find(c=>c.type==='text')?.text;
+console.log('list_rooms:', text);
+await transport.close();

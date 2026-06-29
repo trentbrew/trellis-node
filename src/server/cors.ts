@@ -8,7 +8,8 @@
  */
 
 const DEFAULT_METHODS = 'GET, POST, PUT, DELETE, OPTIONS';
-const DEFAULT_HEADERS = 'Content-Type, Authorization';
+const DEFAULT_HEADERS =
+  'Content-Type, Authorization, mcp-session-id, mcp-protocol-version, Last-Event-ID, Accept, X-Trellis-Lane, X-Trellis-Tenant';
 
 export function corsEnabledForConfig(apiKey?: string): boolean {
   return Boolean(process.env.TRELLIS_CORS_ORIGINS) || Boolean(apiKey);

@@ -15,10 +15,12 @@ import type {
   SchemaDefinition,
   PropertyValueSpecification,
 } from '../ontology/types.js';
-import type { Atom } from '../store/eav-store.js';
+import type { Atom, Fact } from '../store/eav-store.js';
+import { buildOntologyIndex } from './boot-middleware.js';
 
 export interface SchemaMiddlewareConfig {
-  ontologies: Map<string, SchemaDefinition>;
+  /** Live ontology index — refreshed per op so schema edits apply immediately. */
+  getOntologies: () => Map<string, SchemaDefinition>;
   /** Whether to block on validation errors (default: true) */
   strict?: boolean;
 }
@@ -36,56 +38,53 @@ export function createSchemaMiddleware(
       ctx: MiddlewareContext,
       next: OpMiddlewareNext,
     ): Promise<void> {
-      // Only validate mutations with facts
       if (!op.facts || op.facts.length === 0) {
         return next(op, ctx);
       }
 
+      const ontologies = config.getOntologies();
       const errors: string[] = [];
+      const entities = new Set(
+        op.facts
+          .filter((fact) => fact.a === 'type')
+          .map((fact) => fact.e),
+      );
 
-      for (const fact of op.facts) {
-        // Get entity type from facts
-        const typeFact = op.facts?.find(
-          (f) => f.e === fact.e && f.a === 'type',
-        );
+      for (const entityId of entities) {
+        const typeFact = op.facts.find((fact) => fact.e === entityId && fact.a === 'type');
         if (!typeFact) continue;
 
-        const entityType = typeFact.v as string;
-        const schema = config.ontologies.get(entityType);
+        const entityType = String(typeFact.v);
+        const schema = resolveSchemaForEntity(entityType, entityId, op.facts, ontologies);
+        if (!schema) continue;
 
-        if (!schema) {
-          // No schema defined — allow
-          continue;
+        for (const fact of op.facts) {
+          if (fact.e !== entityId) continue;
+          const fieldSpec = schema.fields.find((field) => field.name === fact.a);
+          if (!fieldSpec) continue;
+
+          const validationError = validateValue(fact.a, fact.v, fieldSpec);
+          if (validationError) errors.push(validationError);
         }
 
-        // Find the field specification
-        const fieldSpec = schema.fields.find((f) => f.name === fact.a);
-        if (!fieldSpec) {
-          // Field not in schema — allow (extensible)
-          continue;
-        }
-
-        // Validate value type
-        const validationError = validateValue(fact.a, fact.v, fieldSpec);
-        if (validationError) {
-          errors.push(validationError);
-        }
-
-        // Check required fields
-        if (fieldSpec.required) {
-          const hasValue = op.facts?.some(
-            (f) => f.e === fact.e && f.a === fact.a,
+        for (const fieldSpec of schema.fields) {
+          if (!fieldSpec.required) continue;
+          const hasValue = op.facts.some(
+            (fact) =>
+              fact.e === entityId &&
+              fact.a === fieldSpec.name &&
+              fact.v !== null &&
+              fact.v !== undefined &&
+              fact.v !== '',
           );
           if (!hasValue) {
-            errors.push(
-              `Missing required field: ${fact.a} on entity ${fact.e}`,
-            );
+            errors.push(`Missing required field: ${fieldSpec.name} on entity ${entityId}`);
           }
         }
       }
 
       if (errors.length > 0 && strict) {
-        const errorMsg = errors.join('; ');
+        const errorMsg = [...new Set(errors)].join('; ');
         throw new Error(`Schema validation failed: ${errorMsg}`);
       }
 
@@ -94,17 +93,64 @@ export function createSchemaMiddleware(
   };
 }
 
+function collectionSlugFromCollectionId(collectionId: string): string | null {
+  const prefix = 'collectionMeta:';
+  if (!collectionId.startsWith(prefix)) return null;
+  const slug = collectionId.slice(prefix.length).trim();
+  return slug || null;
+}
+
+function findPerCollectionRecordSchema(
+  slug: string,
+  ontologies: Map<string, SchemaDefinition>,
+): SchemaDefinition | undefined {
+  const suffix = `/collections/${slug}/Record`;
+  for (const schema of ontologies.values()) {
+    if (schema['@id'].endsWith(suffix)) return schema;
+  }
+  return undefined;
+}
+
+function resolveSchemaForEntity(
+  entityType: string,
+  entityId: string,
+  facts: Fact[],
+  ontologies: Map<string, SchemaDefinition>,
+): SchemaDefinition | undefined {
+  const shortType = entityType.includes(':')
+    ? entityType.split(':').pop()!
+    : entityType;
+
+  if (shortType === 'CollectionRecord') {
+    const collectionIdFact = facts.find(
+      (fact) => fact.e === entityId && fact.a === 'collectionId',
+    );
+    const slug = collectionIdFact
+      ? collectionSlugFromCollectionId(String(collectionIdFact.v))
+      : null;
+    if (slug) {
+      const perCollection = findPerCollectionRecordSchema(slug, ontologies);
+      if (perCollection?.fields?.length) return perCollection;
+    }
+  }
+
+  return (
+    ontologies.get(entityType) ??
+    ontologies.get(shortType) ??
+    ontologies.get(shortType.toLowerCase()) ??
+    ontologies.get(entityType.toLowerCase())
+  );
+}
+
 function validateValue(
   fieldName: string,
   value: Atom,
   spec: PropertyValueSpecification,
 ): string | null {
-  // Null/undefined check
   if (value === null || value === undefined) {
-    return null; // Allow nulls (use required flag to block)
+    return null;
   }
 
-  // Type validation
   const actualType = typeof value;
 
   switch (spec.valueType) {
@@ -115,18 +161,36 @@ function validateValue(
     case 'status':
     case 'phone_number':
     case 'url':
-    case 'email':
+    case 'email': {
       if (actualType !== 'string') {
         return `Field ${fieldName}: expected string, got ${actualType}`;
       }
 
-      // Validate select options
+      const text = value as string;
+
+      if (spec.minLength !== undefined && text.length < spec.minLength) {
+        return `Field ${fieldName}: must be at least ${spec.minLength} characters`;
+      }
+      if (spec.maxLength !== undefined && text.length > spec.maxLength) {
+        return `Field ${fieldName}: must be at most ${spec.maxLength} characters`;
+      }
+      if (spec.pattern) {
+        try {
+          if (!new RegExp(spec.pattern).test(text)) {
+            return `Field ${fieldName}: invalid format`;
+          }
+        } catch {
+          // ignore invalid schema patterns
+        }
+      }
+
       if (spec.selectOptions && spec.selectOptions.length > 0) {
         if (!spec.selectOptions.includes(value)) {
           return `Field ${fieldName}: value "${value}" not in allowed options`;
         }
       }
       break;
+    }
 
     case 'number':
       if (actualType !== 'number') {
@@ -148,7 +212,6 @@ function validateValue(
       break;
 
     case 'date':
-      // Allow ISO strings or dates
       if (actualType === 'string') {
         const date = new Date(value as string);
         if (isNaN(date.getTime())) {
@@ -166,11 +229,9 @@ function validateValue(
     case 'formula':
     case 'ai_generated':
     case 'json':
-      // Complex types — skip validation for now
       break;
 
     default:
-      // Unknown type — allow
       break;
   }
 

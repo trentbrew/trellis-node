@@ -88,6 +88,12 @@ export interface RealtimeRelay {
 const REPLAY_GRACE_MS = 250;
 const DEFAULT_ROOM = 'default';
 
+/** Browser clients probe `/health` from another origin during local dev. */
+const RELAY_HEALTH_CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+} as const;
+
 /**
  * Map an upgrade path to its room, or `null` if this relay shouldn't claim it.
  * `path` → `'default'`; `${path}/{room}` → decoded `{room}`.
@@ -288,9 +294,19 @@ export async function createRealtimeRelay(
   const server = createServer((req, res) => {
     const reqPath = (req.url ?? '/').split('?')[0];
     if (reqPath === '/' || reqPath === '/health') {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, relay: path }));
-      return;
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, RELAY_HEALTH_CORS);
+        res.end();
+        return;
+      }
+      if (req.method === 'GET') {
+        res.writeHead(200, {
+          'content-type': 'application/json',
+          ...RELAY_HEALTH_CORS,
+        });
+        res.end(JSON.stringify({ ok: true, relay: path }));
+        return;
+      }
     }
     res.writeHead(404).end('not found');
   });

@@ -243,6 +243,7 @@ export class RealtimeRoom<P extends PresenceState = PresenceState> {
   }
 
   private integrateRemote(message: RealtimeMessage): void {
+    if (message.from === this.id) return;
     switch (message.t) {
       case 'hello':
         this.announcePresence();
@@ -341,6 +342,7 @@ export class RealtimeRoom<P extends PresenceState = PresenceState> {
   }
 
   private recomputePresence(): void {
+    this.peers.delete(this.id);
     const self: PresencePeer<P> = {
       id: this.id,
       state: this.myState,

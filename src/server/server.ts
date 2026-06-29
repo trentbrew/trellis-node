@@ -9,6 +9,7 @@
  *   PUT    /entities/:id               Update entity attributes
  *   DELETE /entities/:id               Delete entity
  *   GET    /entities?type=&limit=&offset=  List entities
+ *   GET    /ops?kind=&limit=&offset=       List causal ops (newest last in page)
  *   POST   /query                      EQL-S query
  *   POST   /upload                     File upload → blob hash
  *   GET    /files/:hash                Download blob
@@ -23,6 +24,9 @@
  *
  * WebSocket:
  *   GET    /realtime                   Upgrade to WebSocket for subscriptions
+ *
+ * MCP (Streamable HTTP):
+ *   GET/POST/DELETE /mcp               Remote graph query/CRUD for AI agents
  *
  * @module trellis/server
  */
@@ -65,6 +69,13 @@ import {
   corsPreflightResponse,
   withCors,
 } from './cors.js';
+import { roomMcpGateway } from './mcp-gateway.js';
+import { discoveryMcpGateway } from './discovery-mcp-gateway.js';
+import {
+  mcpServiceDocument,
+  oauthAuthorizationServerMetadata,
+  oauthProtectedResourceMetadata,
+} from './mcp-oauth-metadata.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,6 +87,8 @@ export interface ServerConfig {
   pool: TenantPool;
   permissions?: PermissionRegistry;
   oauthProviders?: Record<string, import('./auth.js').OAuthProvider>;
+  /** Mount a cross-browser presence relay at `/rt` on the same HTTP server. */
+  presenceRelay?: boolean | { path?: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +187,7 @@ async function startServerNode(opts: ServerConfig): Promise<TrellisHttpServer> {
   return startNodeServer({
     port,
     fetch: handleHttp,
+    attachPresenceRelay: opts.presenceRelay,
     websocket: {
       open(ws) {
         const id = crypto.randomUUID();
@@ -290,6 +304,35 @@ async function route(
     });
   }
 
+  // ── MCP (remote graph for agents) ─────────────────────────────────────────
+  if (
+    path === '/mcp' ||
+    path === '/mcp/' ||
+    path === '/trellis/mcp' ||
+    path === '/trellis/mcp/'
+  ) {
+    return roomMcpGateway.handle(req, ctx, auth, tenantId);
+  }
+
+  if (path === '/gateway/mcp' || path === '/gateway/mcp/') {
+    return discoveryMcpGateway.handle(req, {
+      configDir: '.',
+      origin: url.origin,
+    });
+  }
+
+  if (method === 'GET' && path === '/.well-known/oauth-protected-resource') {
+    return json(oauthProtectedResourceMetadata(url.origin));
+  }
+
+  if (method === 'GET' && path === '/.well-known/oauth-authorization-server') {
+    return json(oauthAuthorizationServerMetadata(url.origin));
+  }
+
+  if (method === 'GET' && path === '/.well-known/trellis-mcp') {
+    return json(mcpServiceDocument(url.origin, ctx.authConfig));
+  }
+
   // ── Health ────────────────────────────────────────────────────────────────
   if (method === 'GET' && path === '/health') {
     const kernel = await ctx.pool.preload(tenantId);
@@ -298,6 +341,13 @@ async function route(
       status: 'ok',
       ops,
       tenants: ctx.pool.activeTenants().length,
+      mcp: '/mcp',
+      mcpSprites: '/trellis/mcp',
+      mcpGateway: '/gateway/mcp',
+      oauth: {
+        protectedResource: '/.well-known/oauth-protected-resource',
+        authorizationServer: '/.well-known/oauth-authorization-server',
+      },
     });
   }
 
@@ -321,6 +371,11 @@ async function route(
     if (method === 'DELETE') return handleDelete(id, auth, tenantId, ctx);
   }
 
+  // ── Ops (causal stream) ───────────────────────────────────────────────────
+  if (method === 'GET' && (path === '/ops' || path === '/ops/')) {
+    return handleListOps(url, tenantId, ctx);
+  }
+
   // ── Query ─────────────────────────────────────────────────────────────────
   if (method === 'POST' && path === '/query') {
     return handleQuery(req, auth, tenantId, ctx);
@@ -332,6 +387,12 @@ async function route(
     (path === '/ontologies' || path === '/ontologies/')
   ) {
     return handleCreateOntology(req, auth, tenantId, ctx);
+  }
+
+  const ontologyMatch = path.match(/^\/ontologies\/(.+)$/);
+  if (ontologyMatch && (method === 'PATCH' || method === 'PUT')) {
+    const id = decodeURIComponent(ontologyMatch[1]!);
+    return handleUpdateOntology(req, id, auth, tenantId, ctx);
   }
 
   // ── Files ─────────────────────────────────────────────────────────────────
@@ -468,6 +529,60 @@ async function handleDelete(
   await ctx.subs.notify(tenantId);
 
   return json({ id, deleted: true });
+}
+
+// ---------------------------------------------------------------------------
+// Handler: List ops
+// ---------------------------------------------------------------------------
+
+async function handleListOps(
+  url: URL,
+  tenantId: string | null,
+  ctx: RouteCtx,
+): Promise<Response> {
+  const kind = url.searchParams.get('kind') ?? undefined;
+  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100', 10), 500);
+  const offset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+
+  const kernel = await ctx.pool.preload(tenantId);
+  let ops = kernel.readAllOps();
+
+  if (kind) {
+    ops = ops.filter((op) => op.kind === kind);
+  }
+
+  const total = ops.length;
+  const page = ops.slice(offset, offset + limit);
+
+  return json({
+    data: page.map((op, index) => summarizeKernelOp(op, offset + index)),
+    total,
+    limit,
+    offset,
+  });
+}
+
+function summarizeKernelOp(
+  op: import('../core/persist/backend.js').KernelOp,
+  index: number,
+) {
+  const entityIds = new Set<string>();
+  for (const fact of op.facts ?? []) entityIds.add(fact.e);
+  for (const fact of op.deleteFacts ?? []) entityIds.add(fact.e);
+
+  return {
+    index,
+    hash: op.hash,
+    kind: op.kind,
+    timestamp: op.timestamp,
+    agentId: op.agentId,
+    previousHash: op.previousHash,
+    factCount: op.facts?.length ?? 0,
+    linkCount: op.links?.length ?? 0,
+    deleteFactCount: op.deleteFacts?.length ?? 0,
+    deleteLinkCount: op.deleteLinks?.length ?? 0,
+    entityCount: entityIds.size,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -629,6 +744,39 @@ async function handleCreateOntology(
   }
 
   return json({ id: schema['@id'], registered: true }, 201);
+}
+
+async function handleUpdateOntology(
+  req: Request,
+  id: string,
+  auth: import('./auth.js').AuthContext,
+  tenantId: string | null,
+  ctx: RouteCtx,
+): Promise<Response> {
+  const parsed = await readJsonObject(req, '/ontologies');
+  if (!parsed.ok) return parsed.response;
+  const updates =
+    parsed.data as Partial<import('../core/ontology/types.js').SchemaDefinition>;
+
+  const kernel = await ctx.pool.preload(tenantId);
+  const existing = kernel.getOntology(id);
+  if (!existing) {
+    return json({ error: `Ontology ${id} not found` }, 404);
+  }
+  if ((existing.tier ?? 'user') === 'core') {
+    return json({ error: 'Core ontologies are immutable' }, 403);
+  }
+
+  try {
+    kernel.updateOntology(id, updates);
+    recordGraphIo(ctx, tenantId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return json({ error: 'Could not update schema', message: msg }, 400);
+  }
+
+  const updated = kernel.getOntology(id);
+  return json(updated ?? { id, updated: true });
 }
 
 // ---------------------------------------------------------------------------

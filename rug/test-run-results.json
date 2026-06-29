@@ -1,0 +1,14 @@
+[
+  {
+    "cmd": "bun test test/vcs/lane-worktree.test.ts test/p4/lane-worktree-bind.test.ts test/p4/lane-routing.test.ts",
+    "status": 0,
+    "stdout": "bun test v1.3.11 (af24e281)\n",
+    "stderr": "\ntest/p4/lane-worktree-bind.test.ts:\n(pass) Lane worktree bind (W5-MVP) > createLane provisions worktree when bind enabled [341.36ms]\n(pass) Lane worktree bind (W5-MVP) > enterLane materializes lane file ops to worktree [323.56ms]\n(pass) Lane worktree bind (W5-MVP) > two lanes isolate file content on disk [377.96ms]\n(pass) Lane worktree bind (W5-MVP) > dropLane removes worktree [337.41ms]\n(pass) Lane routing without worktree bind > createLane does not set worktreePath by default [5.07ms]\n\ntest/p4/lane-routing.test.ts:\n(pass) Lane journal routing > createLane writes laneCreate to integration journal only [4.68ms]\n(pass) Lane journal routing > lane ops do not append to integration journal [92.29ms]\n(pass) Lane journal routing > cannot create a lane while inside an active lane [8.23ms]\n(pass) Lane journal routing > leaveLane restores integration-only materialized state [4.40ms]\n(pass) Lane journal routing > enterLane after leave restores lane materialized state [4.94ms]\n(pass) Lane journal routing > activeLaneId persists across open() [6.57ms]\n(pass) Lane journal routing > dropLane marks meta dropped and leaves active session [5.52ms]\n(pass) Lane journal routing > lane ops stamp laneId on payload [3.38ms]\n\ntest/vcs/lane-worktree.test.ts:\n(pass) lane-worktree helpers > laneShortId and branch naming [0.11ms]\n(pass) lane-worktree helpers > provision and remove worktree in git repo [358.93ms]\n\n 15 pass\n 0 fail\n 30 expect() calls\nRan 15 tests across 3 files. [1.92s]\n"
+  },
+  {
+    "cmd": "pnpm exec vitest run test/vcs/lane-worktree.test.ts test/p4/lane-worktree-bind.test.ts test/p4/lane-routing.test.ts",
+    "status": 0,
+    "stdout": "\n RUN  v2.1.9 /Users/trentbrew/TURTLE/Projects/TRELLIS/trellis-node\n\n ✓ test/vcs/lane-worktree.test.ts (2 tests) 574ms\n   ✓ lane-worktree helpers > provision and remove worktree in git repo 572ms\n ✓ test/p4/lane-routing.test.ts (8 tests) 190ms\n ✓ test/p4/lane-worktree-bind.test.ts (5 tests) 1470ms\n   ✓ Lane worktree bind (W5-MVP) > createLane provisions worktree when bind enabled 351ms\n   ✓ Lane worktree bind (W5-MVP) > two lanes isolate file content on disk 433ms\n   ✓ Lane worktree bind (W5-MVP) > dropLane removes worktree 395ms\n\n Test Files  3 passed (3)\n      Tests  15 passed (15)\n   Start at  06:46:21\n   Duration  2.60s (transform 437ms, setup 0ms, collect 1.11s, tests 2.23s, environment 1ms, prepare 224ms)\n\n",
+    "stderr": ""
+  }
+]

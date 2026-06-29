@@ -34,6 +34,15 @@ export interface TenantUsageSnapshot {
 
 export interface UsageMeterOptions {
   now?: () => Date;
+  /** Daily graph I/O cap per tenant (0 = unlimited). Env: TRELLIS_MCP_GRAPH_IO_LIMIT */
+  graphIoLimit?: number;
+}
+
+export class McpRateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'McpRateLimitError';
+  }
 }
 
 const EMPTY_BUCKET = (): DayBucket => ({
@@ -107,9 +116,28 @@ export class UsageMeter {
   private buckets = new Map<string, Map<string, DayBucket>>();
   private storageSampledAt = new Map<string, string>();
   private now: () => Date;
+  private graphIoLimit: number;
 
   constructor(opts: UsageMeterOptions = {}) {
     this.now = opts.now ?? (() => new Date());
+    const envLimit = process.env.TRELLIS_MCP_GRAPH_IO_LIMIT;
+    this.graphIoLimit =
+      opts.graphIoLimit ??
+      (envLimit !== undefined && envLimit !== '' ? parseInt(envLimit, 10) : 0);
+  }
+
+  /**
+   * Enforce per-tenant daily graph I/O budget (MCP + REST).
+   * No-op when limit is 0 (unlimited).
+   */
+  assertGraphIoBudget(tenantId: string): void {
+    if (this.graphIoLimit <= 0) return;
+    const usage = this.getUsage(tenantId);
+    if (usage.meters.graph_io >= this.graphIoLimit) {
+      throw new McpRateLimitError(
+        `Daily graph I/O limit exceeded (${this.graphIoLimit} requests)`,
+      );
+    }
   }
 
   recordGraphIo(tenantId: string, count = 1): void {

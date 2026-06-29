@@ -280,6 +280,38 @@ describe('RealtimeRoom presence', () => {
     a.leave();
   });
 
+  test('replay of own presence does not duplicate self in peer list', () => {
+    const hub = new MemoryHub();
+    const aT = hub.connect('a');
+    const relayT = hub.connect('relay');
+
+    const a = RealtimeRoom.join({
+      transport: aT,
+      initialPresence: { name: 'Ada' },
+      heartbeatMs: 0,
+    });
+
+    relayT.send({
+      v: 1,
+      t: 'replay',
+      from: 'relay',
+      messages: [
+        {
+          v: 1,
+          t: 'presence',
+          from: 'a',
+          state: { name: 'Ada' },
+          ts: 1,
+        },
+      ],
+    });
+
+    expect(a.getPresence().map((p) => p.id)).toEqual(['a']);
+    expect(a.getPresence().filter((p) => p.id === 'a')).toHaveLength(1);
+
+    a.leave();
+  });
+
   test('onPresence fires on changes', () => {
     const hub = new MemoryHub();
     const a = joinRoom(hub, 'a', { name: 'Ada' });
