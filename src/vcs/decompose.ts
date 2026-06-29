@@ -431,6 +431,9 @@ export function decompose(op: VcsOp): DecomposedOp {
       if (!vcs.criterionId) break;
       const ceid = vcs.criterionId;
       if (vcs.criterionStatus) {
+        for (const prior of ['pending', 'passed', 'failed'] as const) {
+          result.deleteFacts.push({ e: ceid, a: 'status', v: prior });
+        }
         result.addFacts.push({ e: ceid, a: 'status', v: vcs.criterionStatus });
       }
       if (vcs.criterionOutput) {

@@ -54,6 +54,7 @@ import {
 import { cliVersion, findRepoRoot, resolveRepoRoot } from './repo-path.js';
 import { handleCliError } from './errors.js';
 import { registerLaneCommands } from './lane.js';
+import { registerProtocolCommands } from './protocol.js';
 
 export type IdeType =
   | 'cursor'
@@ -2983,6 +2984,45 @@ async function bootKernel(rootPath: string): Promise<TrellisKernel> {
   return kernel;
 }
 
+function parseAttrPairs(pairs?: string[]): Record<string, any> {
+  const attrs: Record<string, any> = {};
+  if (!pairs) return attrs;
+  for (const pair of pairs) {
+    const eq = pair.indexOf('=');
+    if (eq === -1) continue;
+    const key = pair.slice(0, eq);
+    let val: any = pair.slice(eq + 1);
+    if (val === 'true') val = true;
+    else if (val === 'false') val = false;
+    else if (!isNaN(Number(val)) && val !== '') val = Number(val);
+    attrs[key] = val;
+  }
+  return attrs;
+}
+
+/** Prefer VCS-integrated store (ops.json) when inside a TrellisVCS repo. */
+async function withGraphStore(
+  rootPath: string,
+  fn: (ctx: {
+    mode: 'vcs' | 'kernel';
+    engine?: TrellisVcsEngine;
+    kernel?: TrellisKernel;
+  }) => Promise<void>,
+): Promise<void> {
+  if (TrellisVcsEngine.isRepo(rootPath)) {
+    const engine = new TrellisVcsEngine({ rootPath });
+    engine.open();
+    await fn({ mode: 'vcs', engine });
+    return;
+  }
+  const kernel = await bootKernel(rootPath);
+  try {
+    await fn({ mode: 'kernel', kernel });
+  } finally {
+    kernel.close();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // trellis entity
 // ---------------------------------------------------------------------------
@@ -3000,32 +3040,23 @@ entityCmd
   .option('-p, --path <path>', 'Repository path', '.')
   .action(async (opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
+    const attrs = parseAttrPairs(opts.attr);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      const attrs: Record<string, any> = {};
-      if (opts.attr) {
-        for (const pair of opts.attr) {
-          const eq = pair.indexOf('=');
-          if (eq === -1) continue;
-          const key = pair.slice(0, eq);
-          let val: any = pair.slice(eq + 1);
-          // Auto-coerce numbers and booleans
-          if (val === 'true') val = true;
-          else if (val === 'false') val = false;
-          else if (!isNaN(Number(val)) && val !== '') val = Number(val);
-          attrs[key] = val;
-        }
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      if (mode === 'vcs' && engine) {
+        const op = await engine.createStoreEntity(opts.id, opts.type, attrs);
+        console.log(chalk.green(`✓ Entity created: ${chalk.bold(opts.id)}`));
+        console.log(`  ${chalk.dim('Type:')}  ${opts.type}`);
+        console.log(`  ${chalk.dim('Journal:')} ops.json (vcs:storeAssert)`);
+        console.log(`  ${chalk.dim('Op:')}    ${op.hash.slice(0, 32)}…`);
+        return;
       }
-
-      const result = await kernel.createEntity(opts.id, opts.type, attrs);
+      const result = await kernel!.createEntity(opts.id, opts.type, attrs);
       console.log(chalk.green(`✓ Entity created: ${chalk.bold(opts.id)}`));
       console.log(`  ${chalk.dim('Type:')}  ${opts.type}`);
       console.log(`  ${chalk.dim('Facts:')} ${result.factsDelta.added}`);
       console.log(`  ${chalk.dim('Op:')}    ${result.op.hash.slice(0, 32)}…`);
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 entityCmd
@@ -3037,9 +3068,11 @@ entityCmd
   .action(async (id: any, opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      const entity = kernel.getEntity(id);
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      const entity =
+        mode === 'vcs' && engine
+          ? engine.getStoreEntity(id)
+          : kernel!.getEntity(id);
       if (!entity) {
         console.error(chalk.red(`Entity not found: ${id}`));
         process.exit(1);
@@ -3071,9 +3104,7 @@ entityCmd
           console.log(`    ${dir} ${chalk.dim(l.a)} ${other}`);
         }
       }
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 entityCmd
@@ -3084,29 +3115,19 @@ entityCmd
   .option('-p, --path <path>', 'Repository path', '.')
   .action(async (id: any, opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
+    const updates = parseAttrPairs(opts.attr);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      const updates: Record<string, any> = {};
-      for (const pair of opts.attr) {
-        const eq = pair.indexOf('=');
-        if (eq === -1) continue;
-        const key = pair.slice(0, eq);
-        let val: any = pair.slice(eq + 1);
-        if (val === 'true') val = true;
-        else if (val === 'false') val = false;
-        else if (!isNaN(Number(val)) && val !== '') val = Number(val);
-        updates[key] = val;
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      if (mode === 'vcs' && engine) {
+        await engine.updateStoreEntity(id, updates);
+      } else {
+        await kernel!.updateEntity(id, updates);
       }
-
-      await kernel.updateEntity(id, updates);
       console.log(chalk.green(`✓ Updated ${chalk.bold(id)}`));
       for (const [k, v] of Object.entries(updates)) {
         console.log(`  ${chalk.dim(k)} = ${v}`);
       }
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 entityCmd
@@ -3117,18 +3138,22 @@ entityCmd
   .action(async (id: any, opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      const entity = kernel.getEntity(id);
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      const entity =
+        mode === 'vcs' && engine
+          ? engine.getStoreEntity(id)
+          : kernel!.getEntity(id);
       if (!entity) {
         console.error(chalk.red(`Entity not found: ${id}`));
         process.exit(1);
       }
-      await kernel.deleteEntity(id);
+      if (mode === 'vcs' && engine) {
+        await engine.deleteStoreEntity(id);
+      } else {
+        await kernel!.deleteEntity(id);
+      }
       console.log(chalk.green(`✓ Deleted entity ${chalk.bold(id)}`));
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 entityCmd
@@ -3140,25 +3165,19 @@ entityCmd
   .option('-p, --path <path>', 'Repository path', '.')
   .action(async (opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
+    const filters = parseAttrPairs(opts.filter);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      let filters: Record<string, any> | undefined;
-      if (opts.filter) {
-        filters = {};
-        for (const pair of opts.filter) {
-          const eq = pair.indexOf('=');
-          if (eq === -1) continue;
-          const key = pair.slice(0, eq);
-          let val: any = pair.slice(eq + 1);
-          if (val === 'true') val = true;
-          else if (val === 'false') val = false;
-          else if (!isNaN(Number(val)) && val !== '') val = Number(val);
-          filters[key] = val;
-        }
-      }
-
-      const entities = kernel.listEntities(opts.type, filters);
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      const entities =
+        mode === 'vcs' && engine
+          ? engine.listStoreEntities(
+              opts.type,
+              Object.keys(filters).length > 0 ? filters : undefined,
+            )
+          : kernel!.listEntities(
+              opts.type,
+              Object.keys(filters).length > 0 ? filters : undefined,
+            );
 
       if (opts.json) {
         const out = entities.map((e) => {
@@ -3180,15 +3199,15 @@ entityCmd
       const typeLabel = opts.type ? ` (type: ${opts.type})` : '';
       console.log(chalk.bold(`Entities (${entities.length})${typeLabel}\n`));
       for (const e of entities) {
-        const nameFact = e.facts.find((f) => f.a === 'name');
-        const name = nameFact ? ` ${chalk.white(String(nameFact.v))}` : '';
+        const labelFact =
+          e.facts.find((f) => f.a === 'title') ??
+          e.facts.find((f) => f.a === 'name');
+        const name = labelFact ? ` ${chalk.white(String(labelFact.v))}` : '';
         console.log(
           `  ${chalk.cyan(e.type.padEnd(16))} ${chalk.bold(e.id)}${name}`,
         );
       }
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 // ---------------------------------------------------------------------------
@@ -3208,24 +3227,23 @@ factCmd
   .option('-p, --path <path>', 'Repository path', '.')
   .action(async (entity: any, attribute: any, value: any, opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
+    let val: any = value;
+    if (val === 'true') val = true;
+    else if (val === 'false') val = false;
+    else if (!isNaN(Number(val)) && val !== '') val = Number(val);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      // Auto-coerce
-      let val: any = value;
-      if (val === 'true') val = true;
-      else if (val === 'false') val = false;
-      else if (!isNaN(Number(val)) && val !== '') val = Number(val);
-
-      await kernel.addFact(entity, attribute, val);
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      if (mode === 'vcs' && engine) {
+        await engine.addStoreFact(entity, attribute, val);
+      } else {
+        await kernel!.addFact(entity, attribute, val);
+      }
       console.log(
         chalk.green(
           `✓ Added fact: ${chalk.bold(entity)}.${attribute} = ${val}`,
         ),
       );
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 factCmd
@@ -3237,23 +3255,23 @@ factCmd
   .option('-p, --path <path>', 'Repository path', '.')
   .action(async (entity: any, attribute: any, value: any, opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
+    let val: any = value;
+    if (val === 'true') val = true;
+    else if (val === 'false') val = false;
+    else if (!isNaN(Number(val)) && val !== '') val = Number(val);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      let val: any = value;
-      if (val === 'true') val = true;
-      else if (val === 'false') val = false;
-      else if (!isNaN(Number(val)) && val !== '') val = Number(val);
-
-      await kernel.removeFact(entity, attribute, val);
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      if (mode === 'vcs' && engine) {
+        await engine.removeStoreFact(entity, attribute, val);
+      } else {
+        await kernel!.removeFact(entity, attribute, val);
+      }
       console.log(
         chalk.green(
           `✓ Removed fact: ${chalk.bold(entity)}.${attribute} = ${val}`,
         ),
       );
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 factCmd
@@ -3266,9 +3284,9 @@ factCmd
   .action(async (opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      const store = kernel.getStore();
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      const store =
+        mode === 'vcs' && engine ? engine.getEavStore() : kernel!.getStore();
       let facts;
 
       if (opts.entity) {
@@ -3298,9 +3316,7 @@ factCmd
       if (facts.length > 100) {
         console.log(chalk.dim(`  … +${facts.length - 100} more`));
       }
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 // ---------------------------------------------------------------------------
@@ -3321,17 +3337,18 @@ linkCmd
   .action(async (source: any, attribute: any, target: any, opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      await kernel.addLink(source, attribute, target);
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      if (mode === 'vcs' && engine) {
+        await engine.addStoreLink(source, attribute, target);
+      } else {
+        await kernel!.addLink(source, attribute, target);
+      }
       console.log(
         chalk.green(
           `✓ Link: ${chalk.bold(source)} —[${attribute}]→ ${chalk.bold(target)}`,
         ),
       );
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 linkCmd
@@ -3344,17 +3361,18 @@ linkCmd
   .action(async (source: any, attribute: any, target: any, opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      await kernel.removeLink(source, attribute, target);
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      if (mode === 'vcs' && engine) {
+        await engine.removeStoreLink(source, attribute, target);
+      } else {
+        await kernel!.removeLink(source, attribute, target);
+      }
       console.log(
         chalk.green(
           `✓ Removed: ${chalk.bold(source)} —[${attribute}]→ ${chalk.bold(target)}`,
         ),
       );
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 linkCmd
@@ -3367,9 +3385,9 @@ linkCmd
   .action(async (opts: any) => {
     const rootPath = resolveRepoRoot(opts.path);
 
-    const kernel = await bootKernel(rootPath);
-    try {
-      const store = kernel.getStore();
+    await withGraphStore(rootPath, async ({ mode, engine, kernel }) => {
+      const store =
+        mode === 'vcs' && engine ? engine.getEavStore() : kernel!.getStore();
       let links;
 
       if (opts.entity && opts.attribute) {
@@ -3401,9 +3419,7 @@ linkCmd
       if (links.length > 100) {
         console.log(chalk.dim(`  … +${links.length - 100} more`));
       }
-    } finally {
-      kernel.close();
-    }
+    });
   });
 
 // ---------------------------------------------------------------------------
@@ -4052,6 +4068,8 @@ db.command('serve')
 
     console.log(chalk.green(`✓ Trellis DB running`));
     console.log(chalk.dim(`  URL:  http://localhost:${port}`));
+    console.log(chalk.dim(`  MCP:  http://localhost:${port}/mcp`));
+    console.log(chalk.dim(`  Gateway:  http://localhost:${port}/gateway/mcp`));
     console.log(chalk.dim(`  Docs: GET http://localhost:${port}/health`));
     if (config.apiKey) {
       console.log(chalk.dim(`  Key:  ${config.apiKey}`));
@@ -5507,10 +5525,126 @@ program
   });
 
 // ---------------------------------------------------------------------------
+// trellis mcp — Room MCP bridge for stdio-only clients
+// ---------------------------------------------------------------------------
+
+const mcpProgram = program
+  .command('mcp')
+  .description('MCP servers and remote room bridges');
+
+mcpProgram
+  .command('bridge')
+  .description(
+    'stdio proxy to a remote Trellis room MCP endpoint (Streamable HTTP)',
+  )
+  .option('-r, --room <url>', 'Room base URL or full /mcp URL')
+  .option('-k, --api-key <key>', 'API key (defaults to .trellis-db.json)')
+  .option('--tenant <id>', 'Default tenant (e.g. embed-design-review)')
+  .option(
+    '--playground-room <slug>',
+    'Playground ?room= slug → tenant embed-{slug}',
+  )
+  .option('--config-dir <dir>', 'Directory containing .trellis-db.json', '.')
+  .option('--quiet', 'Suppress stderr startup message')
+  .action(async (opts) => {
+    const { runRoomMcpBridge } = await import('../mcp/bridge.js');
+    try {
+      await runRoomMcpBridge({
+        room: opts.room,
+        apiKey: opts.apiKey,
+        tenant: opts.tenant,
+        playgroundRoom: opts.playgroundRoom,
+        configDir: opts.configDir,
+        quiet: !!opts.quiet,
+      });
+    } catch (err) {
+      console.error(
+        chalk.red(err instanceof Error ? err.message : String(err)),
+      );
+      process.exit(1);
+    }
+  });
+
+const gatewayProgram = mcpProgram
+  .command('gateway')
+  .description('Hosted MCP discovery gateway (mcp.trellis.computer pattern)');
+
+gatewayProgram
+  .command('serve')
+  .description('Start discovery-only MCP gateway (list_rooms, connect_room)')
+  .option('-p, --port <port>', 'HTTP port', '3940')
+  .option('--config-dir <dir>', 'Directory for .trellis-db.json lookup', '.')
+  .option(
+    '--public-url <url>',
+    'Public URL for OAuth metadata (default: http://localhost:<port>)',
+  )
+  .action(async (opts) => {
+    const { startGatewayServer } = await import('../mcp/gateway-serve.js');
+    const port = parseInt(opts.port, 10) || 3940;
+    const publicUrl =
+      opts.publicUrl?.trim() || `http://localhost:${port}`;
+    const server = await startGatewayServer({
+      port,
+      configDir: opts.configDir,
+      publicUrl,
+    });
+
+    console.log(chalk.green('✓ Trellis MCP discovery gateway running'));
+    console.log(chalk.dim(`  Public:   ${publicUrl}`));
+    console.log(chalk.dim(`  MCP:      ${publicUrl}/mcp`));
+    console.log(chalk.dim(`  Gateway:  ${publicUrl}/gateway/mcp`));
+    console.log(chalk.dim(`  Health:   ${publicUrl}/health`));
+    console.log(chalk.dim(`  OAuth:    ${publicUrl}/.well-known/oauth-protected-resource`));
+    console.log('');
+    console.log(chalk.bold('Tools: list_rooms, get_room, connect_room'));
+
+    await new Promise<void>((resolve) => {
+      const shutdown = () => {
+        server.stop();
+        resolve();
+      };
+      process.on('SIGINT', shutdown);
+      process.on('SIGTERM', shutdown);
+    });
+  });
+
+gatewayProgram
+  .command('deploy')
+  .description('Deploy discovery gateway to Sprites (mcp.trellis.computer)')
+  .requiredOption('--name <name>', 'Sprite name (e.g. mcp-gateway)')
+  .option(
+    '--public-url <url>',
+    'Vanity URL for agents',
+    'https://mcp.trellis.computer',
+  )
+  .option(
+    '--port <port>',
+    'Port inside Sprite (default: 8080)',
+  )
+  .option('--config-dir <dir>', 'Directory for gateway config + room registry', '.')
+  .option(
+    '--rooms-file <path>',
+    'Extra rooms JSON merged into .trellis-rooms.json at deploy',
+  )
+  .option('--stub', 'Write config only — skip Sprites provisioning', false)
+  .action(async (opts) => {
+    const { runGatewayDeployCli } = await import('./gateway-deploy-cli.js');
+    await runGatewayDeployCli({
+      name: opts.name,
+      publicUrl: opts.publicUrl,
+      port: opts.port,
+      configDir: opts.configDir,
+      roomsFile: opts.roomsFile,
+      stub: !!opts.stub,
+    });
+  });
+
+// ---------------------------------------------------------------------------
 // trellis lane (Agent Lanes W2)
 // ---------------------------------------------------------------------------
 
 registerLaneCommands(program);
+registerProtocolCommands(program);
 
 // ---------------------------------------------------------------------------
 // Run

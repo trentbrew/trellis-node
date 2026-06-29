@@ -12,6 +12,7 @@ Decisions for the **Agent Lane** program (`trellis lane`). Status: **accepted** 
 | [0006](./0006-session-fork-lane-mapping.md) | Session fork → lane | Sibling lane fork; child fork deferred |
 | [0007](./0007-child-fork-lane-base.md) | Child fork lane base | Virtual base at parent head |
 | [0014](./0014-git-materialization-and-lane-worktrees.md) | Git materialization + lane worktrees | Blob-store commit on promote; per-lane worktree bind (W5) |
+| [0015](./0015-agent-handoff-protocol.md) | Agent handoff protocol | Graph-backed protocol messages + `whereami` re-entry (Phase 1a) |
 
 Desk issue: **TRL-35** (W0), **TRL-36** (W1). Plan: `TRELLIS/tooling/planning/agent-lanes.md`.
 
@@ -41,4 +42,4 @@ Nothing structurally. ADR 0005 supersedes **naming only** in 0001–0004.
 
 ## Next implementation phase
 
-**W2–W4** (TRL-37–39): ✅ CLI, promote, lazy replay. **Next: [ADR 0014](./0014-git-materialization-and-lane-worktrees.md) Phase 1** (git materialize on promote) → **Phase 2** (W5 worktree bind, TRL-40).
+**W2–W4** (TRL-37–39): ✅ CLI, promote, lazy replay. **W5** (worktree bind): ✅ TRL-40. **Next: [ADR 0014](./0014-git-materialization-and-lane-worktrees.md) Phase 1** (git materialize on promote) · **[ADR 0015](./0015-agent-handoff-protocol.md) Phase 1b** (workflow entity + hook graph sync).

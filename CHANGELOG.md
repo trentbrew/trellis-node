@@ -2,6 +2,16 @@
 
 Notable changes by release date and version. See [trellis.computer/changelog](https://trellis.computer/changelog) for the public site copy.
 
+## trellis [3.2.3] — 2026-06-29
+
+- **Agent handoff protocol (TRL-41 / ADR 0015):** `trellis protocol send` records trellis-handoffs YAML envelopes as child issues (`label: message` | `label: decision`); `trellis whereami` (+ `checkpoint`) for WAITING / ACTIVE / MOVED re-entry.
+- **`src/protocol/`:** envelope parse/validate, `isWaitingOnHuman`, lane-aware active context.
+- **Desk harness:** `templates/trellis-harness/trellis-cli.sh` — `trellis_harness_lane_worktree` / `trellis_harness_edit_root` for session hooks when `lanes.worktreeBind` is on.
+- **Agent lane worktree bind (W5 / TRL-40):** optional `lanes.worktreeBind` in `.trellis/config.json` provisions a per-lane git worktree at `.trellis/worktrees/<shortId>/` on `lane create` / `issue start`.
+- **`enterLane` materialize:** lane file blobs replay to the bound worktree; file watcher rebinds to the worktree root.
+- **`dropLane` cleanup:** removes the git worktree when `worktreePath` was provisioned.
+- **ADR 0014:** git materialization + lane worktrees spec (`docs/adr/0014-git-materialization-and-lane-worktrees.md`).
+
 ## trellis [3.2.2] — 2026-06-10
 
 - **`trellis db serve` on Node:** preloads the default tenant with sql.js / better-sqlite3 before accepting traffic — fixes `create-trellis` scaffolds and any `npx trellis db serve` flow that hit `SqliteKernelBackend requires the Bun runtime`.

@@ -93,6 +93,12 @@ function writeTrellisHooks(rootPath: string, ide: IdeType): void {
 
   // Write shared harness scripts
   writeFileSync(
+    join(trellisHarnessDir, 'trellis-cli.sh'),
+    readHarnessTemplate('trellis-cli.sh'),
+    'utf-8',
+  );
+
+  writeFileSync(
     join(trellisHarnessDir, 'pre-prompt-recall.sh'),
     renderPrePromptRecallScript(),
     'utf-8',
@@ -261,7 +267,8 @@ You are operating in a Trellis-tracked repository. Follow these guidelines:
 3. **Check \`workflows/\`** for repeatable task procedures. Favor existing workflows before improvising.
 4. **Update this file** as the project evolves — new teammates, new goals, new tools.
 5. **Communicate through Trellis** — prefer writing to the graph kernel over mutating files directly when recording decisions or state.
-6. **Run \`trellis season\`** if context seems incomplete or out of date.
+6. **Multi-agent lanes** — use \`trellis issue start\` or \`trellis lane\`; set \`lanes.worktreeBind\` in \`.trellis/config.json\` to edit under \`.trellis/worktrees/<shortId>/\` per agent.
+7. **Run \`trellis season\`** if context seems incomplete or out of date.
 
 ---
 
@@ -270,6 +277,8 @@ You are operating in a Trellis-tracked repository. Follow these guidelines:
 \`\`\`bash
 trellis status          # Current repo state
 trellis log             # Causal operation history
+trellis issue start TRL-N   # Branch + agent lane (default)
+trellis lane status     # Active lane + worktree path when bound
 trellis milestone       # Create narrative checkpoints
 trellis ask "..."       # Semantic search across the repo
 trellis season          # Re-run domain onboarding
@@ -555,8 +564,9 @@ function renderPrePromptRecallScript(): string {
 # Normalized contract: TRELLIS_ORIGIN, TRELLIS_DESK_ROOT, TRELLIS_HOOK_OUTPUT
 set -euo pipefail
 
-# Import desk root detection
-source "$(dirname "$0")/../../desk-root.sh"
+# Import desk root detection + trellis CLI helpers
+source "$(dirname "$0")/../desk-root.sh"
+source "$(dirname "$0")/trellis-cli.sh"
 
 # Environment variables from contract
 ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
@@ -568,24 +578,18 @@ if ! command -v trellis >/dev/null 2>&1; then
 fi
 
 # Try to get Trellis context (non-blocking)
-if [ -f ".trellis/config.json" ]; then
-  # Query recent memories and entities for context
-  CONTEXT_OUTPUT=$(trellis query --limit 5 --format json 2>/dev/null || echo '{"entities":[],"relations":[]}')
+if [ -f ".trellis/config.json" ] || [ -f "$(trellis_harness_vcs_path)/.trellis/config.json" ]; then
+  CONTEXT_OUTPUT='{"entities":[],"relations":[]}'
+  OPS_COUNT=$(trellis_harness_recent_log_count 3)
+  ISSUES_COUNT=$(trellis_harness_active_issue_count)
+  OPS_OUTPUT="{\\"count\\":\${OPS_COUNT}}"
+  ISSUES_OUTPUT="{\\"count\\":\${ISSUES_COUNT},\\"status\\":\\"in_progress\\"}"
 
-  # Query recent operations for context
-  OPS_OUTPUT=$(trellis log --limit 3 --format json 2>/dev/null || echo '{"operations":[]}')
-
-  # Query active issues
-  ISSUES_OUTPUT=$(trellis issue list --status active --format json 2>/dev/null || echo '{"issues":[]}')
-
-  # Format output based on hook type
   case "$OUTPUT" in
     "agent-stop")
-      # For Codex/Gemini blocking hooks
       echo "{}"
       ;;
     "gemini")
-      # For Gemini CLI format
       cat << EOF
 {
   "decision": "allow",
@@ -599,12 +603,10 @@ if [ -f ".trellis/config.json" ]; then
 EOF
       ;;
     *)
-      # Default stdout for Cursor/Devin/Claude
       echo ""
       echo "🌿 Trellis Context ($ORIGIN):"
-      echo "  Recent memories: $(echo "$CONTEXT_OUTPUT" | jq -r '.entities | length' 2>/dev/null || echo "0")"
-      echo "  Recent ops: $(echo "$OPS_OUTPUT" | jq -r '.operations | length' 2>/dev/null || echo "0")"
-      echo "  Active issues: $(echo "$ISSUES_OUTPUT" | jq -r '.issues | length' 2>/dev/null || echo "0")"
+      echo "  Recent ops: $OPS_COUNT"
+      echo "  Active issues: $ISSUES_COUNT"
       echo ""
       ;;
   esac
@@ -662,7 +664,8 @@ function renderPostToolMemoryCaptureScript(): string {
 set -euo pipefail
 
 # Import desk root detection
-source "$(dirname "$0")/../../desk-root.sh"
+source "$(dirname "$0")/../desk-root.sh"
+source "$(dirname "$0")/trellis-cli.sh"
 
 # Environment variables from contract
 ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
@@ -738,8 +741,9 @@ function renderStopTriageScript(): string {
 # Normalized contract: TRELLIS_ORIGIN, TRELLIS_DESK_ROOT, TRELLIS_HOOK_OUTPUT
 set -euo pipefail
 
-# Import desk root detection
-source "$(dirname "$0")/../../desk-root.sh"
+# Import desk root detection + trellis CLI helpers
+source "$(dirname "$0")/../desk-root.sh"
+source "$(dirname "$0")/trellis-cli.sh"
 
 # Environment variables from contract
 ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
@@ -750,10 +754,8 @@ if ! command -v trellis >/dev/null 2>&1; then
   exit 0
 fi
 
-if [ -f ".trellis/config.json" ]; then
-  # Check for active issues that need attention
-  ACTIVE_ISSUES=$(trellis issue list --status active --format json 2>/dev/null || echo '{"issues":[]}')
-  ACTIVE_COUNT=$(echo "$ACTIVE_ISSUES" | jq -r '.issues | length' 2>/dev/null || echo "0")
+if [ -f ".trellis/config.json" ] || [ -f "$(trellis_harness_vcs_path)/.trellis/config.json" ]; then
+  ACTIVE_COUNT=$(trellis_harness_active_issue_count)
 
   # Check for pending memory suggestions
   MEMORY_DIR=".trellis/agent-suggestions"
@@ -772,7 +774,7 @@ if [ -f ".trellis/config.json" ]; then
   RECOMMENDATIONS=()
 
   if [ "$ACTIVE_COUNT" -gt 0 ]; then
-    RECOMMENDATIONS+=("🎯 $ACTIVE_COUNT active issues need attention - run 'trellis issue list'")
+    RECOMMENDATIONS+=("🎯 $ACTIVE_COUNT active issues need attention - run 'trellis issue active'")
   fi
 
   if [ "$SUGGESTION_COUNT" -gt 0 ]; then
@@ -1441,8 +1443,9 @@ function renderBugIntakeScript(): string {
 # Creates structured issues with acceptance criteria and test requirements
 set -euo pipefail
 
-# Import desk root detection
+# Import desk root detection + trellis CLI helpers
 source "\\$(dirname "\\$0")/../desk-root.sh"
+source "\\$(dirname "\\$0")/trellis-cli.sh"
 
 # Environment variables from contract
 ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
@@ -1533,12 +1536,12 @@ This bug is considered **DONE** when:
 **Template:** bug-intake-v1.0
 "
 
-# Create the Trellis issue
-ISSUE_ID=$(echo "\\$ISSUE_CONTENT" | trellis issue create --title "\\$TITLE" --content-from-stdin --format json 2>/dev/null | jq -r '.id // empty' || echo "")
+# Create the Trellis issue (real CLI — no --format json)
+BUG_LABELS="bug,severity-\${SEVERITY},component-\${COMPONENT},tdd-required,needs-investigation,needs-triage"
+ISSUE_ID=$(trellis_harness_issue_create "\\$TITLE" "\\$BUG_LABELS" "Bug intake report" "" "queue" || true)
 
 if [ -n "\\$ISSUE_ID" ]; then
-  # Add labels to the issue
-  trellis issue label "\\$ISSUE_ID" add "bug" "severity-\\$SEVERITY" "component-\\$COMPONENT" "tdd-required" "needs-investigation" 2>/dev/null || true
+  trellis_harness_issue_set_description "\\$ISSUE_ID" "\\$ISSUE_CONTENT" || true
 
   echo ""
   echo "🐛 Bug Intake Completed (\\$ORIGIN):"
@@ -1548,7 +1551,7 @@ if [ -n "\\$ISSUE_ID" ]; then
   echo "  ✅ TDD requirements enforced"
   echo ""
   echo "📋 Next Steps:"
-  echo "  1. Investigate the bug: trellis issue view \\$ISSUE_ID"
+  echo "  1. Investigate the bug: trellis issue show \\$ISSUE_ID"
   echo "  2. Develop tests with TDD approach"
   echo "  3. Implement fix"
   echo ""
@@ -1565,8 +1568,9 @@ function renderBugInvestigateScript(): string {
 # Ensures thorough investigation before fix implementation
 set -euo pipefail
 
-# Import desk root detection
+# Import desk root detection + trellis CLI helpers
 source "\\$(dirname "\\$0")/../desk-root.sh"
+source "\\$(dirname "\\$0")/trellis-cli.sh"
 
 # Environment variables from contract
 ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
@@ -1585,8 +1589,7 @@ if [ -z "\\$ISSUE_ID" ]; then
 fi
 
 # Get issue details
-ISSUE_DETAILS=$(trellis issue view "\\$ISSUE_ID" --format json 2>/dev/null || echo "{}")
-TITLE=$(echo "\\$ISSUE_DETAILS" | jq -r '.title // "Unknown Issue"' 2>/dev/null || echo "Unknown Issue")
+TITLE=$(trellis_harness_issue_parse_title "\\$ISSUE_ID" 2>/dev/null || echo "Unknown Issue")
 
 # Create test directory structure
 TEST_DIR="tests/bugs/\\$ISSUE_ID"
@@ -1669,12 +1672,13 @@ echo ""
 
 function renderMilestoneTriageScript(): string {
   return `#!/usr/bin/env bash
-# Milestone and cycle triage for Trellis integration
-# Integrates bugs with project milestones and development cycles
+# Milestone and sprint (label) triage for Trellis integration
+# Sprint time-boxing via sprint:* labels — no trellis cycle * CLI
 set -euo pipefail
 
-# Import desk root detection
+# Import desk root detection + trellis CLI helpers
 source "\\$(dirname "\\$0")/../desk-root.sh"
+source "\\$(dirname "\\$0")/trellis-cli.sh"
 
 # Environment variables from contract
 ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
@@ -1693,17 +1697,17 @@ if [ -z "\\$ISSUE_ID" ]; then
 fi
 
 # Get issue details and calculate priority
-ISSUE_DETAILS=$(trellis issue view "\\$ISSUE_ID" --format json 2>/dev/null || echo "{}")
-TITLE=$(echo "\\$ISSUE_DETAILS" | jq -r '.title // "Unknown Issue"' 2>/dev/null || echo "Unknown Issue")
-LABELS=$(echo "\\$ISSUE_DETAILS" | jq -r '.labels // []' 2>/dev/null || echo "[]")
-SEVERITY=$(echo "\\$LABELS" | jq -r '.[] | select(startswith("severity-")) | split("-")[1]' 2>/dev/null || echo "medium")
+TITLE=$(trellis_harness_issue_parse_title "\\$ISSUE_ID" 2>/dev/null || echo "Unknown Issue")
+LABELS_LINE=$(trellis_harness_issue_parse_labels "\\$ISSUE_ID" 2>/dev/null || echo "")
+SEVERITY="medium"
+case "\\$LABELS_LINE" in
+  *severity-critical*) SEVERITY="critical" ;;
+  *severity-high*) SEVERITY="high" ;;
+  *severity-low*) SEVERITY="low" ;;
+esac
 
-# Get current milestone and cycle info
-CURRENT_MILESTONE=$(trellis milestone current --format json 2>/dev/null || echo "{}")
-MILESTONE_NAME=$(echo "\\$CURRENT_MILESTONE" | jq -r '.name // "current"' 2>/dev/null || echo "current")
-
-CURRENT_CYCLE=$(trellis cycle current --format json 2>/dev/null || echo "{}")
-CYCLE_NAME=$(echo "\\$CURRENT_CYCLE" | jq -r '.name // "current"' 2>/dev/null || echo "current")
+MILESTONE_NAME=$(trellis_harness_latest_milestone_name)
+SPRINT_LABEL=$(trellis_harness_sprint_label)
 
 # Calculate priority based on severity
 calculate_priority() {
@@ -1719,30 +1723,34 @@ calculate_priority() {
 
 PRIORITY=$(calculate_priority "\\$SEVERITY")
 
-# Update issue labels and assign to milestone/cycle
-trellis issue label "\\$ISSUE_ID" add "triaged" "priority-\\$PRIORITY" "milestone-\\$MILESTONE_NAME" "cycle-\\$CYCLE_NAME" 2>/dev/null || true
-
-# Update issue priority
-trellis issue priority "\\$ISSUE_ID" set "\\$PRIORITY" 2>/dev/null || true
+MERGED_LABELS=$(trellis_harness_merge_labels "\\$LABELS_LINE" "triaged,priority-\${PRIORITY},milestone-\${MILESTONE_NAME}")
+trellis_harness_issue_update_labels "\\$ISSUE_ID" "\\$MERGED_LABELS" || true
+case "\\$PRIORITY" in
+  urgent) trellis_harness_issue_update_priority "\\$ISSUE_ID" "critical" || true ;;
+  high) trellis_harness_issue_update_priority "\\$ISSUE_ID" "high" || true ;;
+  low) trellis_harness_issue_update_priority "\\$ISSUE_ID" "low" || true ;;
+  *) trellis_harness_issue_update_priority "\\$ISSUE_ID" "medium" || true ;;
+esac
 
 echo ""
-echo "🎯 Milestone & Cycle Triage Completed (\\$ORIGIN):"
+echo "🎯 Milestone & Sprint Triage Completed (\\$ORIGIN):"
 echo "  📝 Issue: #\\$ISSUE_ID - \\$TITLE"
 echo "  🚦 Priority: \\$PRIORITY"
 echo "  🎯 Milestone: \\$MILESTONE_NAME"
-echo "  🔄 Cycle: \\$CYCLE_NAME"
+echo "  🏷️ Sprint (label): \\$SPRINT_LABEL"
 echo ""
 `;
 }
 
 function renderCyclePlanningScript(): string {
   return `#!/usr/bin/env bash
-# Cycle planning and workload management for Trellis integration
-# Manages development cycles, sprint planning, and resource allocation
+# Sprint planning (label convention) for Trellis integration
+# Time-boxed WIP via sprint:* issue labels — no trellis cycle * CLI
 set -euo pipefail
 
-# Import desk root detection
+# Import desk root detection + trellis CLI helpers
 source "\\$(dirname "\\$0")/../desk-root.sh"
+source "\\$(dirname "\\$0")/trellis-cli.sh"
 
 # Environment variables from contract
 ORIGIN="\${TRELLIS_ORIGIN:-unknown}"
@@ -1753,17 +1761,15 @@ if ! command -v trellis >/dev/null 2>&1; then
   exit 0
 fi
 
-# Get current cycle information
-CURRENT_CYCLE=$(trellis cycle current --format json 2>/dev/null || echo "{}")
-CYCLE_NAME=$(echo "\\$CURRENT_CYCLE" | jq -r '.name // "current"' 2>/dev/null || echo "current")
+# Sprint = label convention; plan from in_progress issues + milestones
+SPRINT_LABEL=$(trellis_harness_sprint_label)
+WORKLOAD=$(trellis_harness_active_issue_count)
+MILESTONE_NAME=$(trellis_harness_latest_milestone_name)
 
-# Get all issues in current cycle
-CYCLE_ISSUES=$(trellis cycle issues --format json 2>/dev/null || echo "[]")
-
-# Analyze cycle workload
-total_issues=$(echo "\\$CYCLE_ISSUES" | jq 'length' 2>/dev/null || echo "0")
-urgent_issues=$(echo "\\$CYCLE_ISSUES" | jq '[.[] | select(.labels[] | contains("priority-urgent"))] | length' 2>/dev/null || echo "0")
-high_issues=$(echo "\\$CYCLE_ISSUES" | jq '[.[] | select(.labels[] | contains("priority-high"))] | length' 2>/dev/null || echo "0")
+# Analyze sprint workload
+total_issues="\\$WORKLOAD"
+urgent_issues=0
+high_issues=0
 
 # Calculate health score
 health_score=100
@@ -1775,8 +1781,8 @@ if [ "\\$health_score" -lt 0 ]; then
 fi
 
 echo ""
-echo "🔄 Cycle Planning Completed (\\$ORIGIN):"
-echo "  📊 Cycle: \\$CYCLE_NAME"
+echo "🔄 Sprint Planning Completed (\\$ORIGIN):"
+echo "  📊 Sprint (label): \\$SPRINT_LABEL"
 echo "  📈 Health Score: \\$health_score/100"
 echo "  📝 Total Issues: \\$total_issues"
 echo "  🚨 Urgent Issues: \\$urgent_issues"
