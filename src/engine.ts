@@ -35,6 +35,9 @@ import * as checkpointMod from './vcs/checkpoint.js';
 import * as diffMod from './vcs/diff.js';
 import * as mergeMod from './vcs/merge.js';
 import * as issueMod from './vcs/issue.js';
+import * as storeMod from './vcs/store.js';
+import type { Atom } from './core/store/eav-store.js';
+import type { EntityRecord } from './core/kernel/trellis-kernel.js';
 import * as decisionMod from './decisions/index.js';
 import { IdeaGarden, buildMilestonedOpHashes } from './garden/index.js';
 import {
@@ -67,6 +70,8 @@ import type {
   IntegrationCache,
   MaterializationStats,
 } from './vcs/lane-materialize.js';
+import * as laneWorktreeMod from './vcs/lane-worktree.js';
+import * as laneDiskMod from './vcs/lane-disk-materialize.js';
 
 /**
  * Parse an ignore file (.gitignore or .trellisignore) and return normalized
@@ -140,6 +145,7 @@ interface PersistedConfig {
   debounceMs: number;
   defaultBranch: string;
   indexWorkspace?: boolean;
+  lanes?: TrellisVcsConfig['lanes'];
   agentId: string;
   createdAt: string;
 }
@@ -221,6 +227,7 @@ export class TrellisVcsEngine {
   private integrationCache: IntegrationCache | null = null;
   private materializationStats: MaterializationStats =
     materializeMod.emptyMaterializationStats();
+  private watchReconcileOnRestart = false;
 
   constructor(
     opts: {
@@ -254,6 +261,7 @@ export class TrellisVcsEngine {
       defaultBranch: opts.defaultBranch ?? DEFAULT_CONFIG.defaultBranch,
       dbPath: opts.dbPath ?? DEFAULT_CONFIG.dbPath,
       indexWorkspace: opts.indexWorkspace ?? DEFAULT_CONFIG.indexWorkspace,
+      lanes: opts.lanes,
     };
     this.agentId = opts.agentId ?? `agent:${process.env.USER ?? 'unknown'}`;
     this.store = new EAVStore();
@@ -281,6 +289,7 @@ export class TrellisVcsEngine {
       debounceMs: this.config.debounceMs,
       defaultBranch: this.config.defaultBranch,
       indexWorkspace: this.config.indexWorkspace,
+      lanes: this.config.lanes,
       agentId: this.agentId,
       createdAt: createdAt ?? existing?.createdAt ?? new Date().toISOString(),
     };
@@ -458,6 +467,9 @@ export class TrellisVcsEngine {
       this.config.defaultBranch = persisted.defaultBranch;
       this.config.indexWorkspace =
         persisted.indexWorkspace ?? DEFAULT_CONFIG.indexWorkspace;
+      if (persisted.lanes) {
+        this.config.lanes = persisted.lanes;
+      }
     }
 
     // Load branch + lane session state
@@ -507,9 +519,35 @@ export class TrellisVcsEngine {
    * Start watching the filesystem for changes.
    */
   watch(opts?: { reconcileExisting?: boolean }): void {
-    const reconcileExisting =
+    this.watchReconcileOnRestart =
       opts?.reconcileExisting ?? this.config.indexWorkspace;
+    this.startWatcherAt(this.getWatcherRoot(), this.watchReconcileOnRestart);
+  }
 
+  private getWatcherRoot(): string {
+    if (!this.isWorktreeBindEnabled() || !this.activeLaneId) {
+      return this.config.rootPath;
+    }
+    const meta = this.getLaneMeta(this.activeLaneId);
+    return meta?.worktreePath ?? this.config.rootPath;
+  }
+
+  private isWorktreeBindEnabled(): boolean {
+    return this.config.lanes?.worktreeBind === true;
+  }
+
+  private rebindWatcher(rootPath: string): void {
+    const wasRunning = this.watcher !== null;
+    if (wasRunning) {
+      this.stop();
+      this.startWatcherAt(rootPath, false);
+    }
+  }
+
+  private startWatcherAt(
+    rootPath: string,
+    reconcileExisting: boolean,
+  ): void {
     this.ingestion = new Ingestion({
       agentId: this.agentId,
       lastOpHash: this.getActiveJournal().getLastOp()?.hash,
@@ -517,18 +555,17 @@ export class TrellisVcsEngine {
     });
 
     this.watcher = new FileWatcher({
-      rootPath: this.config.rootPath,
+      rootPath,
       ignorePatterns: [...this.config.ignorePatterns, '.trellis'],
       debounceMs: this.config.debounceMs,
       onEvent: async (event) => {
-        // Store blob for file adds/modifies
         if (
           (event.type === 'add' || event.type === 'modify') &&
           event.contentHash &&
           this._blobStore
         ) {
           try {
-            const absPath = join(this.config.rootPath, event.path);
+            const absPath = join(rootPath, event.path);
             const content = await readFile(absPath);
             await this._blobStore.put(content);
           } catch {}
@@ -542,19 +579,14 @@ export class TrellisVcsEngine {
       return;
     }
 
-    // Scan to populate known files map, reconcile against op log for
-    // untracked files, then start watching for live changes.
     this.watcher.scan().then(async (scanEvents) => {
-      // Build set of paths already tracked in the op log
       const trackedPaths = new Set(this.trackedFiles().map((f) => f.path));
 
-      // Emit fileAdd ops for files on disk that aren't in the op log
       for (const event of scanEvents) {
         if (!trackedPaths.has(event.path)) {
-          // Store blob
           if (event.contentHash && this._blobStore) {
             try {
-              const absPath = join(this.config.rootPath, event.path);
+              const absPath = join(rootPath, event.path);
               const content = await readFile(absPath);
               await this._blobStore.put(content);
             } catch {}
@@ -564,6 +596,80 @@ export class TrellisVcsEngine {
       }
 
       this.watcher!.start();
+    });
+  }
+
+  private async provisionLaneWorktree(
+    meta: LaneMeta,
+    worktreePathOverride?: string,
+  ): Promise<LaneMeta> {
+    if (
+      !this.isWorktreeBindEnabled() ||
+      !laneWorktreeMod.isGitRepo(this.config.rootPath)
+    ) {
+      return meta;
+    }
+
+    const worktreePath =
+      worktreePathOverride ??
+      meta.worktreePath ??
+      laneWorktreeMod.defaultWorktreePath(this.trellisDir(), meta.id);
+    const branch = laneWorktreeMod.laneGitBranch(meta.id);
+    const baseRef = laneWorktreeMod.resolveBaseRef(
+      this.config.rootPath,
+      meta.baseBranch,
+    );
+
+    laneWorktreeMod.provisionWorktree({
+      rootPath: this.config.rootPath,
+      worktreePath,
+      branch,
+      baseRef,
+    });
+
+    meta.worktreePath = worktreePath;
+    meta.updatedAt = new Date().toISOString();
+    laneMod.saveLaneMeta(this.trellisDir(), meta);
+    return meta;
+  }
+
+  private async materializeLaneWorktree(meta: LaneMeta): Promise<void> {
+    if (
+      !this.isWorktreeBindEnabled() ||
+      !meta.worktreePath ||
+      !this._blobStore ||
+      !this.activeLaneLog
+    ) {
+      return;
+    }
+
+    let parentLaneOps: VcsOp[] | undefined;
+    if (meta.forkKind === 'child' && meta.parentLaneId) {
+      parentLaneOps = this.loadLaneJournalOps(meta.parentLaneId);
+    }
+
+    const fileStates = laneDiskMod.collectLaneFileStates(
+      this.opLog.readAll(),
+      this.activeLaneLog.readAll(),
+      meta,
+      parentLaneOps,
+    );
+    laneDiskMod.materializeToDisk(
+      meta.worktreePath,
+      fileStates,
+      this._blobStore,
+    );
+  }
+
+  private removeLaneWorktree(meta: LaneMeta): void {
+    if (!meta.worktreePath) return;
+    if (!laneWorktreeMod.isGitRepo(this.config.rootPath)) return;
+
+    laneWorktreeMod.removeWorktree({
+      rootPath: this.config.rootPath,
+      worktreePath: meta.worktreePath,
+      branch: laneWorktreeMod.laneGitBranch(meta.id),
+      deleteBranch: true,
     });
   }
 
@@ -972,12 +1078,8 @@ export class TrellisVcsEngine {
       },
     });
     await this.applyOp(op);
-    return meta;
+    return this.provisionLaneWorktree(meta, opts?.worktreePath);
   }
-
-  /**
-   * Fork a lane for a new session (ADR 0006 sibling, ADR 0007 child).
-   */
   async forkLane(
     parentLaneId: string,
     opts?: {
@@ -1043,7 +1145,7 @@ export class TrellisVcsEngine {
         },
       });
       await this.applyOp(op);
-      return meta;
+      return this.provisionLaneWorktree(meta, opts?.worktreePath);
     }
 
     const meta = laneMod.createLaneMeta(this.trellisDir(), {
@@ -1074,7 +1176,7 @@ export class TrellisVcsEngine {
       },
     });
     await this.applyOp(op);
-    return meta;
+    return this.provisionLaneWorktree(meta, opts?.worktreePath);
   }
 
   /**
@@ -1105,6 +1207,11 @@ export class TrellisVcsEngine {
       meta,
     );
 
+    await this.materializeLaneWorktree(meta);
+    if (meta.worktreePath) {
+      this.rebindWatcher(meta.worktreePath);
+    }
+
     branchMod.saveBranchState(this.config.rootPath, {
       currentBranch: this.currentBranch,
       activeLaneId: laneId,
@@ -1117,6 +1224,11 @@ export class TrellisVcsEngine {
   async leaveLane(): Promise<void> {
     if (!this.activeLaneId) return;
 
+    const wasRunning = this.watcher !== null;
+    if (wasRunning) {
+      this.stop();
+    }
+
     this.activeLaneId = undefined;
     this.activeLaneLog = null;
     branchMod.saveBranchState(this.config.rootPath, {
@@ -1124,6 +1236,10 @@ export class TrellisVcsEngine {
     });
     this.restoreIntegrationOnlyStore();
     this.syncIngestionLastOpHash();
+
+    if (wasRunning && this.isWorktreeBindEnabled()) {
+      this.startWatcherAt(this.config.rootPath, false);
+    }
   }
 
   /** Mark a lane dropped (leaves first if it is the active lane). */
@@ -1151,11 +1267,8 @@ export class TrellisVcsEngine {
       },
     });
     await this.applyOp(op);
+    this.removeLaneWorktree(meta);
   }
-
-  /**
-   * Promote a lane journal onto the integration branch (ADR 0002, ADR 0003).
-   */
   async promoteLane(
     laneId: string,
     opts?: { dryRun?: boolean; explain?: boolean; toBranch?: string },
@@ -1704,6 +1817,114 @@ export class TrellisVcsEngine {
 
   getActiveIssues(): issueMod.IssueInfo[] {
     return issueMod.getActiveIssues(this._ctx());
+  }
+
+  // -------------------------------------------------------------------------
+  // EAV Store (delegated to src/vcs/store.ts — ADR 0008)
+  // -------------------------------------------------------------------------
+
+  async createStoreEntity(
+    entityId: string,
+    type: string,
+    attributes: Record<string, Atom> = {},
+    opts?: storeMod.StoreEntityCreateOptions,
+  ): Promise<VcsOp> {
+    const op = await storeMod.createEntity(
+      this._ctx(),
+      entityId,
+      type,
+      attributes,
+      opts,
+    );
+    await this.flushAutoCheckpoint();
+    return op;
+  }
+
+  async updateStoreEntity(
+    entityId: string,
+    updates: Record<string, Atom>,
+  ): Promise<VcsOp> {
+    const op = await storeMod.updateEntity(this._ctx(), entityId, updates);
+    await this.flushAutoCheckpoint();
+    return op;
+  }
+
+  async deleteStoreEntity(entityId: string): Promise<VcsOp> {
+    const op = await storeMod.deleteEntity(this._ctx(), entityId);
+    await this.flushAutoCheckpoint();
+    return op;
+  }
+
+  getStoreEntity(entityId: string): EntityRecord | null {
+    return storeMod.getEntity(this._ctx(), entityId);
+  }
+
+  listStoreEntities(
+    type?: string,
+    filters?: Record<string, Atom>,
+    opts?: { includeVcs?: boolean },
+  ): EntityRecord[] {
+    return storeMod.listEntities(this._ctx(), type, filters, opts);
+  }
+
+  /** Raw EAV store (materialized from ops.json in VCS repos). */
+  getEavStore() {
+    return this._ctx().store;
+  }
+
+  async addStoreFact(
+    entityId: string,
+    attribute: string,
+    value: Atom,
+  ): Promise<VcsOp> {
+    const op = await storeMod.addFact(this._ctx(), entityId, attribute, value);
+    await this.flushAutoCheckpoint();
+    return op;
+  }
+
+  async removeStoreFact(
+    entityId: string,
+    attribute: string,
+    value: Atom,
+  ): Promise<VcsOp> {
+    const op = await storeMod.removeFact(
+      this._ctx(),
+      entityId,
+      attribute,
+      value,
+    );
+    await this.flushAutoCheckpoint();
+    return op;
+  }
+
+  async addStoreLink(
+    sourceId: string,
+    attribute: string,
+    targetId: string,
+  ): Promise<VcsOp> {
+    const op = await storeMod.addLink(
+      this._ctx(),
+      sourceId,
+      attribute,
+      targetId,
+    );
+    await this.flushAutoCheckpoint();
+    return op;
+  }
+
+  async removeStoreLink(
+    sourceId: string,
+    attribute: string,
+    targetId: string,
+  ): Promise<VcsOp> {
+    const op = await storeMod.removeLink(
+      this._ctx(),
+      sourceId,
+      attribute,
+      targetId,
+    );
+    await this.flushAutoCheckpoint();
+    return op;
   }
 
   // -------------------------------------------------------------------------

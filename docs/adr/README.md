@@ -11,6 +11,7 @@ Decisions for the **Agent Lane** program (`trellis lane`). Status: **accepted** 
 | [0005](./0005-agent-lane-naming.md) | Agent Lane naming | **Lane** replaces workspace for this feature |
 | [0006](./0006-session-fork-lane-mapping.md) | Session fork → lane | Sibling lane fork; child fork deferred |
 | [0007](./0007-child-fork-lane-base.md) | Child fork lane base | Virtual base at parent head |
+| [0014](./0014-git-materialization-and-lane-worktrees.md) | Git materialization + lane worktrees | Blob-store commit on promote; per-lane worktree bind (W5) |
 
 Desk issue: **TRL-35** (W0), **TRL-36** (W1). Plan: `TRELLIS/tooling/planning/agent-lanes.md`.
 
@@ -28,6 +29,7 @@ Desk issue: **TRL-35** (W0), **TRL-36** (W1). Plan: `TRELLIS/tooling/planning/ag
 | --- | ----- | -------- |
 | [0011](./0011-app-shell-three-bands.md) | App shell three bands | L1 published / L2 editor / L3 operator inset — one graph, one shell (**accepted**, TRL-33) |
 | [0012](./0012-graph-overlay-config-surface.md) | Graph overlay config surface | One projection canvas; anchored/ambient L3 inset; vantage detents; homo/hetero binding (**accepted**, TRL-25/38) |
+| [0013](./0013-rich-text-document-model.md) | Rich text document model | Graph-native documents; `trellis/document` semantic layer; editor substrate via Tiptap/Plate; collab tiers; `presenceRelay` dev parity (**accepted**, TRL-10) |
 
 ## Terminology
 
@@ -39,4 +41,4 @@ Nothing structurally. ADR 0005 supersedes **naming only** in 0001–0004.
 
 ## Next implementation phase
 
-**W2–W4** (TRL-37–39): ✅ CLI, promote, lazy replay. **Next: W5** worktree bind + session fork wiring (TRL-40, [ADR 0006](./0006-session-fork-lane-mapping.md)).
+**W2–W4** (TRL-37–39): ✅ CLI, promote, lazy replay. **Next: [ADR 0014](./0014-git-materialization-and-lane-worktrees.md) Phase 1** (git materialize on promote) → **Phase 2** (W5 worktree bind, TRL-40).
